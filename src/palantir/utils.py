@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
 import bhtsne
-import GraphDiffusion
 import phenograph
 
 from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse import csr_matrix, find
+from scipy.sparse.linalg import eigs
 
 
 def run_pca(data, n_components=300):
@@ -55,10 +55,23 @@ def run_diffusion_maps(pca_projections, n_components=10, knn=30, n_jobs=-1):
 	
 	# Diffusion components
 	kernel = W + W.T
-	res = GraphDiffusion.graph_diffusion.run_diffusion_map(kernel, 
-	    normalization='markov', n_diffusion_components=n_components)
 
-	# Convert to dataframe
+	# Markov
+	D = np.ravel(kernel.sum(axis = 1))
+	D[D!=0] = 1/D[D!=0]
+	T = csr_matrix((D, (range(N), range(N))), shape=[N, N]).dot(kernel)
+	# Eigen value dcomposition
+	D, V = eigs(T, n_components, tol=1e-4, maxiter=1000)
+	D = np.real(D);	V = np.real(V)
+	inds = np.argsort(D)[::-1]
+	D = D[inds];	V = V[:, inds]
+
+	# Normalize
+	for i in range(V.shape[1]):
+	    V[:, i] = V[:, i] / np.linalg.norm(V[:, i])
+
+	# Create are results dictionary
+	res = {'T': T, 'EigenVectors': V, 'EigenValues': D}
 	res['EigenVectors'] = pd.DataFrame(res['EigenVectors'], index=pca_projections.index)
 	res['EigenValues'] = pd.Series(res['EigenValues'])
 

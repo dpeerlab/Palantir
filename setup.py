@@ -13,7 +13,6 @@ if sys.version_info.minor < 6:
 
 # install GraphDiffusion
 if shutil.which('pip3'):
-    call(['pip3', 'install', 'git+https://github.com/pkathail/GraphDiffusion.git'])
     call(['pip3', 'install', 'git+https://github.com/jacoblevine/PhenoGraph.git'])
 
 
@@ -32,7 +31,11 @@ setup(name='palantir',
           'networkx>=2.0',
           'joblib',
           'fcsparser',
-          'GraphDiffusion', 
-          'phenograph'
+          'phenograph',
+          'tables>=3.2',
+          'Cython',
+          'bhtsne',
+          'matplotlib>=2.0.0',
+          'seaborn>=0.7.1'
       ],
       )
