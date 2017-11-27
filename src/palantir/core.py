@@ -44,7 +44,7 @@ def run_palantir(ms_data, early_cell, terminal_states=None,
         data = pd.DataFrame(preprocessing.minmax_scale(ms_data), 
             index=ms_data.index, columns=ms_data.columns)
     else:
-        data = copy(ms_data)
+        data = copy.copy(ms_data)
 
     # ################################################
     # Determine the boundary cell closest to user defined early cell
