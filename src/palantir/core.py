@@ -27,7 +27,8 @@ warnings.filterwarnings(action="ignore", module="scipy", message="Changing the s
 
 
 def run_palantir(ms_data, early_cell, terminal_states=None,
-    knn=30, num_waypoints=1200, n_jobs=-1, scale_components=True):
+    knn=30, num_waypoints=1200, n_jobs=-1, 
+    scale_components=True, use_early_cell_as_start=False):
     """Function for max min sampling of waypoints
 
     :param data: Multiscale space diffusion components
@@ -52,6 +53,8 @@ def run_palantir(ms_data, early_cell, terminal_states=None,
     dists = pairwise_distances( data.loc[dm_boundaries, :], 
         data.loc[early_cell, :].values.reshape(1, -1))
     start_cell = pd.Series(np.ravel(dists), index=dm_boundaries).idxmin()
+    if use_early_cell_as_start:
+        start_cell = early_cell
     
     # Sample waypoints
     print('Sampling and flocking waypoints...')
@@ -63,6 +66,8 @@ def run_palantir(ms_data, early_cell, terminal_states=None,
     else:
         waypoints = num_waypoints
     waypoints = waypoints.union(dm_boundaries)
+    if terminal_states is not None:
+        waypoints = waypoints.union(terminal_states)
     waypoints = pd.Index(waypoints.difference([start_cell]).unique())
 
     # Append start cell
@@ -280,6 +285,7 @@ def _differentiation_entropy(wp_data, terminal_states,
 
 
     # Identify terminal states if not specific
+    dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
     if terminal_states is None:
         vals, vecs = eigs(T.T, 10)
 
@@ -292,14 +298,32 @@ def _differentiation_entropy(wp_data, terminal_states,
 
         # Connected components of cells beyond cutoff
         cells = ranks.index[ranks > cutoff]
-        # Clusters cells
-        Z = hierarchy.linkage(pairwise_distances(wp_data.loc[cells,:]))
-        clusters = pd.Series(hierarchy.fcluster(Z, 1, 'distance'), index=cells)  
+        
+        # # Clusters cells
+        # Z = hierarchy.linkage(pairwise_distances(wp_data.loc[cells,:]))
+        # clusters = pd.Series(hierarchy.fcluster(Z, 1, 'distance'), index=cells)  
 
-        # Cells farthest along trajectory for each cluster
-        cells = trajectory[cells].groupby(clusters).idxmax()
+        # Find connected components
+        T_dense = pd.DataFrame(T.todense(), index=waypoints, columns=waypoints)
+        graph = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
+        cells = [trajectory[i].idxmax() for i in nx.connected_components(graph)]
+
+        # # Adjust cutoff is there is only one cluster
+        # if len(set(clusters)) == 1 and len(dm_boundaries.intersection(cells)) > 1:
+        #     # Based on gradient change
+        #     index = np.where(np.diff(np.sort(ranks)) > 1e-4)[0][0]
+        #     cutoff = np.sort(ranks)[index]
+
+        #     # Connected components of cells beyond cutoff
+        #     cells = ranks.index[ranks > cutoff]
+        #     # Clusters cells
+        #     Z = hierarchy.linkage(pairwise_distances(wp_data.loc[cells,:]))
+        #     clusters = pd.Series(hierarchy.fcluster(Z, 1, 'distance'), index=cells)  
+
+        # # Cells farthest along trajectory for each cluster
+        # cells = trajectory[cells].groupby(clusters).idxmax()
+
         # Nearest diffusion map boundaries
-        dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
         terminal_states = [pd.Series(np.ravel(pairwise_distances(wp_data.loc[dm_boundaries,:], 
                     wp_data.loc[i,:].values.reshape(1,-1))), index=dm_boundaries).idxmin()
             for i in cells]
