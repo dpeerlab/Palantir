@@ -10,6 +10,10 @@ if sys.version_info.major != 3:
 if sys.version_info.minor < 6:
     warn('Analysis methods were developed using Python 3.6')
 
+# get version
+with open('src/palantir/version.py') as f:
+    exec(f.read())
+
 
 # install GraphDiffusion
 if shutil.which('pip3'):
@@ -17,6 +21,7 @@ if shutil.which('pip3'):
 
 
 setup(name='palantir',
+      version=__version__,  # read in from the exec of version.py; ignore error   
       description='Palantir for modeling continuous cell state and cell fate choices in single cell data',
       url='https://github.com/manusetty/palantir',
       author='Manu Setty',

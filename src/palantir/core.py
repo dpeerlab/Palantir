@@ -162,7 +162,7 @@ def _compute_trajectory(data, start_cell, knn,
 
     # ################################################
     # Shortest path distances to determine trajectories
-    print('Shortest path distances...')
+    print('Shortest path distances using {}-nearest neighbor graph...'.format(knn))
     start =time.time()
     nbrs = NearestNeighbors(n_neighbors=knn, 
             metric='euclidean', n_jobs=n_jobs).fit(data) 
@@ -284,7 +284,7 @@ def _differentiation_entropy(wp_data, terminal_states,
     T = csr_matrix(( z / D[x], (x, y)), [len(waypoints), len(waypoints)])
 
 
-    # Identify terminal states if not specific
+    # Identify terminal states if not specified
     dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
     if terminal_states is None:
         vals, vecs = eigs(T.T, 10)
