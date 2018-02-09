@@ -228,17 +228,47 @@ def _compute_trajectory(data, start_cell, knn,
     return trajectory, W
 
 
-def _differentiation_entropy(wp_data, terminal_states,
-    knn, n_jobs, trajectory):
-    """Function to compute entropy and branch probabilities
+def identify_terminal_states(ms_data, early_cell, knn=30, num_waypoints=1200, n_jobs=-1):
 
-    :param wp_data: Multi scale data of the waypoints
-    :param terminal_states: Terminal states
-    :param knn: Number of nearest neighbors for graph construction
-    :param n_jobs: Number of jobs for parallel processing
-    :param trajectory: Pseudo time ordering of cells
-    :return: entropy and branch probabilities
-    """
+    # Scale components
+    data = pd.DataFrame(preprocessing.minmax_scale(ms_data), 
+        index=ms_data.index, columns=ms_data.columns)
+
+    #  Start cell as the nearest diffusion map boundary
+    dm_boundaries = pd.Index(set(data.idxmax()).union(data.idxmin()))
+    dists = pairwise_distances( data.loc[dm_boundaries, :], 
+        data.loc[early_cell, :].values.reshape(1, -1))
+    start_cell = pd.Series(np.ravel(dists), index=dm_boundaries).idxmin()
+
+    # Sample waypoints
+    # Append start cell
+    waypoints = _max_min_sampling( data, num_waypoints)
+    waypoints = waypoints.union(dm_boundaries)
+    waypoints = pd.Index(waypoints.difference([start_cell]).unique())
+
+    # Append start cell
+    waypoints = pd.Index([start_cell]).append(waypoints)
+
+
+    # Distance to start cell as pseudo trajectory
+    trajectory, _ = _compute_trajectory(data, start_cell, knn, 
+        waypoints, n_jobs)
+
+    # Markov chain
+    wp_data = data.loc[waypoints, :]
+    T = _construct_markov_chain(wp_data, knn, trajectory, n_jobs)
+
+    # Terminal states
+    terminal_states = _terminal_states_from_markov_chain(T, wp_data, trajectory)
+
+    # Excluded diffusion map boundaries
+    dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
+    excluded_boundaries = dm_boundaries.difference(terminal_states).difference([start_cell])
+    return terminal_states, excluded_boundaries
+
+
+
+def _construct_markov_chain(wp_data, knn, trajectory, n_jobs):
 
     # Markov chain construction
     print('Markov chain construction...')
@@ -252,7 +282,7 @@ def _differentiation_entropy(wp_data, terminal_states,
     dist,ind = nbrs.kneighbors(wp_data)
 
     # Standard deviation allowing for "back" edges
-    adpative_k = np.min([int(np.floor(n_neighbors / 3)) - 1, 15])
+    adpative_k = np.min([int(np.floor(n_neighbors / 3)) - 1, 30])
     adaptive_std = np.ravel(dist[:, adpative_k])
 
     # Directed graph construction
@@ -283,53 +313,127 @@ def _differentiation_entropy(wp_data, terminal_states,
     x, y, z = find(W)
     T = csr_matrix(( z / D[x], (x, y)), [len(waypoints), len(waypoints)])
 
+    return T
+
+
+def _terminal_states_from_markov_chain(T, wp_data, trajectory):
+    print('Identification of terminal states...')
+
+    # Identify terminal statses
+    waypoints = wp_data.index
+    dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
+    vals, vecs = eigs(T.T, 10)
+
+    ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
+    ranks = pd.Series(ranks, index=waypoints)
+
+    # Cutoff and intersection with the boundary cells
+    cutoff = norm.ppf(0.9999, loc=np.median(ranks), 
+        scale=np.median(np.abs((ranks - np.median(ranks)))))
+
+    # Connected components of cells beyond cutoff
+    cells = ranks.index[ranks > cutoff]
+        
+    # Find connected components
+    T_dense = pd.DataFrame(T.todense(), index=waypoints, columns=waypoints)
+    graph = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
+    cells = [trajectory[i].idxmax() for i in nx.connected_components(graph)]
+
+
+    # Nearest diffusion map boundaries
+    terminal_states = [pd.Series(np.ravel(pairwise_distances(wp_data.loc[dm_boundaries,:], 
+                wp_data.loc[i,:].values.reshape(1,-1))), index=dm_boundaries).idxmin()
+        for i in cells]
+    excluded_boundaries = dm_boundaries.difference(terminal_states)
+    return terminal_states
+
+
+
+def _differentiation_entropy(wp_data, terminal_states,
+    knn, n_jobs, trajectory):
+    """Function to compute entropy and branch probabilities
+
+    :param wp_data: Multi scale data of the waypoints
+    :param terminal_states: Terminal states
+    :param knn: Number of nearest neighbors for graph construction
+    :param n_jobs: Number of jobs for parallel processing
+    :param trajectory: Pseudo time ordering of cells
+    :return: entropy and branch probabilities
+    """
+
+    # # Markov chain construction
+    # print('Markov chain construction...')
+    # waypoints = wp_data.index
+
+    # # kNN graph 
+    # n_neighbors = knn
+    # nbrs = NearestNeighbors(n_neighbors=n_neighbors, metric='euclidean',
+    #     n_jobs=n_jobs).fit(wp_data)
+    # kNN = nbrs.kneighbors_graph(wp_data, mode='distance' ) 
+    # dist,ind = nbrs.kneighbors(wp_data)
+
+    # # Standard deviation allowing for "back" edges
+    # adpative_k = np.min([int(np.floor(n_neighbors / 3)) - 1, 30])
+    # adaptive_std = np.ravel(dist[:, adpative_k])
+
+    # # Directed graph construction
+    # # Trajectory position of all the neighbors
+    # traj_nbrs = pd.DataFrame(trajectory[np.ravel(waypoints[ind])].values.reshape( 
+    #     [len(waypoints), n_neighbors]), index=waypoints)
+
+    # # Remove edges that move backwards in trajectory except for edges that are within 
+    # # the computed standard deviation
+    # rem_edges = traj_nbrs.apply(lambda x : x < trajectory[traj_nbrs.index] - adaptive_std )
+    # rem_edges = rem_edges.stack()[rem_edges.stack()]
+
+    # # Determine the indices and update adjacency matrix
+    # cell_mapping = pd.Series(range(len(waypoints)), index=waypoints)
+    # x = list(cell_mapping[rem_edges.index.get_level_values(0)])
+    # y = list(rem_edges.index.get_level_values(1)) 
+    # # Update adjacecy matrix
+    # kNN[x, ind[x, y]] = 0  
+
+    # # Affinity matrix and markov chain
+    # x, y, z = find(kNN)
+    # aff = np.exp(-(z ** 2)/(adaptive_std[x] ** 2)  * 0.5 \
+    #      -(z ** 2)/(adaptive_std[y] ** 2)  * 0.5 )
+    # W = csr_matrix((aff, (x, y)), [len(waypoints), len(waypoints)])
+
+    # # Transition matrix
+    # D = np.ravel(W.sum(axis = 1))
+    # x, y, z = find(W)
+    # T = csr_matrix(( z / D[x], (x, y)), [len(waypoints), len(waypoints)])
+
+    T = _construct_markov_chain(wp_data, knn, trajectory, n_jobs)
 
     # Identify terminal states if not specified
-    dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
     if terminal_states is None:
-        vals, vecs = eigs(T.T, 10)
+        terminal_states = _terminal_states_from_markov_chain(T, wp_data, trajectory)
+        # vals, vecs = eigs(T.T, 10)
 
-        ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
-        ranks = pd.Series(ranks, index=waypoints)
+        # ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
+        # ranks = pd.Series(ranks, index=waypoints)
 
-        # Cutoff and intersection with the boundary cells
-        cutoff = norm.ppf(0.9999, loc=np.median(ranks), 
-            scale=np.median(np.abs((ranks - np.median(ranks)))))
+        # # Cutoff and intersection with the boundary cells
+        # cutoff = norm.ppf(0.9999, loc=np.median(ranks), 
+        #     scale=np.median(np.abs((ranks - np.median(ranks)))))
 
-        # Connected components of cells beyond cutoff
-        cells = ranks.index[ranks > cutoff]
+        # # Connected components of cells beyond cutoff
+        # cells = ranks.index[ranks > cutoff]
         
-        # # Clusters cells
-        # Z = hierarchy.linkage(pairwise_distances(wp_data.loc[cells,:]))
-        # clusters = pd.Series(hierarchy.fcluster(Z, 1, 'distance'), index=cells)  
+        # # Find connected components
+        # T_dense = pd.DataFrame(T.todense(), index=waypoints, columns=waypoints)
+        # graph = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
+        # cells = [trajectory[i].idxmax() for i in nx.connected_components(graph)]
 
-        # Find connected components
-        T_dense = pd.DataFrame(T.todense(), index=waypoints, columns=waypoints)
-        graph = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
-        cells = [trajectory[i].idxmax() for i in nx.connected_components(graph)]
-
-        # # Adjust cutoff is there is only one cluster
-        # if len(set(clusters)) == 1 and len(dm_boundaries.intersection(cells)) > 1:
-        #     # Based on gradient change
-        #     index = np.where(np.diff(np.sort(ranks)) > 1e-4)[0][0]
-        #     cutoff = np.sort(ranks)[index]
-
-        #     # Connected components of cells beyond cutoff
-        #     cells = ranks.index[ranks > cutoff]
-        #     # Clusters cells
-        #     Z = hierarchy.linkage(pairwise_distances(wp_data.loc[cells,:]))
-        #     clusters = pd.Series(hierarchy.fcluster(Z, 1, 'distance'), index=cells)  
-
-        # # Cells farthest along trajectory for each cluster
-        # cells = trajectory[cells].groupby(clusters).idxmax()
-
-        # Nearest diffusion map boundaries
-        terminal_states = [pd.Series(np.ravel(pairwise_distances(wp_data.loc[dm_boundaries,:], 
-                    wp_data.loc[i,:].values.reshape(1,-1))), index=dm_boundaries).idxmin()
-            for i in cells]
+        # # Nearest diffusion map boundaries
+        # terminal_states = [pd.Series(np.ravel(pairwise_distances(wp_data.loc[dm_boundaries,:], 
+        #             wp_data.loc[i,:].values.reshape(1,-1))), index=dm_boundaries).idxmin()
+        #     for i in cells]
 
 
     # Absorption states should not have outgoing edges
+    waypoints = wp_data.index
     abs_states = np.where(waypoints.isin(terminal_states))[0]
     # Reset absorption state affinities by Removing neigbors
     T[abs_states,:] = 0 
