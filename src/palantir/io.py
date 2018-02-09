@@ -11,10 +11,11 @@ def _clean_up(df):
     df = df.loc[:, df.columns[df.sum() > 0]]
     return df
 
+
 def from_csv(counts_csv_file, delimiter=','):
     # Read in csv file
-    df = pd.read_csv( counts_csv_file, sep=delimiter, index_col=0)  
-    clean_df = _clean_up(df)  
+    df = pd.read_csv(counts_csv_file, sep=delimiter, index_col=0)
+    clean_df = _clean_up(df)
     return clean_df
 
 
@@ -26,16 +27,16 @@ def from_mtx(mtx_file, gene_name_file):
     gene_names = np.loadtxt(gene_name_file, dtype=np.dtype('S'))
     gene_names = np.array([gene.decode('utf-8') for gene in gene_names])
 
-    ### remove todense
+    # remove todense
     df = pd.DataFrame(count_matrix.todense(), columns=gene_names)
 
     return _clean_up(df)
 
 
 def from_10x(data_dir, use_ensemble_id=True):
-    #loads 10x sparse format data
-    #data_dir is dir that contains matrix.mtx, genes.tsv and barcodes.tsv
-    #return_sparse=True -- returns data matrix in sparse format (default = False)
+    # loads 10x sparse format data
+    # data_dir is dir that contains matrix.mtx, genes.tsv and barcodes.tsv
+    # return_sparse=True -- returns data matrix in sparse format (default = False)
 
     if data_dir is None:
         data_dir = './'
@@ -46,20 +47,22 @@ def from_10x(data_dir, use_ensemble_id=True):
     filename_genes = os.path.expanduser(data_dir + 'genes.tsv')
     filename_cells = os.path.expanduser(data_dir + 'barcodes.tsv')
 
-
     # Read in gene expression matrix (sparse matrix)
     # Rows = genes, columns = cells
-    dataMatrix = mmread(filename_dataMatrix);
+    dataMatrix = mmread(filename_dataMatrix)
 
     # Read in row names (gene names / IDs)
-    gene_names = np.loadtxt(filename_genes, delimiter='\t', dtype=bytes).astype(str)
-    if use_ensemble_id==True:
+    gene_names = np.loadtxt(
+        filename_genes, delimiter='\t', dtype=bytes).astype(str)
+    if use_ensemble_id == True:
         gene_names = [gene[0] for gene in gene_names]
     else:
         gene_names = [gene[1] for gene in gene_names]
-    cell_names = np.loadtxt(filename_cells, delimiter='\t', dtype=bytes).astype(str)
+    cell_names = np.loadtxt(
+        filename_cells, delimiter='\t', dtype=bytes).astype(str)
 
-    dataMatrix = pd.DataFrame(dataMatrix.todense(), columns=cell_names, index=gene_names)
+    dataMatrix = pd.DataFrame(dataMatrix.todense(),
+                              columns=cell_names, index=gene_names)
 
     # combine duplicate genes
     if use_ensemble_id == False:
@@ -77,7 +80,7 @@ def from_10x_HDF5(filename, genome, use_ensemble_id=True):
         except tables.NoSuchNodeError:
             print("That genome does not exist in this file.")
             return None
-    
+
         if use_ensemble_id:
             gene_names = getattr(group, 'genes').read()
         else:
@@ -89,18 +92,18 @@ def from_10x_HDF5(filename, genome, use_ensemble_id=True):
         shape = getattr(group, 'shape').read()
         matrix = csc_matrix((data, indices, indptr), shape=shape)
 
-    dataMatrix = pd.DataFrame(matrix.todense(), columns=np.array([b.decode() for b in barcodes]), 
-        index=np.array([g.decode() for g in gene_names]))
+    dataMatrix = pd.DataFrame(matrix.todense(), columns=np.array([b.decode() for b in barcodes]),
+                              index=np.array([g.decode() for g in gene_names]))
     dataMatrix = dataMatrix.transpose()
 
     return _clean_up(dataMatrix)
 
 
-def from_fcs(cls, fcs_file, cofactor=5, 
-    metadata_channels=['Time', 'Event_length', 'DNA1', 'DNA2', 'Cisplatin', 'beadDist', 'bead1']):
+def from_fcs(cls, fcs_file, cofactor=5,
+             metadata_channels=['Time', 'Event_length', 'DNA1', 'DNA2', 'Cisplatin', 'beadDist', 'bead1']):
 
     # Parse the fcs file
-    text, data = fcsparser.parse( fcs_file )
+    text, data = fcsparser.parse(fcs_file)
     data = data.astype(np.float64)
 
     # Extract the S and N features (Indexing assumed to start from 1)
@@ -114,16 +117,15 @@ def from_fcs(cls, fcs_file, cofactor=5,
         except KeyError:
             channel_names[i - 1] = text['$P%dN' % i]
     data.columns = channel_names
-    
-    # Metadata and data 
+
+    # Metadata and data
     metadata_channels = data.columns.intersection(metadata_channels)
-    data_channels = data.columns.difference( metadata_channels )
+    data_channels = data.columns.difference(metadata_channels)
     metadata = data[metadata_channels]
     data = data[data_channels]
 
     # Transform if necessary
     if cofactor is not None or cofactor > 0:
-        data = np.arcsinh(np.divide( data, cofactor ))
+        data = np.arcsinh(np.divide(data, cofactor))
 
     return data
-
