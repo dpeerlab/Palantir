@@ -88,10 +88,9 @@ def run_palantir(ms_data, early_cell, terminal_states=None,
 
     # Project results to all cells
     print('Project results to all cells...')
-    ent = pd.Series(np.ravel(np.dot(
-        W.T, ent.loc[W.index].values.reshape(-1, 1))), index=W.columns)
     branch_probs = pd.DataFrame(np.dot(
         W.T, branch_probs.loc[W.index, :]), index=W.columns, columns=branch_probs.columns)
+    ent = branch_probs.apply(entropy, axis=1)
 
     # UPdate results into PResults class object
     res = PResults(trajectory, ent, branch_probs, waypoints)
@@ -164,6 +163,9 @@ def _compute_trajectory(data, start_cell, knn,
     nbrs = NearestNeighbors(n_neighbors=knn,
                             metric='euclidean', n_jobs=n_jobs).fit(data)
     adj = nbrs.kneighbors_graph(data, mode='distance')
+
+    # Connect graph if it is disconnected
+    adj = _connect_graph(adj, data, np.where(data.index == start_cell)[0][0])
 
     # Distances
     dists = Parallel(n_jobs=n_jobs)(
@@ -356,77 +358,12 @@ def _differentiation_entropy(wp_data, terminal_states,
     :return: entropy and branch probabilities
     """
 
-    # # Markov chain construction
-    # print('Markov chain construction...')
-    # waypoints = wp_data.index
-
-    # # kNN graph
-    # n_neighbors = knn
-    # nbrs = NearestNeighbors(n_neighbors=n_neighbors, metric='euclidean',
-    #     n_jobs=n_jobs).fit(wp_data)
-    # kNN = nbrs.kneighbors_graph(wp_data, mode='distance' )
-    # dist,ind = nbrs.kneighbors(wp_data)
-
-    # # Standard deviation allowing for "back" edges
-    # adpative_k = np.min([int(np.floor(n_neighbors / 3)) - 1, 30])
-    # adaptive_std = np.ravel(dist[:, adpative_k])
-
-    # # Directed graph construction
-    # # Trajectory position of all the neighbors
-    # traj_nbrs = pd.DataFrame(trajectory[np.ravel(waypoints[ind])].values.reshape(
-    #     [len(waypoints), n_neighbors]), index=waypoints)
-
-    # # Remove edges that move backwards in trajectory except for edges that are within
-    # # the computed standard deviation
-    # rem_edges = traj_nbrs.apply(lambda x : x < trajectory[traj_nbrs.index] - adaptive_std )
-    # rem_edges = rem_edges.stack()[rem_edges.stack()]
-
-    # # Determine the indices and update adjacency matrix
-    # cell_mapping = pd.Series(range(len(waypoints)), index=waypoints)
-    # x = list(cell_mapping[rem_edges.index.get_level_values(0)])
-    # y = list(rem_edges.index.get_level_values(1))
-    # # Update adjacecy matrix
-    # kNN[x, ind[x, y]] = 0
-
-    # # Affinity matrix and markov chain
-    # x, y, z = find(kNN)
-    # aff = np.exp(-(z ** 2)/(adaptive_std[x] ** 2)  * 0.5 \
-    #      -(z ** 2)/(adaptive_std[y] ** 2)  * 0.5 )
-    # W = csr_matrix((aff, (x, y)), [len(waypoints), len(waypoints)])
-
-    # # Transition matrix
-    # D = np.ravel(W.sum(axis = 1))
-    # x, y, z = find(W)
-    # T = csr_matrix(( z / D[x], (x, y)), [len(waypoints), len(waypoints)])
-
     T = _construct_markov_chain(wp_data, knn, trajectory, n_jobs)
 
     # Identify terminal states if not specified
     if terminal_states is None:
         terminal_states = _terminal_states_from_markov_chain(
             T, wp_data, trajectory)
-        # vals, vecs = eigs(T.T, 10)
-
-        # ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
-        # ranks = pd.Series(ranks, index=waypoints)
-
-        # # Cutoff and intersection with the boundary cells
-        # cutoff = norm.ppf(0.9999, loc=np.median(ranks),
-        #     scale=np.median(np.abs((ranks - np.median(ranks)))))
-
-        # # Connected components of cells beyond cutoff
-        # cells = ranks.index[ranks > cutoff]
-
-        # # Find connected components
-        # T_dense = pd.DataFrame(T.todense(), index=waypoints, columns=waypoints)
-        # graph = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
-        # cells = [trajectory[i].idxmax() for i in nx.connected_components(graph)]
-
-        # # Nearest diffusion map boundaries
-        # terminal_states = [pd.Series(np.ravel(pairwise_distances(wp_data.loc[dm_boundaries,:],
-        #             wp_data.loc[i,:].values.reshape(1,-1))), index=dm_boundaries).idxmin()
-        #     for i in cells]
-
     # Absorption states should not have outgoing edges
     waypoints = wp_data.index
     abs_states = np.where(waypoints.isin(terminal_states))[0]
@@ -469,3 +406,46 @@ def _shortest_path_helper(cell, adj):
     # NOTE: Graph construction is parallelized since constructing the graph outside was creating lock issues
     graph = nx.Graph(adj)
     return pd.Series(nx.single_source_dijkstra_path_length(graph, cell))
+
+
+def _connect_graph(adj, data, start_cell):
+
+    # Create graph and compute distances
+    graph = nx.Graph(adj)
+    dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell)) 
+    dists = pd.Series(dists.values, index=data.index[dists.index])
+
+    # Idenfity unreachable nodes
+    unreachable_nodes = data.index.difference(dists.index)
+    if len(unreachable_nodes) > 0:
+        print('Warning: Some of the cells were unreachable. Consider increasing the k for \n \
+            nearest neighbor graph construction.')
+
+    # Connect unreachable nodes
+    while len(unreachable_nodes) > 0:
+        farthest_reachable = np.where(data.index == dists.idxmax())[0][0]
+
+        # Compute distances to unreachable nodes
+        unreachable_dists = pairwise_distances(data.iloc[farthest_reachable, :].values.reshape(1, -1),
+            data.loc[unreachable_nodes,:])
+        unreachable_dists = pd.Series(np.ravel(unreachable_dists), index=unreachable_nodes)
+
+        # Add edge between farthest reacheable and its nearest unreachable
+        add_edge = np.where(data.index == unreachable_dists.idxmin())[0][0]
+        adj[farthest_reachable, add_edge] = unreachable_dists.min()
+
+        # Recompute distances to early cell
+        graph = nx.Graph(adj)
+        dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell)) 
+        dists = pd.Series(dists.values, index=data.index[dists.index])
+
+        # Idenfity unreachable nodes
+        unreachable_nodes = data.index.difference(dists.index)
+
+
+    return adj
+
+
+
+
+

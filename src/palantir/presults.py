@@ -42,6 +42,10 @@ class PResults(object):
     def entropy(self):
         return self._entropy
 
+    @entropy.setter
+    def entropy(self, entropy):
+        self._entropy = entropy
+
     @property
     def waypoints(self):
         return self._waypoints
@@ -97,7 +101,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
     for branch in lineages:
         results[branch] = OrderedDict()
         # Bins along the trajectory
-        br_cells = pr_res.branch_probs.index[pr_res.branch_probs.loc[:, branch] > 0]
+        br_cells = pr_res.branch_probs.index[pr_res.branch_probs.loc[:, branch] > 0.7]
         bins = np.linspace(0, pr_res.trajectory[br_cells].max(), 500)
 
         # Branch results container
@@ -168,11 +172,11 @@ def _gam_fit_predict(x, y, weights=None, pred_x=None):
     return y_pred, stds
 
 
-def cluster_gene_trends(trends, n_jobs=-1):
+def cluster_gene_trends(trends, k=150, n_jobs=-1):
     """Function to cluster gene trends
-    :param pr_res: Palantir results object
     :param trends: Matrix of gene expression trends
-    :param branch: Branch for which to cluster the gene trends
+    :param k: K for nearest neighbor construction
+    :param n_jobs: Number of jobs for parallel processing
     :return: Clustering of gene trends
     """
 
@@ -181,6 +185,6 @@ def cluster_gene_trends(trends, n_jobs=-1):
                           index=trends.index, columns=trends.columns)
 
     # Cluster
-    clusters, _, _ = phenograph.cluster(trends, k=150)
+    clusters, _, _ = phenograph.cluster(trends, k=k, n_jobs=n_jobs)
     clusters = pd.Series(clusters, index=trends.index)
     return clusters

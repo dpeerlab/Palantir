@@ -398,7 +398,7 @@ def plot_gene_trend_clusters(trends, clusters):
                           index=trends.index, columns=trends.columns)
 
     n_rows = int(np.ceil(len(set(clusters))/3))
-    fig = plt.figure(figsize=[5 * 3, 3 * n_rows])
+    fig = plt.figure(figsize=[5.5 * 3, 2 * n_rows])
     for i, c in enumerate(set(clusters)):
         ax = fig.add_subplot(n_rows, 3, i+1)
         means = trends.loc[clusters.index[clusters == c], :].mean()
@@ -415,9 +415,10 @@ def plot_gene_trend_clusters(trends, clusters):
                 color='#377eb8', linewidth=0.75)
         ax.plot(means.index, np.ravel(means + std), linestyle='--',
                 color='#377eb8', linewidth=0.75)
-        ax.set_title('Cluster {}'.format(c), fontsize=10)
+        ax.set_title('Cluster {}'.format(c), fontsize=12)
         ax.tick_params('both', length=2, width=1, which='major')
-        ax.tick_params(axis='both', which='major', labelsize=8)
+        ax.tick_params(axis='both', which='major', labelsize=8, direction='in')
+        ax.set_xticklabels([])
         # ax.set_xticklabels( ax.get_xticklabels(), fontsize=8 )
         # ax.set_yticklabels( ax.get_yticklabels(), fontsize=8 )
     sns.despine()
