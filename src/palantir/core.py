@@ -3,6 +3,7 @@ Core functions for running Palantir
 """
 import numpy as np
 import pandas as pd
+import networkx as nx
 import time
 import random
 import copy
