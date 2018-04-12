@@ -385,7 +385,7 @@ def plot_gene_trend_heatmaps(gene_trends):
         mat = gene_trends[branch]['trends']
         mat = pd.DataFrame(StandardScaler().fit_transform(mat.T).T,
                            index=mat.index, columns=mat.columns)
-        sns.heatmap(mat, xticklabels=False, ax=ax)
+        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=matplotlib.cm.Spectral_r)
         ax.set_title(branch, fontsize=12)
 
 
@@ -398,7 +398,7 @@ def plot_gene_trend_clusters(trends, clusters):
                           index=trends.index, columns=trends.columns)
 
     n_rows = int(np.ceil(len(set(clusters))/3))
-    fig = plt.figure(figsize=[5.5 * 3, 2 * n_rows])
+    fig = plt.figure(figsize=[5.5 * 3, 2.5 * n_rows])
     for i, c in enumerate(set(clusters)):
         ax = fig.add_subplot(n_rows, 3, i+1)
         means = trends.loc[clusters.index[clusters == c], :].mean()
