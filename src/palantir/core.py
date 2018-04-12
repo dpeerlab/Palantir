@@ -14,9 +14,8 @@ from sklearn.neighbors import NearestNeighbors
 from joblib import Parallel, delayed
 from scipy.sparse.linalg import eigs
 
-from scipy.sparse import csr_matrix, find
+from scipy.sparse import csr_matrix, find, csgraph
 from scipy.stats import entropy, pearsonr, norm
-from scipy.cluster import hierarchy
 from numpy.linalg import inv
 from copy import deepcopy
 from palantir.presults import PResults
@@ -403,16 +402,14 @@ def _differentiation_entropy(wp_data, terminal_states,
 
 
 def _shortest_path_helper(cell, adj):
-    # NOTE: Graph construction is parallelized since constructing the graph outside was creating lock issues
-    graph = nx.Graph(adj)
-    return pd.Series(nx.single_source_dijkstra_path_length(graph, cell))
+    return pd.Series(csgraph.dijkstra(adj, False, cell))
 
 
 def _connect_graph(adj, data, start_cell):
 
     # Create graph and compute distances
     graph = nx.Graph(adj)
-    dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell)) 
+    dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell))
     dists = pd.Series(dists.values, index=data.index[dists.index])
 
     # Idenfity unreachable nodes
@@ -427,8 +424,9 @@ def _connect_graph(adj, data, start_cell):
 
         # Compute distances to unreachable nodes
         unreachable_dists = pairwise_distances(data.iloc[farthest_reachable, :].values.reshape(1, -1),
-            data.loc[unreachable_nodes,:])
-        unreachable_dists = pd.Series(np.ravel(unreachable_dists), index=unreachable_nodes)
+                                               data.loc[unreachable_nodes, :])
+        unreachable_dists = pd.Series(
+            np.ravel(unreachable_dists), index=unreachable_nodes)
 
         # Add edge between farthest reacheable and its nearest unreachable
         add_edge = np.where(data.index == unreachable_dists.idxmin())[0][0]
@@ -436,16 +434,11 @@ def _connect_graph(adj, data, start_cell):
 
         # Recompute distances to early cell
         graph = nx.Graph(adj)
-        dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell)) 
+        dists = pd.Series(
+            nx.single_source_dijkstra_path_length(graph, start_cell))
         dists = pd.Series(dists.values, index=data.index[dists.index])
 
         # Idenfity unreachable nodes
         unreachable_nodes = data.index.difference(dists.index)
 
-
     return adj
-
-
-
-
-
