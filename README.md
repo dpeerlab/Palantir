@@ -20,7 +20,7 @@ All the dependencies will be automatically installed using the above commands
 
 4. If you would like to determine gene expression trends, please install <a href="https://cran.r-project.org"> R <a> programming language and the R package <a href="https://cran.r-project.org/web/packages/gam/">GAM </a>. You will also need to install the rpy2 module using 
 	
-		$> sudo -H pip3 install rpy2.
+		$> sudo -H pip3 install rpy2
 		
 
 #### Usage
