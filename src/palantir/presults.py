@@ -61,7 +61,7 @@ class PResults(object):
         return presults
 
     def save(self, pkl_file: str):
-        pickle.dump(vars(self), pkl_filet)
+        pickle.dump(vars(self), pkl_file)
 
 
 def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
