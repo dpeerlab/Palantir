@@ -334,7 +334,7 @@ def plot_terminal_state_probs(pr_res, cells):
     sns.despine()
 
 
-def plot_gene_trends(gene_trends):
+def plot_gene_trends(gene_trends, genes=None):
     """ Plot the gene trends: each gene is plotted in a different panel
     :param: gene_trends: Results of the compute_marker_trends function
     """
@@ -343,7 +343,8 @@ def plot_gene_trends(gene_trends):
     branches = list(gene_trends.keys())
     colors = pd.Series(sns.color_palette(
         'hls', len(branches)).as_hex(), index=branches)
-    genes = gene_trends[branches[0]]['trends'].index
+    if genes is None:
+        genes = gene_trends[branches[0]]['trends'].index
 
     # Set up figure
     fig = plt.figure(figsize=[7, 3 * len(genes)])
@@ -358,10 +359,9 @@ def plot_gene_trends(gene_trends):
             ax.fill_between(trends.columns, trends.loc[gene, :] - stds.loc[gene, :],
                             trends.loc[gene, :] + stds.loc[gene, :], alpha=0.1, color=colors[branch])
             ax.set_title(gene)
-
-            # Add legend
-            if i == 0:
-                plt.legend()
+        # Add legend
+        if i == 0:
+            ax.legend()
 
     sns.despine()
 
