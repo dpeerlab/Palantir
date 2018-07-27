@@ -121,7 +121,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
         res = Parallel(n_jobs=n_jobs)(
             delayed(_gam_fit_predict)(
                 pr_res.pseudotime[gene_exprs.index].values, gene_exprs.loc[:, gene].values,
-                weights,  bins)
+                weights, bins)
             for gene in gene_exprs.columns)
 
         # Fill in the matrices
@@ -129,7 +129,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
             results[branch]['trends'].loc[gene, :] = res[i][0]
             results[branch]['std'].loc[gene, :] = res[i][1]
         end = time.time()
-        print('Time for processing {}: {} minutes'.format(branch, (end-start)/60))
+        print('Time for processing {}: {} minutes'.format(branch, (end - start) / 60))
 
     return results
 
@@ -165,9 +165,9 @@ def _gam_fit_predict(x, y, weights=None, pred_x=None):
     p = np.array(robjects.r.predict(model,
                                     newdata=pandas2ri.py2ri(pd.DataFrame(x[use_inds], columns=['x']))))
     n = len(use_inds)
-    sigma = np.sqrt(((y[use_inds] - p) ** 2).sum() / (n-2))
-    stds = np.sqrt(1 + 1/n + (pred_x - np.mean(x))**2 /
-                   ((x - np.mean(x)) ** 2).sum()) * sigma/2
+    sigma = np.sqrt(((y[use_inds] - p) ** 2).sum() / (n - 2))
+    stds = np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) ** 2 /
+                   ((x - np.mean(x)) ** 2).sum()) * sigma / 2
 
     return y_pred, stds
 

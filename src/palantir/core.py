@@ -73,7 +73,7 @@ def run_palantir(ms_data, early_cell, terminal_states=None,
     # Append start cell
     waypoints = pd.Index([start_cell]).append(waypoints)
     end = time.time()
-    print('Time for determining waypoints: {} minutes'.format((end - start)/60))
+    print('Time for determining waypoints: {} minutes'.format((end - start) / 60))
 
     # pseudotime and weighting matrix
     print('Determining pseudotime...')
@@ -108,7 +108,7 @@ def _max_min_sampling(data, num_waypoints):
     """
 
     waypoint_set = list()
-    no_iterations = int((num_waypoints)/data.shape[1])
+    no_iterations = int((num_waypoints) / data.shape[1])
 
     # Sample along each component
     N = data.shape[0]
@@ -149,7 +149,7 @@ def _compute_pseudotime(data, start_cell, knn,
     :param data: Multiscale space diffusion components
     :param start_cell: Start cell for pseudotime construction
     :param knn: Number of nearest neighbors for graph construction
-    :param waypoints: List of waypoints 
+    :param waypoints: List of waypoints
     :param n_jobs: Number of jobs for parallel processing
     :param max_iterations: Maximum number of iterations for pseudotime convergence
     :return: pseudotime and weight matrix
@@ -177,14 +177,14 @@ def _compute_pseudotime(data, start_cell, knn,
         D.loc[cell, :] = pd.Series(np.ravel(dists[i]),
                                    index=data.index[dists[i].index])[data.index]
     end = time.time()
-    print('Time for shortest paths: {} minutes'.format((end - start)/60))
+    print('Time for shortest paths: {} minutes'.format((end - start) / 60))
 
     # ###############################################
     # Determine the perspective matrix
 
     print('Iteratively refining the pseudotime...')
     # Waypoint weights
-    sdv = np.std(np.ravel(D)) * 1.06 * len(np.ravel(D)) ** (-1/5)
+    sdv = np.std(np.ravel(D)) * 1.06 * len(np.ravel(D)) ** (-1 / 5)
     W = np.exp(-.5 * np.power((D / sdv), 2))
     # Stochastize the matrix
     W = W / W.sum()
@@ -302,8 +302,8 @@ def _construct_markov_chain(wp_data, knn, pseudotime, n_jobs):
 
     # Affinity matrix and markov chain
     x, y, z = find(kNN)
-    aff = np.exp(-(z ** 2)/(adaptive_std[x] ** 2) * 0.5
-                 - (z ** 2)/(adaptive_std[y] ** 2) * 0.5)
+    aff = np.exp(-(z ** 2) / (adaptive_std[x] ** 2) * 0.5 -
+                  (z ** 2) / (adaptive_std[y] ** 2) * 0.5)
     W = csr_matrix((aff, (x, y)), [len(waypoints), len(waypoints)])
 
     # Transition matrix
@@ -339,9 +339,10 @@ def _terminal_states_from_markov_chain(T, wp_data, pseudotime):
 
     # Nearest diffusion map boundaries
     terminal_states = [pd.Series(np.ravel(pairwise_distances(wp_data.loc[dm_boundaries, :],
-                                                             wp_data.loc[i, :].values.reshape(1, -1))), index=dm_boundaries).idxmin()
+                                                             wp_data.loc[i, :].values.reshape(1, -1))),
+                                 index=dm_boundaries).idxmin()
                        for i in cells]
-    excluded_boundaries = dm_boundaries.difference(terminal_states)
+    # excluded_boundaries = dm_boundaries.difference(terminal_states)
     return terminal_states
 
 

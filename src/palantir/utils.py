@@ -49,8 +49,7 @@ def run_diffusion_maps(pca_projections, n_components=10, knn=30, n_jobs=-1):
     x, y, dists = find(kNN)
 
     # X, y specific stds
-    sigmas = (adaptive_std[x] ** 2 + adaptive_std[y] ** 2) / 2
-    dists = dists/adaptive_std[x]
+    dists = dists / adaptive_std[x]
     W = csr_matrix((np.exp(-dists), (x, y)), shape=[N, N])
 
     # Diffusion components
@@ -58,7 +57,7 @@ def run_diffusion_maps(pca_projections, n_components=10, knn=30, n_jobs=-1):
 
     # Markov
     D = np.ravel(kernel.sum(axis=1))
-    D[D != 0] = 1/D[D != 0]
+    D[D != 0] = 1 / D[D != 0]
     T = csr_matrix((D, (range(N), range(N))), shape=[N, N]).dot(kernel)
     # Eigen value dcomposition
     D, V = eigs(T, n_components, tol=1e-4, maxiter=1000)
@@ -86,7 +85,7 @@ def run_magic_imputation(data, dm_res, n_steps=3):
 
     :param dm_res: Diffusion map results from run_diffusion_maps
     :param n_steps: Number of steps in the diffusion operator
-    :return: Imputed data matrix	
+    :return: Imputed data matrix
     """
     T_steps = dm_res['T'] ** n_steps
     imputed_data = pd.DataFrame(np.dot(T_steps.todense(), data),
@@ -99,19 +98,19 @@ def determine_multiscale_space(dm_res, n_eigs=None):
     """Determine multi scale space of the data
 
     :param dm_res: Diffusion map results from run_diffusion_maps
-    :param n_eigs: Number of eigen vectors to use. If None specified, the number 
+    :param n_eigs: Number of eigen vectors to use. If None specified, the number
             of eigen vectors will be determined using eigen gap
     :return: Multi scale data matrix
     """
     if n_eigs is None:
         vals = np.ravel(dm_res['EigenValues'])
-        n_eigs = np.argsort(vals[:(len(vals)-1)] - vals[1:])[-1] + 1
+        n_eigs = np.argsort(vals[:(len(vals) - 1)] - vals[1:])[-1] + 1
 
     # Scale the data
     use_eigs = list(range(1, n_eigs))
     eig_vals = np.ravel(dm_res['EigenValues'][use_eigs])
     data = dm_res['EigenVectors'].values[:,
-                                         use_eigs] * (eig_vals / (1-eig_vals))
+                                         use_eigs] * (eig_vals / (1 - eig_vals))
     data = pd.DataFrame(data, index=dm_res['EigenVectors'].index)
 
     return data
