@@ -270,19 +270,19 @@ def plot_palantir_results(pr_res, tsne):
     gs = plt.GridSpec(n_rows + 2, n_cols,
                       height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
 
-    # Trajectory
+    # Pseudotime
     ax = plt.subplot(gs[0:2, 1:3])
     ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
-               cmap=matplotlib.cm.plasma, c=pr_res.trajectory[tsne.index])
+               cmap=matplotlib.cm.plasma, c=pr_res.pseudotime[tsne.index])
     ax.set_axis_off()
-    ax.set_title('Trajectory')
+    ax.set_title('Pseudotime')
 
     # Entropy
     ax = plt.subplot(gs[0:2, 3:5])
     ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
                cmap=matplotlib.cm.plasma, c=pr_res.entropy[tsne.index])
     ax.set_axis_off()
-    ax.set_title('Entropy')
+    ax.set_title('Differentiation potential')
 
     # Branch probabilities
     order = [2, 3, 1, 4, 0, 5]
@@ -342,7 +342,7 @@ def plot_gene_trends(gene_trends, genes=None):
     # Branches and genes
     branches = list(gene_trends.keys())
     colors = pd.Series(sns.color_palette(
-        'hls', len(branches)).as_hex(), index=branches)
+        'Set2', len(branches)).as_hex(), index=branches)
     if genes is None:
         genes = gene_trends[branches[0]]['trends'].index
 
