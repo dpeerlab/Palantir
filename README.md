@@ -26,7 +26,7 @@ All the dependencies will be automatically installed using the above commands
 #### Usage
 
 ##### Command line
-A tutorial on Palantir usage and results visualization for single cell RNA-seq data can be found in this notebook: http://nbviewer.jupyter.org/github/ManuSetty/Palantir/blob/master/notebooks/Palantir_sample_notebook.ipynb
+A tutorial on Palantir usage and results visualization for single cell RNA-seq data can be found in this notebook: http://nbviewer.jupyter.org/github/dpeerlab/Palantir/blob/master/notebooks/Palantir_sample_notebook.ipynb
 
 
 #### Citations
