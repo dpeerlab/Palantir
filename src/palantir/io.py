@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import os.path
 import fcsparser
+from scipy.sparse import csc_matrix
 from scipy.io import mmread
 import tables
 
@@ -40,7 +41,7 @@ def from_10x(data_dir, use_ensemble_id=True):
 
     if data_dir is None:
         data_dir = './'
-    elif data_dir[len(data_dir)-1] != '/':
+    elif data_dir[len(data_dir) - 1] != '/':
         data_dir = data_dir + '/'
 
     filename_dataMatrix = os.path.expanduser(data_dir + 'matrix.mtx')
@@ -54,7 +55,7 @@ def from_10x(data_dir, use_ensemble_id=True):
     # Read in row names (gene names / IDs)
     gene_names = np.loadtxt(
         filename_genes, delimiter='\t', dtype=bytes).astype(str)
-    if use_ensemble_id == True:
+    if use_ensemble_id:
         gene_names = [gene[0] for gene in gene_names]
     else:
         gene_names = [gene[1] for gene in gene_names]
@@ -65,7 +66,7 @@ def from_10x(data_dir, use_ensemble_id=True):
                               columns=cell_names, index=gene_names)
 
     # combine duplicate genes
-    if use_ensemble_id == False:
+    if not use_ensemble_id:
         dataMatrix = dataMatrix.groupby(dataMatrix.index).sum()
     dataMatrix = dataMatrix.transpose()
 
@@ -110,7 +111,7 @@ def from_fcs(cls, fcs_file, cofactor=5,
     # Assumes channel names are in S
     no_channels = text['$PAR']
     channel_names = [''] * no_channels
-    for i in range(1, no_channels+1):
+    for i in range(1, no_channels + 1):
         # S name
         try:
             channel_names[i - 1] = text['$P%dS' % i]
@@ -121,7 +122,7 @@ def from_fcs(cls, fcs_file, cofactor=5,
     # Metadata and data
     metadata_channels = data.columns.intersection(metadata_channels)
     data_channels = data.columns.difference(metadata_channels)
-    metadata = data[metadata_channels]
+    # metadata = data[metadata_channels]
     data = data[data_channels]
 
     # Transform if necessary

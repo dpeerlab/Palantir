@@ -3,8 +3,8 @@ Core functions for running Palantir
 """
 import numpy as np
 import pandas as pd
-import time
 import networkx as nx
+import time
 import random
 import copy
 
@@ -14,9 +14,8 @@ from sklearn.neighbors import NearestNeighbors
 from joblib import Parallel, delayed
 from scipy.sparse.linalg import eigs
 
-from scipy.sparse import csr_matrix, find
+from scipy.sparse import csr_matrix, find, csgraph
 from scipy.stats import entropy, pearsonr, norm
-from scipy.cluster import hierarchy
 from numpy.linalg import inv
 from copy import deepcopy
 from palantir.presults import PResults
@@ -33,13 +32,13 @@ def run_palantir(ms_data, early_cell, terminal_states=None,
     """Function for max min sampling of waypoints
 
     :param data: Multiscale space diffusion components
-    :param early_cell: Start cell for trajectory construction
+    :param early_cell: Start cell for pseudotime construction
     :param terminal_states: List/Series of user defined terminal states
     :param knn: Number of nearest neighbors for graph construction
     :param num_waypoints: Number of waypoints to sample
     :param num_jobs: Number of jobs for parallel processing
-    :param max_iterations: Maximum number of iterations for trajectory convergence
-    :return: PResults object with trajectory, entropy, branch probabilities and waypoints
+    :param max_iterations: Maximum number of iterations for pseudotime convergence
+    :return: PResults object with pseudotime, entropy, branch probabilities and waypoints
     """
 
     if scale_components:
@@ -74,17 +73,17 @@ def run_palantir(ms_data, early_cell, terminal_states=None,
     # Append start cell
     waypoints = pd.Index([start_cell]).append(waypoints)
     end = time.time()
-    print('Time for determining waypoints: {} minutes'.format((end - start)/60))
+    print('Time for determining waypoints: {} minutes'.format((end - start) / 60))
 
-    # Trajectory and weighting matrix
-    print('Determining trajectory...')
-    trajectory, W = _compute_trajectory(data, start_cell, knn,
+    # pseudotime and weighting matrix
+    print('Determining pseudotime...')
+    pseudotime, W = _compute_pseudotime(data, start_cell, knn,
                                         waypoints, n_jobs)
 
     # Entropy and branch probabilities
     print('Entropy and branch probabilities...')
     ent, branch_probs = _differentiation_entropy(data.loc[waypoints, :], terminal_states,
-                                                 knn, n_jobs, trajectory)
+                                                 knn, n_jobs, pseudotime)
 
     # Project results to all cells
     print('Project results to all cells...')
@@ -93,7 +92,7 @@ def run_palantir(ms_data, early_cell, terminal_states=None,
     ent = branch_probs.apply(entropy, axis=1)
 
     # UPdate results into PResults class object
-    res = PResults(trajectory, ent, branch_probs, waypoints)
+    res = PResults(pseudotime, ent, branch_probs, waypoints)
 
     return res
 
@@ -109,7 +108,7 @@ def _max_min_sampling(data, num_waypoints):
     """
 
     waypoint_set = list()
-    no_iterations = int((num_waypoints)/data.shape[1])
+    no_iterations = int((num_waypoints) / data.shape[1])
 
     # Sample along each component
     N = data.shape[0]
@@ -143,17 +142,17 @@ def _max_min_sampling(data, num_waypoints):
     return waypoints
 
 
-def _compute_trajectory(data, start_cell, knn,
+def _compute_pseudotime(data, start_cell, knn,
                         waypoints, n_jobs, max_iterations=25):
-    """Function for compute the trajectory
+    """Function for compute the pseudotime
 
     :param data: Multiscale space diffusion components
-    :param start_cell: Start cell for trajectory construction
+    :param start_cell: Start cell for pseudotime construction
     :param knn: Number of nearest neighbors for graph construction
-    :param waypoints: List of waypoints 
+    :param waypoints: List of waypoints
     :param n_jobs: Number of jobs for parallel processing
-    :param max_iterations: Maximum number of iterations for trajectory convergence
-    :return: trajectory and weight matrix
+    :param max_iterations: Maximum number of iterations for pseudotime convergence
+    :return: pseudotime and weight matrix
     """
 
     # ################################################
@@ -178,52 +177,52 @@ def _compute_trajectory(data, start_cell, knn,
         D.loc[cell, :] = pd.Series(np.ravel(dists[i]),
                                    index=data.index[dists[i].index])[data.index]
     end = time.time()
-    print('Time for shortest paths: {} minutes'.format((end - start)/60))
+    print('Time for shortest paths: {} minutes'.format((end - start) / 60))
 
     # ###############################################
     # Determine the perspective matrix
 
-    print('Iteratively refining the trajectory...')
+    print('Iteratively refining the pseudotime...')
     # Waypoint weights
-    sdv = np.std(np.ravel(D)) * 1.06 * len(np.ravel(D)) ** (-1/5)
+    sdv = np.std(np.ravel(D)) * 1.06 * len(np.ravel(D)) ** (-1 / 5)
     W = np.exp(-.5 * np.power((D / sdv), 2))
     # Stochastize the matrix
     W = W / W.sum()
 
-    # Initalize trajectory to start cell distances
-    trajectory = D.loc[start_cell, :]
+    # Initalize pseudotime to start cell distances
+    pseudotime = D.loc[start_cell, :]
     converged = False
 
-    # Iteratively update perspective and determine trajectory
+    # Iteratively update perspective and determine pseudotime
     iteration = 1
     while not converged and iteration < max_iterations:
         # Perspective matrix by alinging to start distances
         P = deepcopy(D)
         for wp in waypoints[1:]:
             # Position of waypoints relative to start
-            idx_val = trajectory[wp]
+            idx_val = pseudotime[wp]
 
             # Convert all cells before starting point to the negative
-            before_indices = trajectory.index[trajectory < idx_val]
+            before_indices = pseudotime.index[pseudotime < idx_val]
             P.loc[wp, before_indices] = -D.loc[wp, before_indices]
 
             # Align to start
             P.loc[wp, :] = P.loc[wp, :] + idx_val
 
-        # Weighted trajectory
+        # Weighted pseudotime
         new_traj = P.multiply(W).sum()
 
         # Check for convergence
-        corr = pearsonr(trajectory, new_traj)[0]
+        corr = pearsonr(pseudotime, new_traj)[0]
         print('Correlation at iteration %d: %.4f' % (iteration, corr))
         if corr > 0.9999:
             converged = True
 
         # If not converged, continue iteration
-        trajectory = new_traj
+        pseudotime = new_traj
         iteration += 1
 
-    return trajectory, W
+    return pseudotime, W
 
 
 def identify_terminal_states(ms_data, early_cell, knn=30, num_waypoints=1200, n_jobs=-1):
@@ -247,17 +246,17 @@ def identify_terminal_states(ms_data, early_cell, knn=30, num_waypoints=1200, n_
     # Append start cell
     waypoints = pd.Index([start_cell]).append(waypoints)
 
-    # Distance to start cell as pseudo trajectory
-    trajectory, _ = _compute_trajectory(data, start_cell, knn,
+    # Distance to start cell as pseudo pseudotime
+    pseudotime, _ = _compute_pseudotime(data, start_cell, knn,
                                         waypoints, n_jobs)
 
     # Markov chain
     wp_data = data.loc[waypoints, :]
-    T = _construct_markov_chain(wp_data, knn, trajectory, n_jobs)
+    T = _construct_markov_chain(wp_data, knn, pseudotime, n_jobs)
 
     # Terminal states
     terminal_states = _terminal_states_from_markov_chain(
-        T, wp_data, trajectory)
+        T, wp_data, pseudotime)
 
     # Excluded diffusion map boundaries
     dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
@@ -266,7 +265,7 @@ def identify_terminal_states(ms_data, early_cell, knn=30, num_waypoints=1200, n_
     return terminal_states, excluded_boundaries
 
 
-def _construct_markov_chain(wp_data, knn, trajectory, n_jobs):
+def _construct_markov_chain(wp_data, knn, pseudotime, n_jobs):
 
     # Markov chain construction
     print('Markov chain construction...')
@@ -284,14 +283,14 @@ def _construct_markov_chain(wp_data, knn, trajectory, n_jobs):
     adaptive_std = np.ravel(dist[:, adpative_k])
 
     # Directed graph construction
-    # Trajectory position of all the neighbors
-    traj_nbrs = pd.DataFrame(trajectory[np.ravel(waypoints[ind])].values.reshape(
+    # pseudotime position of all the neighbors
+    traj_nbrs = pd.DataFrame(pseudotime[np.ravel(waypoints[ind])].values.reshape(
         [len(waypoints), n_neighbors]), index=waypoints)
 
-    # Remove edges that move backwards in trajectory except for edges that are within
+    # Remove edges that move backwards in pseudotime except for edges that are within
     # the computed standard deviation
     rem_edges = traj_nbrs.apply(
-        lambda x: x < trajectory[traj_nbrs.index] - adaptive_std)
+        lambda x: x < pseudotime[traj_nbrs.index] - adaptive_std)
     rem_edges = rem_edges.stack()[rem_edges.stack()]
 
     # Determine the indices and update adjacency matrix
@@ -303,8 +302,8 @@ def _construct_markov_chain(wp_data, knn, trajectory, n_jobs):
 
     # Affinity matrix and markov chain
     x, y, z = find(kNN)
-    aff = np.exp(-(z ** 2)/(adaptive_std[x] ** 2) * 0.5
-                 - (z ** 2)/(adaptive_std[y] ** 2) * 0.5)
+    aff = np.exp(-(z ** 2) / (adaptive_std[x] ** 2) * 0.5 -
+                  (z ** 2) / (adaptive_std[y] ** 2) * 0.5)
     W = csr_matrix((aff, (x, y)), [len(waypoints), len(waypoints)])
 
     # Transition matrix
@@ -315,7 +314,7 @@ def _construct_markov_chain(wp_data, knn, trajectory, n_jobs):
     return T
 
 
-def _terminal_states_from_markov_chain(T, wp_data, trajectory):
+def _terminal_states_from_markov_chain(T, wp_data, pseudotime):
     print('Identification of terminal states...')
 
     # Identify terminal statses
@@ -336,34 +335,35 @@ def _terminal_states_from_markov_chain(T, wp_data, trajectory):
     # Find connected components
     T_dense = pd.DataFrame(T.todense(), index=waypoints, columns=waypoints)
     graph = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
-    cells = [trajectory[i].idxmax() for i in nx.connected_components(graph)]
+    cells = [pseudotime[i].idxmax() for i in nx.connected_components(graph)]
 
     # Nearest diffusion map boundaries
     terminal_states = [pd.Series(np.ravel(pairwise_distances(wp_data.loc[dm_boundaries, :],
-                                                             wp_data.loc[i, :].values.reshape(1, -1))), index=dm_boundaries).idxmin()
+                                                             wp_data.loc[i, :].values.reshape(1, -1))),
+                                 index=dm_boundaries).idxmin()
                        for i in cells]
-    excluded_boundaries = dm_boundaries.difference(terminal_states)
+    # excluded_boundaries = dm_boundaries.difference(terminal_states)
     return terminal_states
 
 
 def _differentiation_entropy(wp_data, terminal_states,
-                             knn, n_jobs, trajectory):
+                             knn, n_jobs, pseudotime):
     """Function to compute entropy and branch probabilities
 
     :param wp_data: Multi scale data of the waypoints
     :param terminal_states: Terminal states
     :param knn: Number of nearest neighbors for graph construction
     :param n_jobs: Number of jobs for parallel processing
-    :param trajectory: Pseudo time ordering of cells
+    :param pseudotime: Pseudo time ordering of cells
     :return: entropy and branch probabilities
     """
 
-    T = _construct_markov_chain(wp_data, knn, trajectory, n_jobs)
+    T = _construct_markov_chain(wp_data, knn, pseudotime, n_jobs)
 
     # Identify terminal states if not specified
     if terminal_states is None:
         terminal_states = _terminal_states_from_markov_chain(
-            T, wp_data, trajectory)
+            T, wp_data, pseudotime)
     # Absorption states should not have outgoing edges
     waypoints = wp_data.index
     abs_states = np.where(waypoints.isin(terminal_states))[0]
@@ -403,16 +403,14 @@ def _differentiation_entropy(wp_data, terminal_states,
 
 
 def _shortest_path_helper(cell, adj):
-    # NOTE: Graph construction is parallelized since constructing the graph outside was creating lock issues
-    graph = nx.Graph(adj)
-    return pd.Series(nx.single_source_dijkstra_path_length(graph, cell))
+    return pd.Series(csgraph.dijkstra(adj, False, cell))
 
 
 def _connect_graph(adj, data, start_cell):
 
     # Create graph and compute distances
     graph = nx.Graph(adj)
-    dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell)) 
+    dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell))
     dists = pd.Series(dists.values, index=data.index[dists.index])
 
     # Idenfity unreachable nodes
@@ -427,8 +425,9 @@ def _connect_graph(adj, data, start_cell):
 
         # Compute distances to unreachable nodes
         unreachable_dists = pairwise_distances(data.iloc[farthest_reachable, :].values.reshape(1, -1),
-            data.loc[unreachable_nodes,:])
-        unreachable_dists = pd.Series(np.ravel(unreachable_dists), index=unreachable_nodes)
+                                               data.loc[unreachable_nodes, :])
+        unreachable_dists = pd.Series(
+            np.ravel(unreachable_dists), index=unreachable_nodes)
 
         # Add edge between farthest reacheable and its nearest unreachable
         add_edge = np.where(data.index == unreachable_dists.idxmin())[0][0]
@@ -436,16 +435,11 @@ def _connect_graph(adj, data, start_cell):
 
         # Recompute distances to early cell
         graph = nx.Graph(adj)
-        dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell)) 
+        dists = pd.Series(
+            nx.single_source_dijkstra_path_length(graph, start_cell))
         dists = pd.Series(dists.values, index=data.index[dists.index])
 
         # Idenfity unreachable nodes
         unreachable_nodes = data.index.difference(dists.index)
 
-
     return adj
-
-
-
-
-

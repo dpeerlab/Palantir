@@ -270,19 +270,19 @@ def plot_palantir_results(pr_res, tsne):
     gs = plt.GridSpec(n_rows + 2, n_cols,
                       height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
 
-    # Trajectory
+    # Pseudotime
     ax = plt.subplot(gs[0:2, 1:3])
     ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
-               cmap=matplotlib.cm.plasma, c=pr_res.trajectory[tsne.index])
+               cmap=matplotlib.cm.plasma, c=pr_res.pseudotime[tsne.index])
     ax.set_axis_off()
-    ax.set_title('Trajectory')
+    ax.set_title('Pseudotime')
 
     # Entropy
     ax = plt.subplot(gs[0:2, 3:5])
     ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
                cmap=matplotlib.cm.plasma, c=pr_res.entropy[tsne.index])
     ax.set_axis_off()
-    ax.set_title('Entropy')
+    ax.set_title('Differentiation potential')
 
     # Branch probabilities
     order = [2, 3, 1, 4, 0, 5]
@@ -334,7 +334,7 @@ def plot_terminal_state_probs(pr_res, cells):
     sns.despine()
 
 
-def plot_gene_trends(gene_trends):
+def plot_gene_trends(gene_trends, genes=None):
     """ Plot the gene trends: each gene is plotted in a different panel
     :param: gene_trends: Results of the compute_marker_trends function
     """
@@ -342,8 +342,9 @@ def plot_gene_trends(gene_trends):
     # Branches and genes
     branches = list(gene_trends.keys())
     colors = pd.Series(sns.color_palette(
-        'hls', len(branches)).as_hex(), index=branches)
-    genes = gene_trends[branches[0]]['trends'].index
+        'Set2', len(branches)).as_hex(), index=branches)
+    if genes is None:
+        genes = gene_trends[branches[0]]['trends'].index
 
     # Set up figure
     fig = plt.figure(figsize=[7, 3 * len(genes)])
@@ -358,10 +359,9 @@ def plot_gene_trends(gene_trends):
             ax.fill_between(trends.columns, trends.loc[gene, :] - stds.loc[gene, :],
                             trends.loc[gene, :] + stds.loc[gene, :], alpha=0.1, color=colors[branch])
             ax.set_title(gene)
-
-            # Add legend
-            if i == 0:
-                plt.legend()
+        # Add legend
+        if i == 0:
+            ax.legend()
 
     sns.despine()
 
@@ -385,7 +385,7 @@ def plot_gene_trend_heatmaps(gene_trends):
         mat = gene_trends[branch]['trends']
         mat = pd.DataFrame(StandardScaler().fit_transform(mat.T).T,
                            index=mat.index, columns=mat.columns)
-        sns.heatmap(mat, xticklabels=False, ax=ax)
+        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=matplotlib.cm.Spectral_r)
         ax.set_title(branch, fontsize=12)
 
 
@@ -398,7 +398,7 @@ def plot_gene_trend_clusters(trends, clusters):
                           index=trends.index, columns=trends.columns)
 
     n_rows = int(np.ceil(len(set(clusters))/3))
-    fig = plt.figure(figsize=[5.5 * 3, 2 * n_rows])
+    fig = plt.figure(figsize=[5.5 * 3, 2.5 * n_rows])
     for i, c in enumerate(set(clusters)):
         ax = fig.add_subplot(n_rows, 3, i+1)
         means = trends.loc[clusters.index[clusters == c], :].mean()
