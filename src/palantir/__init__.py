@@ -4,5 +4,4 @@ from . import io
 from . import preprocess
 from . import utils
 from . import plot
-
-__version__ = "1.0"
+from .version import __version__

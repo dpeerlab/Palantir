@@ -14,20 +14,21 @@ class PResults(object):
     """
     Container of palantir results
     """
-    def __init__(self, trajectory, entropy, branch_probs, waypoints):
+
+    def __init__(self, pseudotime, entropy, branch_probs, waypoints):
 
         # Initialize
-        self._trajectory = (trajectory - trajectory.min()) / (trajectory.max() - trajectory.min())
+        self._pseudotime = (pseudotime - pseudotime.min()) / \
+            (pseudotime.max() - pseudotime.min())
         self._entropy = entropy
         self._branch_probs = branch_probs
         self._branch_probs[self._branch_probs < 0.01] = 0
         self._waypoints = waypoints
 
-
     # Getters and setters
     @property
-    def trajectory(self):
-        return self._trajectory
+    def pseudotime(self):
+        return self._pseudotime
 
     @property
     def branch_probs(self):
@@ -41,6 +42,10 @@ class PResults(object):
     def entropy(self):
         return self._entropy
 
+    @entropy.setter
+    def entropy(self, entropy):
+        self._entropy = entropy
+
     @property
     def waypoints(self):
         return self._waypoints
@@ -51,15 +56,16 @@ class PResults(object):
             data = pickle.load(f)
 
         # Set up object
-        presults = cls(data['_trajectory'], data['_entropy'], data['_branch_prob'], data['_waypoints'])
+        presults = cls(data['_pseudotime'], data['_entropy'],
+                       data['_branch_prob'], data['_waypoints'])
         return presults
 
     def save(self, pkl_file: str):
-        pickle.dump(vars(self), pkl_filet)
+        pickle.dump(vars(self), pkl_file)
 
 
 def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
-    """Function for computing gene expression trends along Palantir trajectory
+    """Function for computing gene expression trends along Palantir pseudotime
 
     :param pr_res: Palantir results object
     :param gene_exprs: Magic imputed data [Cells X Genes]
@@ -71,7 +77,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
     try:
         import rpy2
         from rpy2.rinterface import RRuntimeError
-        from rpy2.robjects.packages import importr  
+        from rpy2.robjects.packages import importr
     except ImportError:
         raise RuntimeError('Cannot compute gene expression trends without installing rpy2. \
             \nPlease use "pip3 install rpy2" to install rpy2')
@@ -86,7 +92,6 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
         raise RuntimeError('R package "gam" is necessary for computing gene expression trends. \
             \nPlease install gam from https://cran.r-project.org/web/packages/gam/ and try again')
 
-
     # Compute for all lineages if branch is not speicified
     if lineages is None:
         lineages = pr_res.branch_probs.columns
@@ -95,14 +100,15 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
     results = OrderedDict()
     for branch in lineages:
         results[branch] = OrderedDict()
-        # Bins along the trajectory
-        br_cells = pr_res.branch_probs.index[pr_res.branch_probs.loc[:, branch] > 0]
-        bins = np.linspace(0, pr_res.trajectory[br_cells].max(), 500)
+        # Bins along the pseudotime
+        br_cells = pr_res.branch_probs.index[pr_res.branch_probs.loc[:, branch] > 0.7]
+        bins = np.linspace(0, pr_res.pseudotime[br_cells].max(), 500)
 
         # Branch results container
-        results[branch]['trends'] = pd.DataFrame(0.0, index=gene_exprs.columns, columns=bins)
-        results[branch]['std'] = pd.DataFrame(0.0, index=gene_exprs.columns, columns=bins)
-
+        results[branch]['trends'] = pd.DataFrame(
+            0.0, index=gene_exprs.columns, columns=bins)
+        results[branch]['std'] = pd.DataFrame(
+            0.0, index=gene_exprs.columns, columns=bins)
 
     # Compute for each branch
     for branch in lineages:
@@ -114,8 +120,8 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
         bins = np.array(results[branch]['trends'].columns)
         res = Parallel(n_jobs=n_jobs)(
             delayed(_gam_fit_predict)(
-                    pr_res.trajectory[gene_exprs.index].values, gene_exprs.loc[:, gene].values, 
-                    weights,  bins)
+                pr_res.pseudotime[gene_exprs.index].values, gene_exprs.loc[:, gene].values,
+                weights, bins)
             for gene in gene_exprs.columns)
 
         # Fill in the matrices
@@ -123,7 +129,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
             results[branch]['trends'].loc[gene, :] = res[i][0]
             results[branch]['std'].loc[gene, :] = res[i][1]
         end = time.time()
-        print('Time for processing {}: {} minutes'.format(branch, (end-start)/60))
+        print('Time for processing {}: {} minutes'.format(branch, (end - start) / 60))
 
     return results
 
@@ -132,7 +138,7 @@ def _gam_fit_predict(x, y, weights=None, pred_x=None):
 
     import rpy2.robjects as robjects
     from rpy2.robjects import pandas2ri, Formula
-    from rpy2.robjects.packages import importr  
+    from rpy2.robjects.packages import importr
     pandas2ri.activate()
 
     # Weights
@@ -141,47 +147,44 @@ def _gam_fit_predict(x, y, weights=None, pred_x=None):
 
     # Construct dataframe
     use_inds = np.where(weights > 0)[0]
-    r_df = pandas2ri.py2ri(pd.DataFrame(np.array([x, y]).T[use_inds,:], columns=['x', 'y']))
+    r_df = pandas2ri.py2ri(pd.DataFrame(
+        np.array([x, y]).T[use_inds, :], columns=['x', 'y']))
 
     # Fit the model
     rgam = importr('gam')
-    model = rgam.gam(Formula('y~s(x)'), data=r_df, weights=pd.Series(weights[use_inds]) )
+    model = rgam.gam(Formula('y~s(x)'), data=r_df,
+                     weights=pd.Series(weights[use_inds]))
 
     # Predictions
     if pred_x is None:
         pred_x = x
     y_pred = np.array(robjects.r.predict(model,
-        newdata=pandas2ri.py2ri(pd.DataFrame(pred_x, columns=['x']))))
+                                         newdata=pandas2ri.py2ri(pd.DataFrame(pred_x, columns=['x']))))
 
     # Standard deviations
     p = np.array(robjects.r.predict(model,
-        newdata=pandas2ri.py2ri(pd.DataFrame(x[use_inds], columns=['x']))))
+                                    newdata=pandas2ri.py2ri(pd.DataFrame(x[use_inds], columns=['x']))))
     n = len(use_inds)
-    sigma = np.sqrt( ((y[use_inds] - p) ** 2).sum() / (n-2) )
-    stds = np.sqrt(1 + 1/n + (pred_x - np.mean(x))**2 / \
-        ((x - np.mean(x)) ** 2).sum()) * sigma/2
+    sigma = np.sqrt(((y[use_inds] - p) ** 2).sum() / (n - 2))
+    stds = np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) ** 2 /
+                   ((x - np.mean(x)) ** 2).sum()) * sigma / 2
 
     return y_pred, stds
 
 
-
-def cluster_gene_trends(trends, n_jobs=-1):
+def cluster_gene_trends(trends, k=150, n_jobs=-1):
     """Function to cluster gene trends
-    :param pr_res: Palantir results object
     :param trends: Matrix of gene expression trends
-    :param branch: Branch for which to cluster the gene trends
+    :param k: K for nearest neighbor construction
+    :param n_jobs: Number of jobs for parallel processing
     :return: Clustering of gene trends
     """
 
     # Standardize the trends
-    trends = pd.DataFrame(StandardScaler().fit_transform( trends.T ).T,
-        index=trends.index, columns=trends.columns)
+    trends = pd.DataFrame(StandardScaler().fit_transform(trends.T).T,
+                          index=trends.index, columns=trends.columns)
 
     # Cluster
-    clusters, _, _ = phenograph.cluster(trends, k=150)
+    clusters, _, _ = phenograph.cluster(trends, k=k, n_jobs=n_jobs)
     clusters = pd.Series(clusters, index=trends.index)
     return clusters
-
-    
-
-

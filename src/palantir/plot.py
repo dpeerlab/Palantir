@@ -17,20 +17,23 @@ except KeyError:
 import matplotlib.pyplot as plt
 
 with warnings.catch_warnings():
-    warnings.simplefilter('ignore')  # catch experimental ipython widget warning
+    # catch experimental ipython widget warning
+    warnings.simplefilter('ignore')
     import seaborn as sns
-    sns.set(context="paper", style='ticks', font_scale=1.5, font='Bitstream Vera Sans')
-    
+    sns.set(context="paper", style='ticks',
+            font_scale=1.5, font='Bitstream Vera Sans')
+
 # set plotting defaults
 with warnings.catch_warnings():
-    warnings.simplefilter('ignore')  # catch warnings that system can't find fonts
+    # catch warnings that system can't find fonts
+    warnings.simplefilter('ignore')
     import seaborn as sns
     fm = font_manager.fontManager
     fm.findfont('Raleway')
     fm.findfont('Lato')
 
 warnings.filterwarnings(action="ignore", message="remove_na is deprecated")
-    
+
 
 class FigureGrid:
     """
@@ -44,8 +47,7 @@ class FigureGrid:
     >>> ax3 = fig[3]
     >>> ax3.set_title("I'm axis 3")
     """
-    
-    
+
     # Figure Grid is favorable for displaying multiple graphs side by side.
 
     def __init__(self, n: int, max_cols=3, scale=3):
@@ -77,6 +79,7 @@ class FigureGrid:
         for i in range(self.n):
             yield self[i]
 
+
 def get_fig(fig=None, ax=None, figsize=[4, 4]):
     """fills in any missing axis or figure with the currently active one
     :param ax: matplotlib Axis object
@@ -87,7 +90,7 @@ def get_fig(fig=None, ax=None, figsize=[4, 4]):
     if not ax:
         ax = plt.gca()
     return fig, ax
-        
+
 
 def density_2d(x, y):
     """return x and y and their density z, sorted by their density (smallest to largest)
@@ -120,7 +123,7 @@ def plot_molecules_per_cell_and_gene(data, fig=None, ax=None):
             n, bins, patches = ax.hist(temp, bins='auto')
             plt.xlabel('Nonzero cells per gene (log10 scale)')
         else:
-            n, bins, patches = ax.hist(colsum, bins='auto') 
+            n, bins, patches = ax.hist(colsum, bins='auto')
             plt.xlabel('Molecules per gene (log10 scale)')
         plt.ylabel('Frequency')
         plt.tight_layout()
@@ -138,32 +141,32 @@ def plot_cell_clusters(tsne, clusters):
 
     # Cluster colors
     n_clusters = len(set(clusters))
-    cluster_colors = pd.Series(sns.color_palette('hls', n_clusters), index=set(clusters))
+    cluster_colors = pd.Series(sns.color_palette(
+        'hls', n_clusters), index=set(clusters))
 
     # Set up figure
     n_cols = 6
-    n_rows = int(np.ceil(n_clusters/ n_cols))
-    fig = plt.figure(figsize=[2*n_cols, 2 * (n_rows + 2)] )
-    gs = plt.GridSpec(n_rows + 2, n_cols, 
-        height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
+    n_rows = int(np.ceil(n_clusters / n_cols))
+    fig = plt.figure(figsize=[2*n_cols, 2 * (n_rows + 2)])
+    gs = plt.GridSpec(n_rows + 2, n_cols,
+                      height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
 
     # Clusters
     ax = plt.subplot(gs[0:2, 2:4])
-    ax.scatter(tsne['x'], tsne['y'], s=3, 
-        color=cluster_colors[clusters[tsne.index]])
+    ax.scatter(tsne['x'], tsne['y'], s=3,
+               color=cluster_colors[clusters[tsne.index]])
     ax.set_axis_off()
 
     # Branch probabilities
     for i, cluster in enumerate(set(clusters)):
-        row = int(np.floor( i/n_cols ))
+        row = int(np.floor(i/n_cols))
         ax = plt.subplot(gs[row+2, i % n_cols])
         ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3, color='lightgrey')
         cells = clusters.index[clusters == cluster]
-        ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'], 
-            s=3, color=cluster_colors[cluster])
+        ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'],
+                   s=3, color=cluster_colors[cluster])
         ax.set_axis_off()
         ax.set_title(cluster, fontsize=10)
-
 
 
 def plot_tsne(tsne, fig=None, ax=None):
@@ -199,8 +202,8 @@ def plot_tsne_by_cell_sizes(data, tsne, fig=None, ax=None, vmin=None, vmax=None)
 
     sizes = data.sum(axis=1)
     fig, ax = get_fig(fig, ax)
-    plt.scatter(tsne['x'], tsne['y'], s=3, c=sizes, 
-        cmap=matplotlib.cm.Spectral_r)
+    plt.scatter(tsne['x'], tsne['y'], s=3, c=sizes,
+                cmap=matplotlib.cm.Spectral_r)
     ax.set_axis_off()
     plt.colorbar()
     return fig, ax
@@ -227,12 +230,12 @@ def plot_gene_expression(data, tsne, genes):
     # Plot
     fig = FigureGrid(len(genes), 5)
 
-    for  g, ax  in zip(genes, fig):
+    for g, ax in zip(genes, fig):
         ax.scatter(tsne['x'], tsne['y'], c=data.loc[tsne.index,  g], s=3,
-                    cmap=matplotlib.cm.Spectral_r)
+                   cmap=matplotlib.cm.Spectral_r)
         ax.set_axis_off()
         ax.set_title(g)
-  
+
 
 def plot_diffusion_components(tsne, dm_res):
     """ Plots the diffusion components on tSNE maps
@@ -247,11 +250,11 @@ def plot_diffusion_components(tsne, dm_res):
 
     for i, ax in enumerate(fig):
         ax.scatter(tsne['x'], tsne['y'], c=dm_res['EigenVectors'].loc[tsne.index, i],
-            cmap=matplotlib.cm.Spectral_r, edgecolors='none', s=3)
+                   cmap=matplotlib.cm.Spectral_r, edgecolors='none', s=3)
         ax.xaxis.set_major_locator(plt.NullLocator())
         ax.yaxis.set_major_locator(plt.NullLocator())
         ax.set_aspect('equal')
-        ax.set_title( 'Component %d' % i, fontsize=10 )
+        ax.set_title('Component %d' % i, fontsize=10)
         ax.set_axis_off()
 
 
@@ -262,34 +265,33 @@ def plot_palantir_results(pr_res, tsne):
     # Set up figure
     n_branches = pr_res.branch_probs.shape[1]
     n_cols = 6
-    n_rows = int(np.ceil(n_branches/ n_cols))
-    fig = plt.figure(figsize=[2*n_cols, 2 * (n_rows + 2)] )
-    gs = plt.GridSpec(n_rows + 2, n_cols, 
-        height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
+    n_rows = int(np.ceil(n_branches / n_cols))
+    fig = plt.figure(figsize=[2*n_cols, 2 * (n_rows + 2)])
+    gs = plt.GridSpec(n_rows + 2, n_cols,
+                      height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
 
-    # Trajectory
+    # Pseudotime
     ax = plt.subplot(gs[0:2, 1:3])
-    ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3, 
-        cmap=matplotlib.cm.plasma, c=pr_res.trajectory[tsne.index])
+    ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
+               cmap=matplotlib.cm.plasma, c=pr_res.pseudotime[tsne.index])
     ax.set_axis_off()
-    ax.set_title('Trajectory')
+    ax.set_title('Pseudotime')
 
     # Entropy
     ax = plt.subplot(gs[0:2, 3:5])
-    ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3, 
-        cmap=matplotlib.cm.plasma, c=pr_res.entropy[tsne.index])
+    ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
+               cmap=matplotlib.cm.plasma, c=pr_res.entropy[tsne.index])
     ax.set_axis_off()
-    ax.set_title('Entropy')
-
+    ax.set_title('Differentiation potential')
 
     # Branch probabilities
     order = [2, 3, 1, 4, 0, 5]
     row = 2
     for i, branch in enumerate(pr_res.branch_probs.columns):
-        row = int(np.floor( i/n_cols ))
+        row = int(np.floor(i/n_cols))
         ax = plt.subplot(gs[row+2, order[i]])
-        ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3, 
-            cmap=matplotlib.cm.plasma, c=pr_res.branch_probs.loc[tsne.index, branch])
+        ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
+                   cmap=matplotlib.cm.plasma, c=pr_res.branch_probs.loc[tsne.index, branch])
         ax.set_axis_off()
         ax.set_title(branch, fontsize=10)
 
@@ -309,8 +311,8 @@ def plot_terminal_state_probs(pr_res, cells):
     set1_colors = sns.color_palette('Set1', 8).as_hex()
     set2_colors = sns.color_palette('Set2', 8).as_hex()
     cluster_colors = np.array(list(chain(*[set1_colors, set2_colors])))
-    branch_colors = pd.Series(cluster_colors[range(pr_res.branch_probs.shape[1])], 
-        index=pr_res.branch_probs.columns)
+    branch_colors = pd.Series(cluster_colors[range(pr_res.branch_probs.shape[1])],
+                              index=pr_res.branch_probs.columns)
 
     for i, cell in enumerate(cells):
         ax = fig.add_subplot(n_rows, n_cols, i+1)
@@ -319,26 +321,30 @@ def plot_terminal_state_probs(pr_res, cells):
         df = pd.DataFrame(pr_res.branch_probs.loc[cell, :])
         df.loc[:, 'x'] = pr_res.branch_probs.columns
         df.columns = ['y', 'x']
-            
+
         # Plot
         sns.barplot('x', 'y', data=df, ax=ax, palette=branch_colors)
-        ax.set_xlabel('');  ax.set_ylabel('')
-        ax.set_ylim([0, 1]); ax.set_yticks([0, 1])
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+        ax.set_ylim([0, 1])
+        ax.set_yticks([0, 1])
         ax.set_yticklabels([0, 1])
-        ax.set_xticklabels( ax.get_xticklabels(), fontsize=8 )
+        ax.set_xticklabels(ax.get_xticklabels(), fontsize=8)
         ax.set_title(cell, fontsize=10)
     sns.despine()
 
 
-def plot_gene_trends(gene_trends):
+def plot_gene_trends(gene_trends, genes=None):
     """ Plot the gene trends: each gene is plotted in a different panel
     :param: gene_trends: Results of the compute_marker_trends function
     """
 
     # Branches and genes
     branches = list(gene_trends.keys())
-    colors = pd.Series(sns.color_palette( 'hls', len(branches) ).as_hex(), index=branches)
-    genes = gene_trends[branches[0]]['trends'].index
+    colors = pd.Series(sns.color_palette(
+        'Set2', len(branches)).as_hex(), index=branches)
+    if genes is None:
+        genes = gene_trends[branches[0]]['trends'].index
 
     # Set up figure
     fig = plt.figure(figsize=[7, 3 * len(genes)])
@@ -347,16 +353,15 @@ def plot_gene_trends(gene_trends):
         for branch in branches:
             trends = gene_trends[branch]['trends']
             stds = gene_trends[branch]['std']
-            ax.plot(trends.columns, trends.loc[gene, :], 
-                color=colors[branch], label=branch)
+            ax.plot(trends.columns, trends.loc[gene, :],
+                    color=colors[branch], label=branch)
             ax.set_xticks([0, 1])
-            ax.fill_between(trends.columns, trends.loc[gene, :] - stds.loc[gene,:],
-                    trends.loc[gene, :] + stds.loc[gene,:], alpha=0.1, color=colors[branch])
+            ax.fill_between(trends.columns, trends.loc[gene, :] - stds.loc[gene, :],
+                            trends.loc[gene, :] + stds.loc[gene, :], alpha=0.1, color=colors[branch])
             ax.set_title(gene)
-
-            # Add legend 
-            if i == 0:
-                plt.legend()
+        # Add legend
+        if i == 0:
+            ax.legend()
 
     sns.despine()
 
@@ -378,11 +383,10 @@ def plot_gene_trend_heatmaps(gene_trends):
 
         # Standardize the matrix
         mat = gene_trends[branch]['trends']
-        mat = pd.DataFrame(StandardScaler().fit_transform( mat.T ).T, 
-            index=mat.index, columns=mat.columns)
-        sns.heatmap(mat, xticklabels=False, ax=ax)
+        mat = pd.DataFrame(StandardScaler().fit_transform(mat.T).T,
+                           index=mat.index, columns=mat.columns)
+        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=matplotlib.cm.Spectral_r)
         ax.set_title(branch, fontsize=12)
-
 
 
 def plot_gene_trend_clusters(trends, clusters):
@@ -390,11 +394,11 @@ def plot_gene_trend_clusters(trends, clusters):
     """
 
     # Standardize the trends
-    trends = pd.DataFrame(StandardScaler().fit_transform( trends.T ).T,
-        index=trends.index, columns=trends.columns)
+    trends = pd.DataFrame(StandardScaler().fit_transform(trends.T).T,
+                          index=trends.index, columns=trends.columns)
 
     n_rows = int(np.ceil(len(set(clusters))/3))
-    fig = plt.figure(figsize=[5 * 3, 3 * n_rows])
+    fig = plt.figure(figsize=[5.5 * 3, 2.5 * n_rows])
     for i, c in enumerate(set(clusters)):
         ax = fig.add_subplot(n_rows, 3, i+1)
         means = trends.loc[clusters.index[clusters == c], :].mean()
@@ -402,18 +406,19 @@ def plot_gene_trend_clusters(trends, clusters):
 
         # Plot all trends
         for g in clusters.index[clusters == c]:
-            ax.plot(means.index, np.ravel(trends.loc[g, :]), linewidth=0.5, color='lightgrey')
+            ax.plot(means.index, np.ravel(
+                trends.loc[g, :]), linewidth=0.5, color='lightgrey')
 
         # Mean
         ax.plot(means.index, np.ravel(means), color='#377eb8')
-        ax.plot(means.index, np.ravel(means - std), linestyle='--', 
+        ax.plot(means.index, np.ravel(means - std), linestyle='--',
                 color='#377eb8', linewidth=0.75)
-        ax.plot(means.index, np.ravel(means + std), linestyle='--', 
+        ax.plot(means.index, np.ravel(means + std), linestyle='--',
                 color='#377eb8', linewidth=0.75)
-        ax.set_title('Cluster {}'.format(c), fontsize=10)
+        ax.set_title('Cluster {}'.format(c), fontsize=12)
         ax.tick_params('both', length=2, width=1, which='major')
-        ax.tick_params(axis='both', which='major', labelsize=8)
+        ax.tick_params(axis='both', which='major', labelsize=8, direction='in')
+        ax.set_xticklabels([])
         # ax.set_xticklabels( ax.get_xticklabels(), fontsize=8 )
         # ax.set_yticklabels( ax.get_yticklabels(), fontsize=8 )
     sns.despine()
-
