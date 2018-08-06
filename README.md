@@ -30,4 +30,4 @@ A tutorial on Palantir usage and results visualization for single cell RNA-seq d
 
 
 #### Citations
-bioRxiv submission is in the works.
+Palantir manuscript is in submission: "Palantir characterizes cell fate continuities in human hematopoiesis". Preprint is available at https://www.biorxiv.org/content/early/2018/08/05/385328
