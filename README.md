@@ -7,7 +7,7 @@ Palantir is an algorithm to align cells along differentiation trajectories. Pala
 #### Installation and dependencies
 1. Palantir has been implemented in Python3 and can be installed using:
 
-        $> git clone git://github.com/ManuSetty/Palantir.git
+        $> git clone git://github.com/dpeerlab/Palantir.git
         $> cd Palantir
         $> sudo -H pip3 install .
 
