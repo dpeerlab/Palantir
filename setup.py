@@ -23,7 +23,7 @@ if shutil.which('pip3'):
 setup(name='palantir',
       version=__version__,  # read in from the exec of version.py; ignore error   
       description='Palantir for modeling continuous cell state and cell fate choices in single cell data',
-      url='https://github.com/manusetty/palantir',
+      url='https://github.com/dpeerlab/palantir',
       author='Manu Setty',
       author_email='manu.talanki@gmail.com',
       package_dir={'': 'src'},
