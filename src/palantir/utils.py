@@ -5,7 +5,7 @@ import phenograph
 
 from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
-from scipy.sparse import csr_matrix, find
+from scipy.sparse import csr_matrix, find, issparse
 from scipy.sparse.linalg import eigs
 
 
@@ -22,38 +22,41 @@ def run_pca(data, n_components=300):
     return pca_projections, pca.explained_variance_ratio_
 
 
-def run_diffusion_maps(pca_projections, n_components=10, knn=30, n_jobs=-1):
+def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1):
     """Run Diffusion maps using the adaptive anisotropic kernel
 
-    :param pca_projections: PCA projections of the data
+    :param data_df: PCA projections of the data or adjancency matrix
     :param n_components: Number of diffusion components
     :return: Diffusion components, corresponding eigen values and the diffusion operator
     """
 
     # Determine the kernel
-    print('Determing nearest neighbor graph...')
-    nbrs = NearestNeighbors(n_neighbors=int(knn), metric='euclidean',
-                            n_jobs=n_jobs).fit(pca_projections.values)
-    kNN = nbrs.kneighbors_graph(pca_projections.values, mode='distance')
+    N = data_df.shape[0]
+    if not issparse(data_df):
+        print('Determing nearest neighbor graph...')
+        nbrs = NearestNeighbors(n_neighbors=int(knn), metric='euclidean',
+                                n_jobs=n_jobs).fit(data_df.values)
+        kNN = nbrs.kneighbors_graph(data_df.values, mode='distance')
 
-    # Adaptive k
-    adaptive_k = int(np.floor(knn / 3))
-    nbrs = NearestNeighbors(n_neighbors=int(adaptive_k),
-                            metric='euclidean', n_jobs=n_jobs).fit(pca_projections.values)
-    adaptive_std = nbrs.kneighbors_graph(
-        pca_projections.values, mode='distance').max(axis=1)
-    adaptive_std = np.ravel(adaptive_std.todense())
+        # Adaptive k
+        adaptive_k = int(np.floor(knn / 3))
+        nbrs = NearestNeighbors(n_neighbors=int(adaptive_k),
+                                metric='euclidean', n_jobs=n_jobs).fit(data_df.values)
+        adaptive_std = nbrs.kneighbors_graph(
+            data_df.values, mode='distance').max(axis=1)
+        adaptive_std = np.ravel(adaptive_std.todense())
 
-    # Kernel
-    N = pca_projections.shape[0]
-    x, y, dists = find(kNN)
+        # Kernel
+        x, y, dists = find(kNN)
 
-    # X, y specific stds
-    dists = dists / adaptive_std[x]
-    W = csr_matrix((np.exp(-dists), (x, y)), shape=[N, N])
+        # X, y specific stds
+        dists = dists / adaptive_std[x]
+        W = csr_matrix((np.exp(-dists), (x, y)), shape=[N, N])
 
-    # Diffusion components
-    kernel = W + W.T
+        # Diffusion components
+        kernel = W + W.T
+    else:
+        kernel = data_df
 
     # Markov
     D = np.ravel(kernel.sum(axis=1))
@@ -73,8 +76,9 @@ def run_diffusion_maps(pca_projections, n_components=10, knn=30, n_jobs=-1):
 
     # Create are results dictionary
     res = {'T': T, 'EigenVectors': V, 'EigenValues': D}
-    res['EigenVectors'] = pd.DataFrame(
-        res['EigenVectors'], index=pca_projections.index)
+    res['EigenVectors'] = pd.DataFrame(res['EigenVectors'])
+    if not issparse(data_df):
+        res['EigenVectors'].index = data_df.index
     res['EigenValues'] = pd.Series(res['EigenValues'])
 
     return res
