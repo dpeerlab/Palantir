@@ -269,18 +269,28 @@ def plot_palantir_results(pr_res, tsne):
     fig = plt.figure(figsize=[2*n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(n_rows + 2, n_cols,
                       height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
-
+    cmap=matplotlib.cm.plasma
     # Pseudotime
     ax = plt.subplot(gs[0:2, 1:3])
+    c=pr_res.pseudotime[tsne.index]
     ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
-               cmap=matplotlib.cm.plasma, c=pr_res.pseudotime[tsne.index])
+               cmap=matplotlib.cm.plasma, c=c)
+    normalize = matplotlib.colors.Normalize(
+        vmin=np.min(c), vmax=np.max(c))
+    cax, _ = matplotlib.colorbar.make_axes(ax)
+    cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
     ax.set_axis_off()
     ax.set_title('Pseudotime')
 
     # Entropy
     ax = plt.subplot(gs[0:2, 3:5])
+    c=pr_res.entropy[tsne.index]
     ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
-               cmap=matplotlib.cm.plasma, c=pr_res.entropy[tsne.index])
+               cmap=matplotlib.cm.plasma, c=c)
+    normalize = matplotlib.colors.Normalize(
+        vmin=np.min(c), vmax=np.max(c))
+    cax, _ = matplotlib.colorbar.make_axes(ax)
+    cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
     ax.set_axis_off()
     ax.set_title('Differentiation potential')
 
@@ -290,8 +300,13 @@ def plot_palantir_results(pr_res, tsne):
     for i, branch in enumerate(pr_res.branch_probs.columns):
         row = int(np.floor(i/n_cols))
         ax = plt.subplot(gs[row+2, order[i]])
+        c=pr_res.branch_probs.loc[tsne.index, branch]
         ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
-                   cmap=matplotlib.cm.plasma, c=pr_res.branch_probs.loc[tsne.index, branch])
+                   cmap=matplotlib.cm.plasma, c=c)
+        normalize = matplotlib.colors.Normalize(
+            vmin=np.min(c), vmax=np.max(c))
+        cax, _ = matplotlib.colorbar.make_axes(ax)
+        cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
         ax.set_axis_off()
         ax.set_title(branch, fontsize=10)
 
