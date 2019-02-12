@@ -109,6 +109,8 @@ def determine_multiscale_space(dm_res, n_eigs=None):
     if n_eigs is None:
         vals = np.ravel(dm_res['EigenValues'])
         n_eigs = np.argsort(vals[:(len(vals) - 1)] - vals[1:])[-1] + 1
+        if n_eigs < 3:
+            n_eigs = np.argsort(vals[:(len(vals) - 1)] - vals[1:])[-2] + 1
 
     # Scale the data
     use_eigs = list(range(1, n_eigs))
