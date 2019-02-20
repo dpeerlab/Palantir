@@ -22,6 +22,8 @@ All the dependencies will be automatically installed using the above commands
 	
 		$> sudo -H pip3 install rpy2
 		
+5. Palantir can also be used with [**Scanpy**](https://github.com/theislab/scanpy). It is fully integrated into Scanpy, and can be found under Scanpy's external modules ([link](https://scanpy.readthedocs.io/en/latest/api/scanpy.external.html#external-api))
+
 
 #### Usage
 
