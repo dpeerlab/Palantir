@@ -31,4 +31,14 @@ A tutorial on Palantir usage and results visualization for single cell RNA-seq d
 
 
 #### Citations
-Palantir manuscript is in submission: "Palantir characterizes cell fate continuities in human hematopoiesis". Preprint is available at https://www.biorxiv.org/content/early/2018/08/05/385328
+Palantir manuscript is available from [Nature Biotechnology](https://www.nature.com/articles/s41587-019-0068-4). If you use Palantir for your work, please cite our paper.
+
+        @article{Palantir_2019,
+                title = {Characterization of cell fate probabilities in single-cell data with Palantir},
+                author = {Manu Setty and Vaidotas Kiseliovas and Jacob Levine and Adam Gayoso and Linas Mazutis and Dana Pe'er},
+                journal = {Nature Biotechnology},
+                year = {2019},
+                month = {march},
+                url = {https://doi.org/10.1038/s41587-019-0068-4},
+                doi = {10.1038/s41587-019-0068-4}
+        }
