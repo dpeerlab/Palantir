@@ -76,7 +76,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
     # Error check
     try:
         import rpy2
-        from rpy2.rinterface import RRuntimeError
+        import rpy2.rinterface_lib.embedded as embedded
         from rpy2.robjects.packages import importr
     except ImportError:
         raise RuntimeError('Cannot compute gene expression trends without installing rpy2. \
@@ -88,7 +88,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
 
     try:
         rgam = importr('gam')
-    except RRuntimeError:
+    except embedded.RRuntimeError:
         raise RuntimeError('R package "gam" is necessary for computing gene expression trends. \
             \nPlease install gam from https://cran.r-project.org/web/packages/gam/ and try again')
 
@@ -147,7 +147,7 @@ def _gam_fit_predict(x, y, weights=None, pred_x=None):
 
     # Construct dataframe
     use_inds = np.where(weights > 0)[0]
-    r_df = pandas2ri.py2ri(pd.DataFrame(
+    r_df = pandas2ri.py2rpy(pd.DataFrame(
         np.array([x, y]).T[use_inds, :], columns=['x', 'y']))
 
     # Fit the model
@@ -159,11 +159,11 @@ def _gam_fit_predict(x, y, weights=None, pred_x=None):
     if pred_x is None:
         pred_x = x
     y_pred = np.array(robjects.r.predict(model,
-                                         newdata=pandas2ri.py2ri(pd.DataFrame(pred_x, columns=['x']))))
+                                         newdata=pandas2ri.py2rpy(pd.DataFrame(pred_x, columns=['x']))))
 
     # Standard deviations
     p = np.array(robjects.r.predict(model,
-                                    newdata=pandas2ri.py2ri(pd.DataFrame(x[use_inds], columns=['x']))))
+                                    newdata=pandas2ri.py2rpy(pd.DataFrame(x[use_inds], columns=['x']))))
     n = len(use_inds)
     sigma = np.sqrt(((y[use_inds] - p) ** 2).sum() / (n - 2))
     stds = np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) ** 2 /

@@ -41,6 +41,8 @@ setup(name='palantir',
           'Cython',
           'bhtsne',
           'matplotlib>=2.2.2',
-          'seaborn>=0.8.1'
+          'seaborn>=0.8.1',
+          'tzlocal',
+          'rpy2>=3.0.2'
       ],
       )
