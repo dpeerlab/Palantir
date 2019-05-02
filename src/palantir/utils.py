@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import bhtsne
+from MulticoreTSNE import MulticoreTSNE as TSNE
 import phenograph
 
 from sklearn.decomposition import PCA
@@ -129,8 +129,7 @@ def run_tsne(data, n_dim=2, perplexity=150, **kwargs):
     :param n_dim: Number of dimensions for tSNE embedding
     :return: tSNE embedding of the data
     """
-    tsne = bhtsne.tsne(data.values.astype(float),
-                       dimensions=n_dim, perplexity=perplexity, **kwargs)
+    tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(data.values)
     tsne = pd.DataFrame(tsne, index=data.index)
     tsne.columns = ['x', 'y']
     return tsne
