@@ -30,6 +30,27 @@ All the dependencies will be automatically installed using the above commands
 A tutorial on Palantir usage and results visualization for single cell RNA-seq data can be found in this notebook: http://nbviewer.jupyter.org/github/dpeerlab/Palantir/blob/master/notebooks/Palantir_sample_notebook.ipynb
 
 
+#### Processed data and metadata
+```scanpy anndata``` objects are available for download for the three replicates: [Rep1](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep1.h5ad), [Rep2](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep2.h5ad), [Rep3](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep3.h5ad)
+
+Each object has the following elements
+* `.X`: Filtered, normalized and log transformed count matrix 
+* `.raw`: Filtered raw count matrix
+* `.obsm['MAGIC_imputed_data']`: Imputed count matrix using MAGIC
+* `.obsm['tsne']`: tSNE maps presented in the manuscript generated using scaled diffusion components as inputs
+* `.obs['clusters']`: Clustering of cells
+* `.obs['palantir_pseudotime']`: Palantir pseudo-time ordering
+* `.obs['palantir_diff_potential']`: Palantir differentation potential 
+* `.obsm['palantir_branch_probs']`: Palantir branch probabilities
+* `.uns['palantir_branch_probs_cell_types']`: Column names for branch probabilities
+* `.uns['ct_colors']`: Cell type colors used in the manuscript
+* `.uns['cluster_colors']`: Cluster colors used in the manuscript
+* `.varm['mast_diff_res_pval']`: MAST p-values for differentially expression in each cluster compared to others
+* `.varm['mast_diff_res_statistic']`: MAST statistic for differentially expression in each cluster compared to others
+* `.uns['mast_diff_res_columns']`: Column names for the differential expression results
+
+
+
 #### Citations
 Palantir manuscript is available from [Nature Biotechnology](https://www.nature.com/articles/s41587-019-0068-4). If you use Palantir for your work, please cite our paper.
 
