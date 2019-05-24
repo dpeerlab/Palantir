@@ -31,7 +31,7 @@ A tutorial on Palantir usage and results visualization for single cell RNA-seq d
 
 
 #### Processed data and metadata
-```scanpy anndata``` objects are available for download for the three replicates: [Rep1](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep1.h5ad), [Rep2](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep2.h5ad), [Rep3](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep3.h5ad)
+```scanpy anndata``` objects are available for download for the three replicates generated in the manuscript: [Rep1](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep1.h5ad), [Rep2](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep2.h5ad), [Rep3](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep3.h5ad)
 
 Each object has the following elements
 * `.X`: Filtered, normalized and log transformed count matrix 
@@ -49,6 +49,9 @@ Each object has the following elements
 * `.varm['mast_diff_res_statistic']`: MAST statistic for differentially expression in each cluster compared to others
 * `.uns['mast_diff_res_columns']`: Column names for the differential expression results
 
+
+#### Comparison to trajectory detection algorithms
+Notebooks detailing the generation of results comparing Palantir to trajectory detection algorithms are available [here](https://github.com/dpeerlab/Palantir/blob/master/notebooks/comparisons)
 
 
 #### Citations
