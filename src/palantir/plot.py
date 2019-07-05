@@ -2,9 +2,9 @@ import warnings
 import os
 import numpy as np
 import pandas as pd
-import copy
 from itertools import chain
 from sklearn.preprocessing import StandardScaler
+from scipy.stats import gaussian_kde
 
 import matplotlib
 from matplotlib import font_manager
@@ -133,6 +133,29 @@ def plot_molecules_per_cell_and_gene(data, fig=None, ax=None):
     return fig, ax
 
 
+def cell_types(tsne, clusters, cluster_colors=None):
+    """Plot cell clusters on the tSNE map
+    :param tsne: tSNE map
+    :param clusters: Results of the determine_cell_clusters function
+    """
+
+    # Cluster colors
+    n_clusters = len(set(clusters))
+    if cluster_colors is None:
+        cluster_colors = pd.Series(sns.color_palette(
+            'hls', n_clusters), index=set(clusters))
+
+    # Cell types
+    fig = FigureGrid(n_clusters, 5)
+    for ax, cluster in zip(fig, cluster_colors.index):
+        ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3, color='lightgrey')
+        cells = clusters.index[clusters == cluster]
+        ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'],
+                   s=3, color=cluster_colors[cluster])
+        ax.set_axis_off()
+        ax.set_title(cluster, fontsize=10)
+
+
 def plot_cell_clusters(tsne, clusters):
     """Plot cell clusters on the tSNE map
     :param tsne: tSNE map
@@ -147,7 +170,7 @@ def plot_cell_clusters(tsne, clusters):
     # Set up figure
     n_cols = 6
     n_rows = int(np.ceil(n_clusters / n_cols))
-    fig = plt.figure(figsize=[2*n_cols, 2 * (n_rows + 2)])
+    fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(n_rows + 2, n_cols,
                       height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
 
@@ -159,8 +182,8 @@ def plot_cell_clusters(tsne, clusters):
 
     # Branch probabilities
     for i, cluster in enumerate(set(clusters)):
-        row = int(np.floor(i/n_cols))
-        ax = plt.subplot(gs[row+2, i % n_cols])
+        row = int(np.floor(i / n_cols))
+        ax = plt.subplot(gs[row + 2, i % n_cols])
         ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3, color='lightgrey')
         cells = clusters.index[clusters == cluster]
         ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'],
@@ -231,7 +254,7 @@ def plot_gene_expression(data, tsne, genes):
     fig = FigureGrid(len(genes), 5)
 
     for g, ax in zip(genes, fig):
-        ax.scatter(tsne['x'], tsne['y'], c=data.loc[tsne.index,  g], s=3,
+        ax.scatter(tsne['x'], tsne['y'], c=data.loc[tsne.index, g], s=3,
                    cmap=matplotlib.cm.Spectral_r)
         ax.set_axis_off()
         ax.set_title(g)
@@ -266,13 +289,13 @@ def plot_palantir_results(pr_res, tsne):
     n_branches = pr_res.branch_probs.shape[1]
     n_cols = 6
     n_rows = int(np.ceil(n_branches / n_cols))
-    fig = plt.figure(figsize=[2*n_cols, 2 * (n_rows + 2)])
+    fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(n_rows + 2, n_cols,
                       height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)))
-    cmap=matplotlib.cm.plasma
+    cmap = matplotlib.cm.plasma
     # Pseudotime
     ax = plt.subplot(gs[0:2, 1:3])
-    c=pr_res.pseudotime[tsne.index]
+    c = pr_res.pseudotime[tsne.index]
     ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
                cmap=matplotlib.cm.plasma, c=c)
     normalize = matplotlib.colors.Normalize(
@@ -284,7 +307,7 @@ def plot_palantir_results(pr_res, tsne):
 
     # Entropy
     ax = plt.subplot(gs[0:2, 3:5])
-    c=pr_res.entropy[tsne.index]
+    c = pr_res.entropy[tsne.index]
     ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
                cmap=matplotlib.cm.plasma, c=c)
     normalize = matplotlib.colors.Normalize(
@@ -298,9 +321,9 @@ def plot_palantir_results(pr_res, tsne):
     order = [2, 3, 1, 4, 0, 5]
     row = 2
     for i, branch in enumerate(pr_res.branch_probs.columns):
-        row = int(np.floor(i/n_cols))
-        ax = plt.subplot(gs[row+2, order[i]])
-        c=pr_res.branch_probs.loc[tsne.index, branch]
+        row = int(np.floor(i / n_cols))
+        ax = plt.subplot(gs[row + 2, order[i]])
+        c = pr_res.branch_probs.loc[tsne.index, branch]
         ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3,
                    cmap=matplotlib.cm.plasma, c=c)
         normalize = matplotlib.colors.Normalize(
@@ -330,7 +353,7 @@ def plot_terminal_state_probs(pr_res, cells):
                               index=pr_res.branch_probs.columns)
 
     for i, cell in enumerate(cells):
-        ax = fig.add_subplot(n_rows, n_cols, i+1)
+        ax = fig.add_subplot(n_rows, n_cols, i + 1)
 
         # Probs
         df = pd.DataFrame(pr_res.branch_probs.loc[cell, :])
@@ -364,7 +387,7 @@ def plot_gene_trends(gene_trends, genes=None):
     # Set up figure
     fig = plt.figure(figsize=[7, 3 * len(genes)])
     for i, gene in enumerate(genes):
-        ax = fig.add_subplot(len(genes), 1, i+1)
+        ax = fig.add_subplot(len(genes), 1, i + 1)
         for branch in branches:
             trends = gene_trends[branch]['trends']
             stds = gene_trends[branch]['std']
@@ -394,13 +417,14 @@ def plot_gene_trend_heatmaps(gene_trends):
     #  Set up plot
     fig = plt.figure(figsize=[7, height])
     for i, branch in enumerate(branches):
-        ax = fig.add_subplot(len(branches), 1, i+1)
+        ax = fig.add_subplot(len(branches), 1, i + 1)
 
         # Standardize the matrix
         mat = gene_trends[branch]['trends']
         mat = pd.DataFrame(StandardScaler().fit_transform(mat.T).T,
                            index=mat.index, columns=mat.columns)
-        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=matplotlib.cm.Spectral_r)
+        sns.heatmap(mat, xticklabels=False, ax=ax,
+                    cmap=matplotlib.cm.Spectral_r)
         ax.set_title(branch, fontsize=12)
 
 
@@ -412,10 +436,10 @@ def plot_gene_trend_clusters(trends, clusters):
     trends = pd.DataFrame(StandardScaler().fit_transform(trends.T).T,
                           index=trends.index, columns=trends.columns)
 
-    n_rows = int(np.ceil(len(set(clusters))/3))
+    n_rows = int(np.ceil(len(set(clusters)) / 3))
     fig = plt.figure(figsize=[5.5 * 3, 2.5 * n_rows])
     for i, c in enumerate(set(clusters)):
-        ax = fig.add_subplot(n_rows, 3, i+1)
+        ax = fig.add_subplot(n_rows, 3, i + 1)
         means = trends.loc[clusters.index[clusters == c], :].mean()
         std = trends.loc[clusters.index[clusters == c], :].std()
 
