@@ -80,6 +80,7 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1):
     if not issparse(data_df):
         res['EigenVectors'].index = data_df.index
     res['EigenValues'] = pd.Series(res['EigenValues'])
+    res['kernel'] = kernel
 
     return res
 
@@ -129,7 +130,8 @@ def run_tsne(data, n_dim=2, perplexity=150, **kwargs):
     :param n_dim: Number of dimensions for tSNE embedding
     :return: tSNE embedding of the data
     """
-    tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(data.values)
+    tsne = TSNE(n_components=n_dim, perplexity=perplexity,
+                **kwargs).fit_transform(data.values)
     tsne = pd.DataFrame(tsne, index=data.index)
     tsne.columns = ['x', 'y']
     return tsne
