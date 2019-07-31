@@ -133,25 +133,25 @@ def plot_molecules_per_cell_and_gene(data, fig=None, ax=None):
     return fig, ax
 
 
-def cell_types(tsne, clusters, cluster_colors=None):
+def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
     """Plot cell clusters on the tSNE map
     :param tsne: tSNE map
     :param clusters: Results of the determine_cell_clusters function
     """
 
     # Cluster colors
-    n_clusters = len(set(clusters))
     if cluster_colors is None:
         cluster_colors = pd.Series(sns.color_palette(
-            'hls', n_clusters), index=set(clusters))
+            'hls', len(set(clusters))), index=set(clusters))
+    n_clusters = len(cluster_colors)
 
     # Cell types
-    fig = FigureGrid(n_clusters, 5)
+    fig = FigureGrid(n_clusters, n_cols)
     for ax, cluster in zip(fig, cluster_colors.index):
         ax.scatter(tsne.loc[:, 'x'], tsne.loc[:, 'y'], s=3, color='lightgrey')
         cells = clusters.index[clusters == cluster]
         ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'],
-                   s=3, color=cluster_colors[cluster])
+                   s=5, color=cluster_colors[cluster])
         ax.set_axis_off()
         ax.set_title(cluster, fontsize=10)
 
@@ -249,19 +249,20 @@ def plot_gene_expression(data, tsne, genes, plot_scale=False, n_cols=5):
 
     # remove genes missing from experiment
     genes = pd.Series(genes)[pd.Series(genes).isin(data.columns)]
-    genes = set(genes).difference(not_in_dataframe)
 
     # Plot
+    cells = data.index.intersection(tsne.index)
     fig = FigureGrid(len(genes), n_cols)
     cmap = matplotlib.cm.Spectral_r
 
     for g, ax in zip(genes, fig):
         # Data
-        c = data.loc[tsne.index, g]
+        c = data.loc[cells, g]
         vmin = np.min(c)
         vmax = np.max(c)
 
-        ax.scatter(tsne['x'], tsne['y'], s=3,
+        ax.scatter(tsne['x'], tsne['y'], s=3, color='lightgrey')
+        ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'], s=3,
                    c=c, cmap=matplotlib.cm.Spectral_r, vmin=vmin, vmax=vmax)
         ax.set_axis_off()
         ax.set_title(g)
