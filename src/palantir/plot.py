@@ -232,7 +232,7 @@ def plot_tsne_by_cell_sizes(data, tsne, fig=None, ax=None, vmin=None, vmax=None)
     return fig, ax
 
 
-def plot_gene_expression(data, tsne, genes, plot_scale=False, n_cols=5):
+def plot_gene_expression(data, tsne, genes, plot_scale=False, n_cols=5, percentile=0):
     """ Plot gene expression on tSNE maps
     :param genes: Iterable of strings to plot on tSNE
     """
@@ -258,8 +258,8 @@ def plot_gene_expression(data, tsne, genes, plot_scale=False, n_cols=5):
     for g, ax in zip(genes, fig):
         # Data
         c = data.loc[cells, g]
-        vmin = np.min(c)
-        vmax = np.max(c)
+        vmin = np.percentile(c, percentile)
+        vmax = np.percentile(c, 100 - percentile)
 
         ax.scatter(tsne['x'], tsne['y'], s=3, color='lightgrey')
         ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'], s=3,
