@@ -167,7 +167,7 @@ def _compute_pseudotime(data, start_cell, knn,
     adj = _connect_graph(adj, data, np.where(data.index == start_cell)[0][0])
 
     # Distances
-    dists = Parallel(n_jobs=n_jobs)(
+    dists = Parallel(n_jobs=n_jobs, max_nbytes=None)(
         delayed(_shortest_path_helper)(np.where(data.index == cell)[0][0], adj)
         for cell in waypoints)
 

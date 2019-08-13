@@ -205,7 +205,7 @@ def plot_tsne(tsne, fig=None, ax=None):
 
 
 def highlight_cells_on_tsne(tsne, cells, fig=None, ax=None):
-    """    Function to highlight specific cells on the tSNE map 
+    """    Function to highlight specific cells on the tSNE map
     """
     fig, ax = get_fig(fig=fig, ax=ax)
     ax.scatter(tsne['x'], tsne['y'], s=5, color='lightgrey')
@@ -232,7 +232,8 @@ def plot_tsne_by_cell_sizes(data, tsne, fig=None, ax=None, vmin=None, vmax=None)
     return fig, ax
 
 
-def plot_gene_expression(data, tsne, genes, plot_scale=False, n_cols=5, percentile=0):
+def plot_gene_expression(data, tsne, genes, plot_scale=False,
+                         n_cols=5, percentile=0, cmap=matplotlib.cm.Spectral_r):
     """ Plot gene expression on tSNE maps
     :param genes: Iterable of strings to plot on tSNE
     """
@@ -253,7 +254,6 @@ def plot_gene_expression(data, tsne, genes, plot_scale=False, n_cols=5, percenti
     # Plot
     cells = data.index.intersection(tsne.index)
     fig = FigureGrid(len(genes), n_cols)
-    cmap = matplotlib.cm.Spectral_r
 
     for g, ax in zip(genes, fig):
         # Data
@@ -263,7 +263,7 @@ def plot_gene_expression(data, tsne, genes, plot_scale=False, n_cols=5, percenti
 
         ax.scatter(tsne['x'], tsne['y'], s=3, color='lightgrey')
         ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'], s=3,
-                   c=c, cmap=matplotlib.cm.Spectral_r, vmin=vmin, vmax=vmax)
+                   c=c, cmap=cmap, vmin=vmin, vmax=vmax)
         ax.set_axis_off()
         ax.set_title(g)
 
