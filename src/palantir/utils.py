@@ -7,6 +7,7 @@ from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse import csr_matrix, find, issparse
 from scipy.sparse.linalg import eigs
+import scanpy as sc
 
 
 def run_pca(data, n_components=300):
@@ -22,7 +23,7 @@ def run_pca(data, n_components=300):
     return pca_projections, pca.explained_variance_ratio_
 
 
-def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1):
+def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1, alpha=0):
     """Run Diffusion maps using the adaptive anisotropic kernel
 
     :param data_df: PCA projections of the data or adjancency matrix
@@ -34,17 +35,24 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1):
     N = data_df.shape[0]
     if not issparse(data_df):
         print('Determing nearest neighbor graph...')
-        nbrs = NearestNeighbors(n_neighbors=int(knn), metric='euclidean',
-                                n_jobs=n_jobs).fit(data_df.values)
-        kNN = nbrs.kneighbors_graph(data_df.values, mode='distance')
+        # nbrs = NearestNeighbors(n_neighbors=int(knn), metric='euclidean',
+        #                         n_jobs=n_jobs).fit(data_df.values)
+        # kNN = nbrs.kneighbors_graph(data_df.values, mode='distance')
+        temp = sc.AnnData(data_df.values)
+        sc.pp.neighbors(temp, n_pcs=0)
+        kNN = temp.uns['neighbors']['distances']
 
         # Adaptive k
         adaptive_k = int(np.floor(knn / 3))
-        nbrs = NearestNeighbors(n_neighbors=int(adaptive_k),
-                                metric='euclidean', n_jobs=n_jobs).fit(data_df.values)
-        adaptive_std = nbrs.kneighbors_graph(
-            data_df.values, mode='distance').max(axis=1)
-        adaptive_std = np.ravel(adaptive_std.todense())
+        # nbrs = NearestNeighbors(n_neighbors=int(adaptive_k),
+        #                         metric='euclidean', n_jobs=n_jobs).fit(data_df.values)
+        # adaptive_std = nbrs.kneighbors_graph(
+        #     data_df.values, mode='distance').max(axis=1)
+        # adaptive_std = np.ravel(adaptive_std.todense())
+        adaptive_std = np.zeros(N)
+
+        for i in np.arange(len(adaptive_std)):
+            adaptive_std[i] = np.sort(kNN.data[kNN.indptr[i]:kNN.indptr[i + 1]])[adaptive_k - 1]
 
         # Kernel
         x, y, dists = find(kNN)
@@ -60,6 +68,14 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1):
 
     # Markov
     D = np.ravel(kernel.sum(axis=1))
+
+    if alpha > 0:
+        # L_alpha
+        D[D != 0] = D[D != 0] ** (-alpha)
+        mat = csr_matrix((D, (range(N), range(N))), shape=[N, N])
+        kernel = mat.dot(kernel).dot(mat)
+        D = np.ravel(kernel.sum(axis=1))
+
     D[D != 0] = 1 / D[D != 0]
     T = csr_matrix((D, (range(N), range(N))), shape=[N, N]).dot(kernel)
     # Eigen value dcomposition
