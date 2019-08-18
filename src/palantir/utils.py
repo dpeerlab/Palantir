@@ -39,7 +39,7 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1, alpha=0):
         #                         n_jobs=n_jobs).fit(data_df.values)
         # kNN = nbrs.kneighbors_graph(data_df.values, mode='distance')
         temp = sc.AnnData(data_df.values)
-        sc.pp.neighbors(temp, n_pcs=0)
+        sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
         kNN = temp.uns['neighbors']['distances']
 
         # Adaptive k
