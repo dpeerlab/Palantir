@@ -20,7 +20,7 @@ if shutil.which('pip3'):
 
 
 setup(name='palantir',
-      version=__version__,  # read in from the exec of version.py; ignore error
+      version=__version__,# read in from the exec of version.py; ignore error
       description='Palantir for modeling continuous cell state and cell fate choices in single cell data',
       url='https://github.com/dpeerlab/palantir',
       author='Manu Setty',
@@ -43,6 +43,7 @@ setup(name='palantir',
           'matplotlib>=2.2.2',
           'seaborn>=0.8.1',
           'tzlocal',
-          'rpy2>=3.0.2'
+          'rpy2>=3.0.2',
+          'scanpy'
       ],
       )

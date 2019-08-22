@@ -258,8 +258,8 @@ def plot_gene_expression(data, tsne, genes, plot_scale=False,
     for g, ax in zip(genes, fig):
         # Data
         c = data.loc[cells, g]
-        vmin = np.percentile(c, percentile)
-        vmax = np.percentile(c, 100 - percentile)
+        vmin = np.percentile(c[~np.isnan(c)], percentile)
+        vmax = np.percentile(c[~np.isnan(c)], 100 - percentile)
 
         ax.scatter(tsne['x'], tsne['y'], s=3, color='lightgrey')
         ax.scatter(tsne.loc[cells, 'x'], tsne.loc[cells, 'y'], s=3,
