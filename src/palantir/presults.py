@@ -57,7 +57,7 @@ class PResults(object):
 
         # Set up object
         presults = cls(data['_pseudotime'], data['_entropy'],
-                       data['_branch_prob'], data['_waypoints'])
+                       data['_branch_probs'], data['_waypoints'])
         return presults
 
     def save(self, pkl_file: str):

@@ -30,7 +30,7 @@ setup(name='palantir',
       install_requires=[
           'numpy>=1.14.2',
           'pandas>=0.22.0',
-          'scipy>=1.0.1',
+          'scipy>=1.3',
           'networkx>=2.1',
           'scikit-learn',
           'joblib',
