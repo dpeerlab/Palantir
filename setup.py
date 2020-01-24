@@ -20,6 +20,7 @@ setup(name='palantir',
       package_dir={'': 'src'},
       packages=['palantir'],
       install_requires=[
+          'git+https://github.com/jacoblevine/phenograph.git',
           'numpy>=1.14.2',
           'pandas>=0.22.0',
           'scipy>=1.3',
