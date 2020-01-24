@@ -7,7 +7,6 @@ Palantir is an algorithm to align cells along differentiation trajectories. Pala
 #### Installation and dependencies
 1. Palantir has been implemented in Python3 and can be installed using:
 
-        $> pip install git+https://github.com/jacoblevine/phenograph.git
         $> git clone git://github.com/dpeerlab/Palantir.git
         $> cd Palantir
         $> pip3 install --user .
