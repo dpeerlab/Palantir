@@ -1,6 +1,4 @@
 import sys
-import shutil
-from subprocess import call
 from setuptools import setup
 from warnings import warn
 
@@ -14,11 +12,6 @@ with open('src/palantir/version.py') as f:
     exec(f.read())
 
 
-# install GraphDiffusion
-if shutil.which('pip3'):
-    call(['pip3', 'install', 'git+https://github.com/jacoblevine/PhenoGraph.git'])
-
-
 setup(name='palantir',
       version=__version__,# read in from the exec of version.py; ignore error
       description='Palantir for modeling continuous cell state and cell fate choices in single cell data',
@@ -28,7 +21,6 @@ setup(name='palantir',
       package_dir={'': 'src'},
       packages=['palantir'],
       install_requires=[
-          'git+https://github.com/jacoblevine/phenograph.git',
           'numpy>=1.14.2',
           'pandas>=0.22.0',
           'scipy>=1.3',
