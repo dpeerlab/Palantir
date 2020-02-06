@@ -1,4 +1,6 @@
 import sys
+import shutil
+from subprocess import call
 from setuptools import setup
 from warnings import warn
 
@@ -10,6 +12,12 @@ if sys.version_info.minor < 6:
 # get version
 with open('src/palantir/version.py') as f:
     exec(f.read())
+
+
+# install GraphDiffusion
+if shutil.which('pip3'):
+    call(['pip3', 'install', 'git+https://github.com/jacoblevine/PhenoGraph.git'])
+
 
 setup(name='palantir',
       version=__version__,# read in from the exec of version.py; ignore error
