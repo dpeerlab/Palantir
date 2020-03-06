@@ -35,20 +35,12 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1, alpha=0):
     N = data_df.shape[0]
     if not issparse(data_df):
         print('Determing nearest neighbor graph...')
-        # nbrs = NearestNeighbors(n_neighbors=int(knn), metric='euclidean',
-        #                         n_jobs=n_jobs).fit(data_df.values)
-        # kNN = nbrs.kneighbors_graph(data_df.values, mode='distance')
         temp = sc.AnnData(data_df.values)
         sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
         kNN = temp.uns['neighbors']['distances']
 
         # Adaptive k
         adaptive_k = int(np.floor(knn / 3))
-        # nbrs = NearestNeighbors(n_neighbors=int(adaptive_k),
-        #                         metric='euclidean', n_jobs=n_jobs).fit(data_df.values)
-        # adaptive_std = nbrs.kneighbors_graph(
-        #     data_df.values, mode='distance').max(axis=1)
-        # adaptive_std = np.ravel(adaptive_std.todense())
         adaptive_std = np.zeros(N)
 
         for i in np.arange(len(adaptive_std)):

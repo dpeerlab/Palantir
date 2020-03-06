@@ -7,21 +7,19 @@ Palantir is an algorithm to align cells along differentiation trajectories. Pala
 #### Installation and dependencies
 1. Palantir has been implemented in Python3 and can be installed using:
 
-        $> pip3 install git+https://github.com/jacoblevine/phenograph.git
-        $> git clone git://github.com/dpeerlab/Palantir.git
-        $> cd Palantir
-        $> pip3 install .
+        $> pip install PhenoGraph
+        $> pip install palantir
 
 2. Palantir depends on a number of `python3` packages available on pypi and these dependencies are listed in `setup.py`
 All the dependencies will be automatically installed using the above commands
 
 3. To uninstall:
 		
-		$>pip3 uninstall palantir
+		$> pip uninstall palantir
 
 4. If you would like to determine gene expression trends, please install <a href="https://cran.r-project.org"> R <a> programming language and the R package <a href="https://cran.r-project.org/web/packages/gam/">GAM </a>. You will also need to install the rpy2 module using 
 	
-		$> sudo -H pip3 install rpy2
+		$> pip install rpy2
 		
 5. Palantir can also be used with [**Scanpy**](https://github.com/theislab/scanpy). It is fully integrated into Scanpy, and can be found under Scanpy's external modules ([link](https://scanpy.readthedocs.io/en/latest/api/scanpy.external.html#external-api))
 
