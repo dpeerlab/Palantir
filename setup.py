@@ -32,7 +32,7 @@ setup(
         "scikit-learn",
         "joblib",
         "fcsparser>=0.1.2",
-        "phenograph",
+        "PhenoGraph>=1.5.3",
         "tables>=3.4.2",
         "Cython",
         "cmake",
