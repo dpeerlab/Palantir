@@ -2,9 +2,8 @@ import numpy as np
 import pandas as pd
 import os.path
 import fcsparser
-from scipy.sparse import csc_matrix
+import scanpy as sc
 from scipy.io import mmread
-import tables
 
 
 def _clean_up(df):
@@ -73,29 +72,12 @@ def from_10x(data_dir, use_ensemble_id=True):
     return _clean_up(dataMatrix)
 
 
-def from_10x_HDF5(filename, genome, use_ensemble_id=True):
+def from_10x_HDF5(filename, genome=None):
 
-    with tables.open_file(filename, 'r') as f:
-        try:
-            group = f.get_node(f.root, genome)
-        except tables.NoSuchNodeError:
-            print("That genome does not exist in this file.")
-            return None
+    ad = sc.read_10x_h5(filename, genome, True)
 
-        if use_ensemble_id:
-            gene_names = getattr(group, 'genes').read()
-        else:
-            gene_names = getattr(group, 'gene_names').read()
-        barcodes = getattr(group, 'barcodes').read()
-        data = getattr(group, 'data').read()
-        indices = getattr(group, 'indices').read()
-        indptr = getattr(group, 'indptr').read()
-        shape = getattr(group, 'shape').read()
-        matrix = csc_matrix((data, indices, indptr), shape=shape)
-
-    dataMatrix = pd.DataFrame(matrix.todense(), columns=np.array([b.decode() for b in barcodes]),
-                              index=np.array([g.decode() for g in gene_names]))
-    dataMatrix = dataMatrix.transpose()
+    dataMatrix = pd.DataFrame(ad.X.todense(), columns=ad.var_names,
+                              index=ad.obs_names)
 
     return _clean_up(dataMatrix)
 
