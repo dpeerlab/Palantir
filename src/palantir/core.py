@@ -93,7 +93,9 @@ def run_palantir(
 
     # pseudotime and weighting matrix
     print("Determining pseudotime...")
-    pseudotime, W = _compute_pseudotime(data, start_cell, knn, waypoints, n_jobs, max_iterations)
+    pseudotime, W = _compute_pseudotime(
+        data, start_cell, knn, waypoints, n_jobs, max_iterations
+    )
 
     # Entropy and branch probabilities
     print("Entropy and branch probabilities...")
@@ -274,7 +276,9 @@ def identify_terminal_states(
     waypoints = pd.Index([start_cell]).append(waypoints)
 
     # Distance to start cell as pseudo pseudotime
-    pseudotime, _ = _compute_pseudotime(data, start_cell, knn, waypoints, n_jobs, max_iterations)
+    pseudotime, _ = _compute_pseudotime(
+        data, start_cell, knn, waypoints, n_jobs, max_iterations
+    )
 
     # Markov chain
     wp_data = data.loc[waypoints, :]

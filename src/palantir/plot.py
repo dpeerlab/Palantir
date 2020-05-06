@@ -363,7 +363,7 @@ def plot_palantir_results(pr_res, tsne):
 
     for i, branch in enumerate(pr_res.branch_probs.columns):
         row = int(np.floor(i / n_cols))
-        ax = plt.subplot(gs[row + 2, np.remainder(i,n_cols)])
+        ax = plt.subplot(gs[row + 2, np.remainder(i, n_cols)])
         c = pr_res.branch_probs.loc[tsne.index, branch]
         ax.scatter(
             tsne.loc[:, "x"], tsne.loc[:, "y"], s=3, cmap=matplotlib.cm.plasma, c=c
