@@ -20,8 +20,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dpeerlab/palantir",
-    author="Manu Setty",
-    author_email="manu.talanki@gmail.com",
+    author=__author__,
+    author_email=__author_email__,
     package_dir={"": "src"},
     packages=["palantir"],
     install_requires=[

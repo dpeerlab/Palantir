@@ -65,3 +65,11 @@ Palantir manuscript is available from [Nature Biotechnology](https://www.nature.
                 url = {https://doi.org/10.1038/s41587-019-0068-4},
                 doi = {10.1038/s41587-019-0068-4}
         }
+____
+
+Release Notes
+-------------
+
+### Version 0.2.5
+
+ * A fix related to [issue#28](https://github.com/dpeerlab/Palantir/issues/28). When identifying terminal states, duplicate values were generated instead of unique ones.
