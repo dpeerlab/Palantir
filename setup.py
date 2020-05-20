@@ -40,9 +40,11 @@ setup(
         "matplotlib>=2.2.2",
         "seaborn>=0.8.1",
         "tzlocal",
-        "rpy2>=3.0.2",
         "scanpy",
     ],
+    extras_require={
+        'PLOT_GENE_TRENDS': ["rpy2>=3.0.2"]
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

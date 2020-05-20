@@ -11,7 +11,8 @@ Palantir is an algorithm to align cells along differentiation trajectories. Pala
         $> pip install palantir
 
 2. Palantir depends on a number of `python3` packages available on pypi and these dependencies are listed in `setup.py`
-All the dependencies will be automatically installed using the above commands
+
+    All the dependencies will be automatically installed using the above commands
 
 3. To uninstall:
 		
@@ -19,7 +20,15 @@ All the dependencies will be automatically installed using the above commands
 
 4. If you would like to determine gene expression trends, please install <a href="https://cran.r-project.org"> R <a> programming language and the R package <a href="https://cran.r-project.org/web/packages/gam/">GAM </a>. You will also need to install the rpy2 module using 
 	
+		$> pip install .['PLOT_GENE_TRENDS']
+		    OR,
 		$> pip install rpy2
+	
+    In case of compiler error during installation of `rpy2`, try to link your compiler in `env`. Example:
+    
+        $> env CC=/usr/local/Cellar/gcc/xxx/bin/gcc-x pip install .['PLOT_GENE_TRENDS']
+
+    where `x` should be replaced with the version numbers
 		
 5. Palantir can also be used with [**Scanpy**](https://github.com/theislab/scanpy). It is fully integrated into Scanpy, and can be found under Scanpy's external modules ([link](https://scanpy.readthedocs.io/en/latest/api/scanpy.external.html#external-api))
 
@@ -70,6 +79,10 @@ ____
 Release Notes
 -------------
 
+### Version 0.2.6
+
+ * A fix to [issue#33](https://github.com/dpeerlab/Palantir/issues/33) and [issue#31](https://github.com/dpeerlab/Palantir/issues/31)
+ 
 ### Version 0.2.5
 
  * A fix related to [issue#28](https://github.com/dpeerlab/Palantir/issues/28). When identifying terminal states, duplicate values were generated instead of unique ones.

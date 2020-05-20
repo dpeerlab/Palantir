@@ -22,11 +22,13 @@ def run_pca(data, n_components=300):
     return pca_projections, pca.explained_variance_ratio_
 
 
-def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1, alpha=0):
+def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0):
     """Run Diffusion maps using the adaptive anisotropic kernel
 
-    :param data_df: PCA projections of the data or adjancency matrix
+    :param data_df: PCA projections of the data or adjacency matrix
     :param n_components: Number of diffusion components
+    :param knn: Number of nearest neighbors for graph construction
+    :param alpha: Normalization parameter for the diffusion operator
     :return: Diffusion components, corresponding eigen values and the diffusion operator
     """
 
@@ -36,7 +38,11 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, n_jobs=-1, alpha=0):
         print("Determing nearest neighbor graph...")
         temp = sc.AnnData(data_df.values)
         sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
-        kNN = temp.uns["neighbors"]["distances"]
+        # maintaining backwards compatibility to Scanpy `sc.pp.neighbors`
+        try:
+            kNN = temp.uns["neighbors"]["distances"]
+        except KeyError:
+            kNN = temp.obsp['distances']
 
         # Adaptive k
         adaptive_k = int(np.floor(knn / 3))
