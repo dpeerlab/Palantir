@@ -38,11 +38,7 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0):
         print("Determing nearest neighbor graph...")
         temp = sc.AnnData(data_df.values)
         sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
-        # maintaining backwards compatibility to Scanpy `sc.pp.neighbors`
-        try:
-            kNN = temp.uns["neighbors"]["distances"]
-        except KeyError:
-            kNN = temp.obsp['distances']
+        kNN = temp.obsp['distances']
 
         # Adaptive k
         adaptive_k = int(np.floor(knn / 3))

@@ -316,7 +316,7 @@ def _construct_markov_chain(wp_data, knn, pseudotime, n_jobs):
     # Directed graph construction
     # pseudotime position of all the neighbors
     traj_nbrs = pd.DataFrame(
-        pseudotime[np.ravel(waypoints[ind])].values.reshape(
+        pseudotime[np.ravel(waypoints.values[ind])].values.reshape(
             [len(waypoints), n_neighbors]
         ),
         index=waypoints,
