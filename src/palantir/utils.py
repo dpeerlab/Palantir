@@ -3,23 +3,39 @@ import numpy as np
 from MulticoreTSNE import MulticoreTSNE as TSNE
 import phenograph
 
-from sklearn.decomposition import PCA
 from scipy.sparse import csr_matrix, find, issparse
 from scipy.sparse.linalg import eigs
 import scanpy as sc
 
 
-def run_pca(data, n_components=300):
+def run_pca(data, n_components=300, use_hvg=True):
     """Run PCA
 
     :param data: Dataframe of cells X genes. Typicaly multiscale space diffusion components
     :param n_components: Number of principal components
     :return: PCA projections of the data and the explained variance
     """
-    pca = PCA(n_components=n_components, svd_solver="randomized")
-    pca_projections = pca.fit_transform(data)
-    pca_projections = pd.DataFrame(pca_projections, index=data.index)
-    return pca_projections, pca.explained_variance_ratio_
+    if type(data) is sc.AnnData:
+        ad = data
+    else:
+        ad = sc.AnnData(data.values)
+
+    # Run PCA
+    if not use_hvg:
+        n_comps = n_components
+    else:
+        sc.pp.pca(ad, n_comps=1000, use_highly_variable=True, zero_center=False)
+        try:
+            n_comps = np.where(np.cumsum(ad.uns['pca']['variance_ratio']) > 0.85)[0][0]
+        except IndexError:
+            n_comps = n_components
+
+    # Rerun with selection number of components
+    sc.pp.pca(ad, n_comps=n_comps, use_highly_variable=use_hvg, zero_center=False)
+
+    # Return PCA projections if it is a dataframe
+    pca_projections = pd.DataFrame(ad.obsm['X_pca'], index=ad.obs_names)
+    return pca_projections, ad.uns['pca']['variance_ratio']
 
 
 def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0):
@@ -103,6 +119,9 @@ def run_magic_imputation(data, dm_res, n_steps=3):
     :param n_steps: Number of steps in the diffusion operator
     :return: Imputed data matrix
     """
+    if type(data) is sc.AnnData:
+        data = pd.DataFrame(data.X.todense(), index=data.obs_names, columns=data.var_names)
+
     T_steps = dm_res["T"] ** n_steps
     imputed_data = pd.DataFrame(
         np.dot(T_steps.todense(), data), index=data.index, columns=data.columns
@@ -157,6 +176,6 @@ def determine_cell_clusters(data, k=50):
     :return: Clusters
     """
     # Cluster and cluster centrolds
-    communities, _, _ = phenograph.cluster(data, k=k)
+    communities, _, _ = phenograph.cluster(data.values, k=k)
     communities = pd.Series(communities, index=data.index)
     return communities
