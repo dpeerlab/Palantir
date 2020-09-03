@@ -2,6 +2,7 @@
 Functions for preprocessing of single cell RNA-seq counts
 """
 import numpy as np
+import scanpy as sc
 
 
 def filter_counts_data(data, cell_min_molecules=1000, genes_min_cells=10):
@@ -38,4 +39,7 @@ def log_transform(data, pseudo_count=0.1):
     :param data: Counts matrix: Cells x Genes
     :return: Log transformed matrix
     """
-    return np.log2(data + pseudo_count)
+    if type(data) is sc.AnnData:
+        data.X.data = np.log2(data.X.data + pseudo_count) - np.log2(pseudo_count)
+    else:
+        return np.log2(data + pseudo_count)
