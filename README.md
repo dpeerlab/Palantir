@@ -79,6 +79,12 @@ ____
 Release Notes
 -------------
 
+### Version 1.0.0
+
+ * A fix to [issue#41](https://github.com/dpeerlab/Palantir/issues/41) 
+ * A fix to [issue#42](https://github.com/dpeerlab/Palantir/issues/42)
+ * Revamped tutorial with support for Anndata and force directed layouts
+
 ### Version 0.2.6
 
  * A fix to [issue#33](https://github.com/dpeerlab/Palantir/issues/33) and [issue#31](https://github.com/dpeerlab/Palantir/issues/31)
