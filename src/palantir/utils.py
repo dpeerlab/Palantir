@@ -120,7 +120,7 @@ def run_magic_imputation(data, dm_res, n_steps=3):
     :return: Imputed data matrix
     """
     if type(data) is sc.AnnData:
-        if issparse(data).X:
+        if issparse(data.X):
             data = pd.DataFrame(data.X.todense(), index=data.obs_names, columns=data.var_names)
         else:
             data = pd.DataFrame(data.X, index=data.obs_names, columns=data.var_names)
