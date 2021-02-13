@@ -16,25 +16,6 @@ except KeyError:
 
 import matplotlib.pyplot as plt
 
-with warnings.catch_warnings():
-    # catch experimental ipython widget warning
-    warnings.simplefilter("ignore")
-    import seaborn as sns
-
-    sns.set(context="paper", style="ticks", font_scale=1.5, font="Bitstream Vera Sans")
-
-# set plotting defaults
-with warnings.catch_warnings():
-    # catch warnings that system can't find fonts
-    warnings.simplefilter("ignore")
-    import seaborn as sns
-
-    fm = font_manager.fontManager
-    fm.findfont("Raleway")
-    fm.findfont("Lato")
-
-warnings.filterwarnings(action="ignore", message="remove_na is deprecated")
-
 
 class FigureGrid:
     """
@@ -134,7 +115,7 @@ def plot_molecules_per_cell_and_gene(data, fig=None, ax=None):
     return fig, ax
 
 
-def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
+def cell_types(tsne, clusters, cluster_colors=None, n_cols=5, s=1):
     """Plot cell clusters on the tSNE map
     :param tsne: tSNE map
     :param clusters: Results of the determine_cell_clusters function
@@ -150,12 +131,12 @@ def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
     # Cell types
     fig = FigureGrid(n_clusters, n_cols)
     for ax, cluster in zip(fig, cluster_colors.index):
-        ax.scatter(tsne.loc[:, "x"], tsne.loc[:, "y"], s=3, color="lightgrey")
+        ax.scatter(tsne.loc[:, "x"], tsne.loc[:, "y"], s=s, color="lightgrey")
         cells = clusters.index[clusters == cluster]
         ax.scatter(
             tsne.loc[cells, "x"],
             tsne.loc[cells, "y"],
-            s=5,
+            s=s,
             color=cluster_colors[cluster],
         )
         ax.set_axis_off()
@@ -250,9 +231,13 @@ def plot_gene_expression(
     n_cols=5,
     percentile=0,
     cmap=matplotlib.cm.Spectral_r,
+    s=1,
 ):
     """ Plot gene expression on tSNE maps
+    :param data: Pandas dataframe with gene expression (cells X genes)
+    :param tsne: 2D projection of the data
     :param genes: Iterable of strings to plot on tSNE
+    :param plot_scale: Logical indicating if colorbar should be added
     """
 
     not_in_dataframe = set(genes).difference(data.columns)
@@ -286,7 +271,7 @@ def plot_gene_expression(
         ax.scatter(
             tsne.loc[cells, "x"],
             tsne.loc[cells, "y"],
-            s=3,
+            s=s,
             c=c,
             cmap=cmap,
             vmin=vmin,
