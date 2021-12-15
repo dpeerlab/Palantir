@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-from MulticoreTSNE import MulticoreTSNE as TSNE
+from sklearn.manifold import TSNE
+
 import phenograph
 
 from scipy.sparse import csr_matrix, find, issparse
@@ -160,9 +161,17 @@ def run_tsne(data, n_dim=2, perplexity=150, **kwargs):
     :param n_dim: Number of dimensions for tSNE embedding
     :return: tSNE embedding of the data
     """
-    tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(
-        data.values
-    )
+    try:
+        from MulticoreTSNE import MulticoreTSNE as TSNE
+        
+        print("Using the 'MulticoreTSNE' package by Ulyanov (2017)")
+        tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(data.values)
+    except ImportError:
+        from sklearn.manifold import TSNE
+
+        print("Could not import 'MulticoreTSNE'. Install for faster runtime. Falling back to scikit-learn.")
+        tsne = TSNE(n_components= n_dim, perplexity= perplexity, **kwargs).fit_transform(data.values)
+    
     tsne = pd.DataFrame(tsne, index=data.index)
     tsne.columns = ["x", "y"]
     return tsne

@@ -36,7 +36,6 @@ setup(
         "tables>=3.4.2",
         "Cython",
         "cmake",
-        "MulticoreTSNE",
         "matplotlib>=2.2.2",
         "seaborn>=0.8.1",
         "tzlocal",
