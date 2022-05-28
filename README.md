@@ -62,6 +62,48 @@ Each object has the following elements
 Notebooks detailing the generation of results comparing Palantir to trajectory detection algorithms are available [here](https://github.com/dpeerlab/Palantir/blob/master/notebooks/comparisons)
 
 
+#### Convert to Seurat objects
+Use the snippet below to convert `anndata` to `Seurat` objects 
+```
+library("SeuratDisk")
+library("Seurat")
+library("reticulate")
+use_condaenv(<conda env>, required = T) # before, install "anndata" into <conda env>
+anndata <- import('anndata')
+
+#link to Anndata files
+url_Rep1 <- "https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep1.h5ad"
+curl::curl_download(url_Rep1, basename(url_Rep1))
+url_Rep2 <- "https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep2.h5ad"
+curl::curl_download(url_Rep2, basename(url_Rep2))
+url_Rep3 <- "https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep3.h5ad"
+curl::curl_download(url_Rep3, basename(url_Rep3))
+
+#H5AD files are compressed using the LZF filter. 
+#This filter is Python-specific, and cannot easily be used in R. 
+#To use this file with Seurat and SeuratDisk, you'll need to read it in Python and save it out using the gzip compression
+#https://github.com/mojaveazure/seurat-disk/issues/7
+adata_Rep1 = anndata$read("human_cd34_bm_rep1.h5ad")
+adata_Rep2 = anndata$read("human_cd34_bm_rep2.h5ad")
+adata_Rep3 = anndata$read("human_cd34_bm_rep3.h5ad")
+
+adata_Rep1$write_h5ad("human_cd34_bm_rep1.gzip.h5ad", compression="gzip")
+adata_Rep2$write_h5ad("human_cd34_bm_rep2.gzip.h5ad", compression="gzip")
+adata_Rep3$write_h5ad("human_cd34_bm_rep3.gzip.h5ad", compression="gzip")
+
+
+#convert gzip-compressed h5ad file to Seurat Object
+Convert("human_cd34_bm_rep1.gzip.h5ad", dest = "h5seurat", overwrite = TRUE)
+Convert("human_cd34_bm_rep2.gzip.h5ad", dest = "h5seurat", overwrite = TRUE)
+Convert("human_cd34_bm_rep3.gzip.h5ad", dest = "h5seurat", overwrite = TRUE)
+
+human_cd34_bm_Rep1 <- LoadH5Seurat("human_cd34_bm_rep1.gzip.h5seurat")
+human_cd34_bm_Rep2 <- LoadH5Seurat("human_cd34_bm_rep2.gzip.h5seurat")
+human_cd34_bm_Rep3 <- LoadH5Seurat("human_cd34_bm_rep3.gzip.h5seurat")
+```
+Thanks to Anne Ludwig from University Hospital Heidelberg for the tip!
+
+
 #### Citations
 Palantir manuscript is available from [Nature Biotechnology](https://www.nature.com/articles/s41587-019-0068-4). If you use Palantir for your work, please cite our paper.
 
