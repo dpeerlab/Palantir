@@ -8,6 +8,7 @@ import phenograph
 from collections import OrderedDict
 from joblib import delayed, Parallel
 from sklearn.preprocessing import StandardScaler
+from pygam import LinearGAM, s
 
 
 class PResults(object):
@@ -78,31 +79,6 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
     :return: Dictionary of gene expression trends and standard deviations for each branch
     """
 
-    # Error check
-    try:
-        import rpy2
-        import rpy2.rinterface_lib.embedded as embedded
-        from rpy2.robjects.packages import importr
-    except ImportError:
-        raise RuntimeError(
-            'Cannot compute gene expression trends without installing rpy2. \
-            \nPlease use "pip3 install rpy2" to install rpy2'
-        )
-
-    if not shutil.which("R"):
-        raise RuntimeError(
-            "R installation is necessary for computing gene expression trends. \
-            \nPlease install R and try again"
-        )
-
-    try:
-        rgam = importr("gam")
-    except embedded.RRuntimeError:
-        raise RuntimeError(
-            'R package "gam" is necessary for computing gene expression trends. \
-            \nPlease install gam from https://cran.r-project.org/web/packages/gam/ and try again'
-        )
-
     # Compute for all lineages if branch is not speicified
     if lineages is None:
         lineages = pr_res.branch_probs.columns
@@ -146,12 +122,44 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
             results[branch]["trends"].loc[gene, :] = res[i][0]
             results[branch]["std"].loc[gene, :] = res[i][1]
         end = time.time()
-        print("Time for processing {}: {} minutes".format(branch, (end - start) / 60))
+        print("Time for processing {}: {} minutes".format(
+            branch, (end - start) / 60))
 
     return results
 
 
 def _gam_fit_predict(x, y, weights=None, pred_x=None):
+    # Weights
+    if weights is None:
+        weights = np.repeat(1.0, len(x))
+
+    # Construct dataframe
+    use_inds = np.where(weights > 0)[0]
+
+    # GAM fit
+    gam = LinearGAM(s(0, n_splines=4, spline_order=2)).fit(x[use_inds], y[use_inds],
+                                                           weights=weights[use_inds])
+
+    # Predict
+    if pred_x is None:
+        pred_x = x
+    y_pred = gam.predict(pred_x)
+
+    # Standard deviations
+    p = gam.predict(x[use_inds])
+    n = len(use_inds)
+    sigma = np.sqrt(((y[use_inds] - p) ** 2).sum() / (n - 2))
+    stds = (
+        np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) **
+                2 / ((x - np.mean(x)) ** 2).sum())
+        * sigma
+        / 2
+    )
+
+    return y_pred, stds
+
+
+def _gam_fit_predict_rpy2(x, y, weights=None, pred_x=None):
 
     import rpy2.robjects as robjects
     from rpy2.robjects import pandas2ri, Formula
@@ -171,27 +179,31 @@ def _gam_fit_predict(x, y, weights=None, pred_x=None):
 
     # Fit the model
     rgam = importr("gam")
-    model = rgam.gam(Formula("y~s(x)"), data=r_df, weights=pd.Series(weights[use_inds]))
+    model = rgam.gam(Formula("y~s(x)"), data=r_df,
+                     weights=pd.Series(weights[use_inds]))
 
     # Predictions
     if pred_x is None:
         pred_x = x
     y_pred = np.array(
         robjects.r.predict(
-            model, newdata=pandas2ri.py2rpy(pd.DataFrame(pred_x, columns=["x"]))
+            model, newdata=pandas2ri.py2rpy(
+                pd.DataFrame(pred_x, columns=["x"]))
         )
     )
 
     # Standard deviations
     p = np.array(
         robjects.r.predict(
-            model, newdata=pandas2ri.py2rpy(pd.DataFrame(x[use_inds], columns=["x"]))
+            model, newdata=pandas2ri.py2rpy(
+                pd.DataFrame(x[use_inds], columns=["x"]))
         )
     )
     n = len(use_inds)
     sigma = np.sqrt(((y[use_inds] - p) ** 2).sum() / (n - 2))
     stds = (
-        np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) ** 2 / ((x - np.mean(x)) ** 2).sum())
+        np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) **
+                2 / ((x - np.mean(x)) ** 2).sum())
         * sigma
         / 2
     )
