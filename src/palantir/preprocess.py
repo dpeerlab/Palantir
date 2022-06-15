@@ -3,6 +3,7 @@ Functions for preprocessing of single cell RNA-seq counts
 """
 import numpy as np
 import scanpy as sc
+from scipy.sparse import issparse
 
 
 def filter_counts_data(data, cell_min_molecules=1000, genes_min_cells=10):
@@ -40,6 +41,9 @@ def log_transform(data, pseudo_count=0.1):
     :return: Log transformed matrix
     """
     if type(data) is sc.AnnData:
-        data.X = np.log2(data.X + pseudo_count) - np.log2(pseudo_count)
+        if issparse(data.X):
+            data.X.data = np.log2(data.X.data + pseudo_count) - np.log2(pseudo_count)
+        else:
+            data.X = np.log2(data.X + pseudo_count) - np.log2(pseudo_count)
     else:
         return np.log2(data + pseudo_count)
