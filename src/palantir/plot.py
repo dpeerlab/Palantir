@@ -162,11 +162,13 @@ def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
         ax.set_title(cluster, fontsize=10)
 
 
-def plot_cell_clusters(tsne, clusters):
+def plot_cell_clusters(plot_embedding, clusters):
     """Plot cell clusters on the tSNE map
-    :param tsne: tSNE map
+    :param plot_embedding: tSNE map
     :param clusters: Results of the determine_cell_clusters function
     """
+    tsne = plot_embedding.copy()
+    tsne.columns = ['x', 'y']
 
     # Cluster colors
     n_clusters = len(set(clusters))
@@ -215,10 +217,12 @@ def plot_tsne(tsne, fig=None, ax=None):
     return fig, ax
 
 
-def highlight_cells_on_tsne(tsne, cells, fig=None, ax=None):
+def highlight_cells_on_tsne(plot_tsne, cells, fig=None, ax=None):
     """    Function to highlight specific cells on the tSNE map
     """
     fig, ax = get_fig(fig=fig, ax=ax)
+    tsne = plot_tsne.copy()
+    tsne.columns = ['x', 'y']
     ax.scatter(tsne["x"], tsne["y"], s=5, color="lightgrey")
     ax.scatter(tsne.loc[cells, "x"], tsne.loc[cells, "y"], s=30)
     ax.set_axis_off()
@@ -314,8 +318,8 @@ def plot_diffusion_components(tsne, dm_res):
 
     for i, ax in enumerate(fig):
         ax.scatter(
-            tsne["x"],
-            tsne["y"],
+            tsne.iloc[:, 0],
+            tsne.iloc[:, 1],
             c=dm_res["EigenVectors"].loc[tsne.index, i],
             cmap=matplotlib.cm.Spectral_r,
             edgecolors="none",
@@ -328,7 +332,7 @@ def plot_diffusion_components(tsne, dm_res):
         ax.set_axis_off()
 
 
-def plot_palantir_results(pr_res, tsne):
+def plot_palantir_results(pr_res, tsne, s=3):
     """ Plot Palantir results on tSNE
     """
 
@@ -344,7 +348,7 @@ def plot_palantir_results(pr_res, tsne):
     # Pseudotime
     ax = plt.subplot(gs[0:2, 1:3])
     c = pr_res.pseudotime[tsne.index]
-    ax.scatter(tsne.loc[:, "x"], tsne.loc[:, "y"], s=3, cmap=matplotlib.cm.plasma, c=c)
+    ax.scatter(tsne.iloc[:, 0], tsne.iloc[:, 1], s=s, cmap=matplotlib.cm.plasma, c=c)
     normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
     cax, _ = matplotlib.colorbar.make_axes(ax)
     cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
@@ -354,7 +358,7 @@ def plot_palantir_results(pr_res, tsne):
     # Entropy
     ax = plt.subplot(gs[0:2, 3:5])
     c = pr_res.entropy[tsne.index]
-    ax.scatter(tsne.loc[:, "x"], tsne.loc[:, "y"], s=3, cmap=matplotlib.cm.plasma, c=c)
+    ax.scatter(tsne.iloc[:, 0], tsne.iloc[:, 1], s=s, cmap=matplotlib.cm.plasma, c=c)
     normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
     cax, _ = matplotlib.colorbar.make_axes(ax)
     cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
@@ -366,7 +370,7 @@ def plot_palantir_results(pr_res, tsne):
         ax = plt.subplot(gs[row + 2, np.remainder(i, n_cols)])
         c = pr_res.branch_probs.loc[tsne.index, branch]
         ax.scatter(
-            tsne.loc[:, "x"], tsne.loc[:, "y"], s=3, cmap=matplotlib.cm.plasma, c=c
+            tsne.iloc[:, 0], tsne.iloc[:, 1], s=s, cmap=matplotlib.cm.plasma, c=c
         )
         normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
         cax, _ = matplotlib.colorbar.make_axes(ax)

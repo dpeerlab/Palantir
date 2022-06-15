@@ -17,20 +17,8 @@ Palantir is an algorithm to align cells along differentiation trajectories. Pala
 3. To uninstall:
 		
 		$> pip uninstall palantir
-
-4. If you would like to determine gene expression trends, please install <a href="https://cran.r-project.org"> R <a> programming language and the R package <a href="https://cran.r-project.org/web/packages/gam/">GAM </a>. You will also need to install the rpy2 module using 
-	
-		$> pip install .['PLOT_GENE_TRENDS']
-		    OR,
-		$> pip install rpy2
-	
-    In case of compiler error during installation of `rpy2`, try to link your compiler in `env`. Example:
-    
-        $> env CC=/usr/local/Cellar/gcc/xxx/bin/gcc-x pip install .['PLOT_GENE_TRENDS']
-
-    where `x` should be replaced with the version numbers
 		
-5. Palantir can also be used with [**Scanpy**](https://github.com/theislab/scanpy). It is fully integrated into Scanpy, and can be found under Scanpy's external modules ([link](https://scanpy.readthedocs.io/en/latest/api/scanpy.external.html#external-api))
+4. Palantir can also be used with [**Scanpy**](https://github.com/theislab/scanpy). It is fully integrated into Scanpy, and can be found under Scanpy's external modules ([link](https://scanpy.readthedocs.io/en/latest/api/scanpy.external.html#external-api))
 
 
 #### Usage

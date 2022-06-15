@@ -40,10 +40,8 @@ setup(
         "seaborn>=0.8.1",
         "tzlocal",
         "scanpy>=1.6.0",
+        "pygam"
     ],
-    extras_require={
-        'PLOT_GENE_TRENDS': ["rpy2>=3.0.2"]
-    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
