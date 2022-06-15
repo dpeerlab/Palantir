@@ -108,6 +108,10 @@ ____
 
 Release Notes
 -------------
+### Version 1.1.0
+ * Replaced rpy2 with pyGAM for computing gene expression trends. 
+ * Updated tutorial and plotting functions 
+
 
 ### Version 1.0.0
 
