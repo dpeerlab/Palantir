@@ -39,13 +39,14 @@ def run_pca(data, n_components=300, use_hvg=True):
     return pca_projections, ad.uns['pca']['variance_ratio']
 
 
-def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0):
+def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0, seed=None):
     """Run Diffusion maps using the adaptive anisotropic kernel
 
     :param data_df: PCA projections of the data or adjacency matrix
     :param n_components: Number of diffusion components
     :param knn: Number of nearest neighbors for graph construction
     :param alpha: Normalization parameter for the diffusion operator
+    :param seed: Numpy random seed, randomized if None, set to an arbitrary integer for reproducibility
     :return: Diffusion components, corresponding eigen values and the diffusion operator
     """
 
@@ -91,7 +92,9 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0):
     D[D != 0] = 1 / D[D != 0]
     T = csr_matrix((D, (range(N), range(N))), shape=[N, N]).dot(kernel)
     # Eigen value dcomposition
-    D, V = eigs(T, n_components, tol=1e-4, maxiter=1000)
+    np.random.seed(seed)
+    v0 = np.random.rand(min(T.shape))
+    D, V = eigs(T, n_components, tol=1e-4, maxiter=1000, v0=v0)
     D = np.real(D)
     V = np.real(V)
     inds = np.argsort(D)[::-1]
