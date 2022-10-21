@@ -41,7 +41,7 @@ def log_transform(data, pseudo_count=0.1):
     :param data: Counts matrix: Cells x Genes or Anndata object
     :return: Log transformed matrix
     """
-    if isinstance(ad, anndata.AnnData):
+    if isinstance(data, anndata.AnnData):
         if issparse(data.X):
             data.X.data = np.log2(data.X.data + pseudo_count) - np.log2(pseudo_count)
         else:
