@@ -76,6 +76,9 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_splines=4, spline_o
     :param pr_res: Palantir results object
     :param gene_exprs: Magic imputed data [Cells X Genes]
     :param lineages: Subset of lineages for which to compute the trends
+    :param n_splines: Number of splines to use. Must be non-negative.
+    :param spline_order: Order of spline to use. Must be non-negative.
+    :param n_jobs: Number of cores to use
     :return: Dictionary of gene expression trends and standard deviations for each branch
     """
 
@@ -131,6 +134,17 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_splines=4, spline_o
 
 
 def gam_fit_predict(x, y, weights=None, pred_x=None, n_splines=4, spline_order=2):
+    """
+    Function to compute individual gene trends using pyGAM
+
+    :param x: Pseudotime axis
+    :param y: Magic imputed expression for one gene
+    :param weights: Lineage branch weights
+    :param pred_x: Pseudotime axis for predicted values
+    :param n_splines: Number of splines to use. Must be non-negative.
+    :param spline_order: Order of spline to use. Must be non-negative.
+    """
+
     # Weights
     if weights is None:
         weights = np.repeat(1.0, len(x))
