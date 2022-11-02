@@ -70,12 +70,15 @@ class PResults(object):
         pickle.dump(vars(self), pkl_file)
 
 
-def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
+def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_splines=4, spline_order=2, n_jobs=-1):
     """Function for computing gene expression trends along Palantir pseudotime
 
     :param pr_res: Palantir results object
     :param gene_exprs: Magic imputed data [Cells X Genes]
     :param lineages: Subset of lineages for which to compute the trends
+    :param n_splines: Number of splines to use. Must be non-negative.
+    :param spline_order: Order of spline to use. Must be non-negative.
+    :param n_jobs: Number of cores to use
     :return: Dictionary of gene expression trends and standard deviations for each branch
     """
 
@@ -108,11 +111,13 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
         weights = pr_res.branch_probs.loc[gene_exprs.index, branch].values
         bins = np.array(results[branch]["trends"].columns)
         res = Parallel(n_jobs=n_jobs)(
-            delayed(_gam_fit_predict)(
+            delayed(gam_fit_predict)(
                 pr_res.pseudotime[gene_exprs.index].values,
                 gene_exprs.loc[:, gene].values,
                 weights,
                 bins,
+                n_splines,
+                spline_order
             )
             for gene in gene_exprs.columns
         )
@@ -128,7 +133,18 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_jobs=-1):
     return results
 
 
-def _gam_fit_predict(x, y, weights=None, pred_x=None):
+def gam_fit_predict(x, y, weights=None, pred_x=None, n_splines=4, spline_order=2):
+    """
+    Function to compute individual gene trends using pyGAM
+
+    :param x: Pseudotime axis
+    :param y: Magic imputed expression for one gene
+    :param weights: Lineage branch weights
+    :param pred_x: Pseudotime axis for predicted values
+    :param n_splines: Number of splines to use. Must be non-negative.
+    :param spline_order: Order of spline to use. Must be non-negative.
+    """
+
     # Weights
     if weights is None:
         weights = np.repeat(1.0, len(x))
@@ -137,7 +153,7 @@ def _gam_fit_predict(x, y, weights=None, pred_x=None):
     use_inds = np.where(weights > 0)[0]
 
     # GAM fit
-    gam = LinearGAM(s(0, n_splines=4, spline_order=2)).fit(x[use_inds], y[use_inds],
+    gam = LinearGAM(s(0, n_splines=n_splines, spline_order=spline_order)).fit(x[use_inds], y[use_inds],
                                                            weights=weights[use_inds])
 
     # Predict
