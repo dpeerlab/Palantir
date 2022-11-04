@@ -408,7 +408,7 @@ def plot_terminal_state_probs(pr_res, cells):
         df.columns = ["y", "x"]
 
         # Plot
-        sns.barplot("x", "y", data=df, ax=ax, palette=branch_colors)
+        sns.barplot(x="x", y="y", data=df, ax=ax, palette=branch_colors)
         ax.set_xlabel("")
         ax.set_ylabel("")
         ax.set_ylim([0, 1])
