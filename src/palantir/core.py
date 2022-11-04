@@ -376,7 +376,7 @@ def _terminal_states_from_markov_chain(T, wp_data, pseudotime):
     # Find connected components
     T_dense = pd.DataFrame(T.todense(), index=waypoints, columns=waypoints)
     graph = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
-    cells = [pseudotime[i].idxmax() for i in nx.connected_components(graph)]
+    cells = [pseudotime[list(i)].idxmax() for i in nx.connected_components(graph)]
 
     # Nearest diffusion map boundaries
     terminal_states = [
@@ -444,10 +444,10 @@ def _differentiation_entropy(wp_data, terminal_states, knn, n_jobs, pseudotime):
     ent = branch_probs.apply(entropy, axis=1)
 
     # Add terminal states
-    ent = ent.append(pd.Series(0, index=terminal_states))
+    ent = pd.concat([ent, pd.Series(0, index=terminal_states)])
     bp = pd.DataFrame(0, index=terminal_states, columns=terminal_states)
     bp.values[range(len(terminal_states)), range(len(terminal_states))] = 1
-    branch_probs = branch_probs.append(bp.loc[:, branch_probs.columns])
+    branch_probs = pd.concat([branch_probs, bp.loc[:, branch_probs.columns]])
 
     return ent, branch_probs
 
