@@ -16,7 +16,7 @@ from scipy.sparse.linalg import eigs
 
 from scipy.sparse import csr_matrix, find, csgraph
 from scipy.stats import entropy, pearsonr, norm
-from numpy.linalg import inv
+from numpy.linalg import inv, pinv, LinAlgError
 from copy import deepcopy
 from palantir.presults import PResults
 
@@ -431,7 +431,13 @@ def _differentiation_entropy(wp_data, terminal_states, knn, n_jobs, pseudotime):
     Q = T[trans_states, :][:, trans_states]
     # Fundamental matrix
     mat = np.eye(Q.shape[0]) - Q.todense()
-    N = inv(mat)
+    try:
+        N = inv(mat)
+    except LinAlgError:
+        warnings.warn(
+            "Singular matrix encountered. Attempting pseudo-inverse.",
+        )
+        N = pinv(mat, hermitian=True)
 
     # Absorption probabilities
     branch_probs = np.dot(N, T[trans_states, :][:, abs_states].todense())
