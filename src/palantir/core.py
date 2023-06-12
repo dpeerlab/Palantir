@@ -472,8 +472,8 @@ def _connect_graph(adj, data, start_cell):
     # Idenfity unreachable nodes
     unreachable_nodes = data.index.difference(dists.index)
     if len(unreachable_nodes) > 0:
-        print(
-            "Warning: Some of the cells were unreachable. Consider increasing the k for \n \
+        warnings.warn(
+            "Some of the cells were unreachable. Consider increasing the k for \n \
             nearest neighbor graph construction."
         )
 
