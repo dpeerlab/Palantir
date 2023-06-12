@@ -358,7 +358,8 @@ def _terminal_states_from_markov_chain(T, wp_data, pseudotime):
     # Identify terminal statses
     waypoints = wp_data.index
     dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
-    vals, vecs = eigs(T.T, 10)
+    n = min(*T.shape)
+    vals, vecs = eigs(T.T, 10, maxiter=n*50)
 
     ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
     ranks = pd.Series(ranks, index=waypoints)
