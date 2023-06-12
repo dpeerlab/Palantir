@@ -16,7 +16,7 @@ from scipy.sparse.linalg import eigs
 
 from scipy.sparse import csr_matrix, find, csgraph
 from scipy.stats import entropy, pearsonr, norm
-from numpy.linalg import inv
+from numpy.linalg import inv, pinv, LinAlgError
 from copy import deepcopy
 from palantir.presults import PResults
 
@@ -358,7 +358,8 @@ def _terminal_states_from_markov_chain(T, wp_data, pseudotime):
     # Identify terminal statses
     waypoints = wp_data.index
     dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
-    vals, vecs = eigs(T.T, 10)
+    n = min(*T.shape)
+    vals, vecs = eigs(T.T, 10, maxiter=n*50)
 
     ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
     ranks = pd.Series(ranks, index=waypoints)
@@ -431,7 +432,13 @@ def _differentiation_entropy(wp_data, terminal_states, knn, n_jobs, pseudotime):
     Q = T[trans_states, :][:, trans_states]
     # Fundamental matrix
     mat = np.eye(Q.shape[0]) - Q.todense()
-    N = inv(mat)
+    try:
+        N = inv(mat)
+    except LinAlgError:
+        warnings.warn(
+            "Singular matrix encountered. Attempting pseudo-inverse.",
+        )
+        N = pinv(mat, hermitian=True)
 
     # Absorption probabilities
     branch_probs = np.dot(N, T[trans_states, :][:, abs_states].todense())
@@ -466,8 +473,8 @@ def _connect_graph(adj, data, start_cell):
     # Idenfity unreachable nodes
     unreachable_nodes = data.index.difference(dists.index)
     if len(unreachable_nodes) > 0:
-        print(
-            "Warning: Some of the cells were unreachable. Consider increasing the k for \n \
+        warnings.warn(
+            "Some of the cells were unreachable. Consider increasing the k for \n \
             nearest neighbor graph construction."
         )
 
