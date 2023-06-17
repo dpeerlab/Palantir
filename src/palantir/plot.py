@@ -168,7 +168,7 @@ def plot_cell_clusters(plot_embedding, clusters):
     :param clusters: Results of the determine_cell_clusters function
     """
     tsne = plot_embedding.copy()
-    tsne.columns = ['x', 'y']
+    tsne.columns = ["x", "y"]
 
     # Cluster colors
     n_clusters = len(set(clusters))
@@ -179,7 +179,7 @@ def plot_cell_clusters(plot_embedding, clusters):
     # Set up figure
     n_cols = 6
     n_rows = int(np.ceil(n_clusters / n_cols))
-    fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
+    plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(
         n_rows + 2, n_cols, height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows))
     )
@@ -218,11 +218,10 @@ def plot_tsne(tsne, fig=None, ax=None):
 
 
 def highlight_cells_on_tsne(plot_tsne, cells, fig=None, ax=None):
-    """    Function to highlight specific cells on the tSNE map
-    """
+    """Function to highlight specific cells on the tSNE map"""
     fig, ax = get_fig(fig=fig, ax=ax)
     tsne = plot_tsne.copy()
-    tsne.columns = ['x', 'y']
+    tsne.columns = ["x", "y"]
     ax.scatter(tsne["x"], tsne["y"], s=5, color="lightgrey")
     ax.scatter(tsne.loc[cells, "x"], tsne.loc[cells, "y"], s=30)
     ax.set_axis_off()
@@ -255,7 +254,7 @@ def plot_gene_expression(
     percentile=0,
     cmap=matplotlib.cm.Spectral_r,
 ):
-    """ Plot gene expression on tSNE maps
+    """Plot gene expression on tSNE maps
     :param genes: Iterable of strings to plot on tSNE
     """
 
@@ -306,7 +305,7 @@ def plot_gene_expression(
 
 
 def plot_diffusion_components(tsne, dm_res):
-    """ Plots the diffusion components on tSNE maps
+    """Plots the diffusion components on tSNE maps
     :return: fig, ax
     """
 
@@ -333,14 +332,13 @@ def plot_diffusion_components(tsne, dm_res):
 
 
 def plot_palantir_results(pr_res, tsne, s=3):
-    """ Plot Palantir results on tSNE
-    """
+    """Plot Palantir results on tSNE"""
 
     # Set up figure
     n_branches = pr_res.branch_probs.shape[1]
     n_cols = 6
     n_rows = int(np.ceil(n_branches / n_cols))
-    fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
+    plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(
         n_rows + 2, n_cols, height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows))
     )
@@ -351,7 +349,7 @@ def plot_palantir_results(pr_res, tsne, s=3):
     ax.scatter(tsne.iloc[:, 0], tsne.iloc[:, 1], s=s, cmap=matplotlib.cm.plasma, c=c)
     normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
     cax, _ = matplotlib.colorbar.make_axes(ax)
-    cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
+    matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
     ax.set_axis_off()
     ax.set_title("Pseudotime")
 
@@ -361,7 +359,7 @@ def plot_palantir_results(pr_res, tsne, s=3):
     ax.scatter(tsne.iloc[:, 0], tsne.iloc[:, 1], s=s, cmap=matplotlib.cm.plasma, c=c)
     normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
     cax, _ = matplotlib.colorbar.make_axes(ax)
-    cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
+    matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
     ax.set_axis_off()
     ax.set_title("Differentiation potential")
 
@@ -374,13 +372,13 @@ def plot_palantir_results(pr_res, tsne, s=3):
         )
         normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
         cax, _ = matplotlib.colorbar.make_axes(ax)
-        cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
+        matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
         ax.set_axis_off()
         ax.set_title(branch, fontsize=10)
 
 
 def plot_terminal_state_probs(pr_res, cells):
-    """ Function to plot barplot for probabilities for each cell in the list
+    """Function to plot barplot for probabilities for each cell in the list
     :param: pr_res: Palantir results object
     :param: cells: List of cell for which the barplots need to be plotted
     """
@@ -420,7 +418,7 @@ def plot_terminal_state_probs(pr_res, cells):
 
 
 def plot_gene_trends(gene_trends, genes=None):
-    """ Plot the gene trends: each gene is plotted in a different panel
+    """Plot the gene trends: each gene is plotted in a different panel
     :param: gene_trends: Results of the compute_marker_trends function
     """
 
@@ -459,7 +457,7 @@ def plot_gene_trends(gene_trends, genes=None):
 
 
 def plot_gene_trend_heatmaps(gene_trends):
-    """ Plot the gene trends on heatmap: a heatmap is generated or each branch
+    """Plot the gene trends on heatmap: a heatmap is generated or each branch
     :param: gene_trends: Results of the compute_marker_trends function
     """
 
@@ -485,8 +483,7 @@ def plot_gene_trend_heatmaps(gene_trends):
 
 
 def plot_gene_trend_clusters(trends, clusters):
-    """ Plot the gene trend clusters
-    """
+    """Plot the gene trend clusters"""
 
     # Standardize the trends
     trends = pd.DataFrame(

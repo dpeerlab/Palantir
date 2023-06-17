@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import pickle
 import time
-import shutil
 import phenograph
 
 from collections import OrderedDict
@@ -70,7 +69,9 @@ class PResults(object):
         pickle.dump(vars(self), pkl_file)
 
 
-def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_splines=4, spline_order=2, n_jobs=-1):
+def compute_gene_trends(
+    pr_res, gene_exprs, lineages=None, n_splines=4, spline_order=2, n_jobs=-1
+):
     """Function for computing gene expression trends along Palantir pseudotime
 
     :param pr_res: Palantir results object
@@ -117,7 +118,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_splines=4, spline_o
                 weights,
                 bins,
                 n_splines,
-                spline_order
+                spline_order,
             )
             for gene in gene_exprs.columns
         )
@@ -127,8 +128,7 @@ def compute_gene_trends(pr_res, gene_exprs, lineages=None, n_splines=4, spline_o
             results[branch]["trends"].loc[gene, :] = res[i][0]
             results[branch]["std"].loc[gene, :] = res[i][1]
         end = time.time()
-        print("Time for processing {}: {} minutes".format(
-            branch, (end - start) / 60))
+        print("Time for processing {}: {} minutes".format(branch, (end - start) / 60))
 
     return results
 
@@ -153,8 +153,9 @@ def gam_fit_predict(x, y, weights=None, pred_x=None, n_splines=4, spline_order=2
     use_inds = np.where(weights > 0)[0]
 
     # GAM fit
-    gam = LinearGAM(s(0, n_splines=n_splines, spline_order=spline_order)).fit(x[use_inds], y[use_inds],
-                                                           weights=weights[use_inds])
+    gam = LinearGAM(s(0, n_splines=n_splines, spline_order=spline_order)).fit(
+        x[use_inds], y[use_inds], weights=weights[use_inds]
+    )
 
     # Predict
     if pred_x is None:
@@ -166,8 +167,7 @@ def gam_fit_predict(x, y, weights=None, pred_x=None, n_splines=4, spline_order=2
     n = len(use_inds)
     sigma = np.sqrt(((y[use_inds] - p) ** 2).sum() / (n - 2))
     stds = (
-        np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) **
-                2 / ((x - np.mean(x)) ** 2).sum())
+        np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) ** 2 / ((x - np.mean(x)) ** 2).sum())
         * sigma
         / 2
     )
@@ -195,31 +195,27 @@ def _gam_fit_predict_rpy2(x, y, weights=None, pred_x=None):
 
     # Fit the model
     rgam = importr("gam")
-    model = rgam.gam(Formula("y~s(x)"), data=r_df,
-                     weights=pd.Series(weights[use_inds]))
+    model = rgam.gam(Formula("y~s(x)"), data=r_df, weights=pd.Series(weights[use_inds]))
 
     # Predictions
     if pred_x is None:
         pred_x = x
     y_pred = np.array(
         robjects.r.predict(
-            model, newdata=pandas2ri.py2rpy(
-                pd.DataFrame(pred_x, columns=["x"]))
+            model, newdata=pandas2ri.py2rpy(pd.DataFrame(pred_x, columns=["x"]))
         )
     )
 
     # Standard deviations
     p = np.array(
         robjects.r.predict(
-            model, newdata=pandas2ri.py2rpy(
-                pd.DataFrame(x[use_inds], columns=["x"]))
+            model, newdata=pandas2ri.py2rpy(pd.DataFrame(x[use_inds], columns=["x"]))
         )
     )
     n = len(use_inds)
     sigma = np.sqrt(((y[use_inds] - p) ** 2).sum() / (n - 2))
     stds = (
-        np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) **
-                2 / ((x - np.mean(x)) ** 2).sum())
+        np.sqrt(1 + 1 / n + (pred_x - np.mean(x)) ** 2 / ((x - np.mean(x)) ** 2).sum())
         * sigma
         / 2
     )

@@ -40,7 +40,7 @@ setup(
         "seaborn>=0.8.1",
         "tzlocal",
         "scanpy>=1.6.0",
-        "pygam"
+        "pygam",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from sklearn.manifold import TSNE
 
 import phenograph
 
@@ -27,7 +26,7 @@ def run_pca(data, n_components=300, use_hvg=True):
     else:
         sc.pp.pca(ad, n_comps=1000, use_highly_variable=True, zero_center=False)
         try:
-            n_comps = np.where(np.cumsum(ad.uns['pca']['variance_ratio']) > 0.85)[0][0]
+            n_comps = np.where(np.cumsum(ad.uns["pca"]["variance_ratio"]) > 0.85)[0][0]
         except IndexError:
             n_comps = n_components
 
@@ -35,8 +34,8 @@ def run_pca(data, n_components=300, use_hvg=True):
     sc.pp.pca(ad, n_comps=n_comps, use_highly_variable=use_hvg, zero_center=False)
 
     # Return PCA projections if it is a dataframe
-    pca_projections = pd.DataFrame(ad.obsm['X_pca'], index=ad.obs_names)
-    return pca_projections, ad.uns['pca']['variance_ratio']
+    pca_projections = pd.DataFrame(ad.obsm["X_pca"], index=ad.obs_names)
+    return pca_projections, ad.uns["pca"]["variance_ratio"]
 
 
 def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0, seed=None):
@@ -56,7 +55,7 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0, seed=None):
         print("Determing nearest neighbor graph...")
         temp = sc.AnnData(data_df.values)
         sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
-        kNN = temp.obsp['distances']
+        kNN = temp.obsp["distances"]
 
         # Adaptive k
         adaptive_k = int(np.floor(knn / 3))
@@ -124,7 +123,9 @@ def run_magic_imputation(data, dm_res, n_steps=3):
     :return: Imputed data matrix
     """
     if type(data) is sc.AnnData:
-        data = pd.DataFrame(data.X.todense(), index=data.obs_names, columns=data.var_names)
+        data = pd.DataFrame(
+            data.X.todense(), index=data.obs_names, columns=data.var_names
+        )
 
     T_steps = dm_res["T"] ** n_steps
     imputed_data = pd.DataFrame(
@@ -166,15 +167,21 @@ def run_tsne(data, n_dim=2, perplexity=150, **kwargs):
     """
     try:
         from MulticoreTSNE import MulticoreTSNE as TSNE
-        
+
         print("Using the 'MulticoreTSNE' package by Ulyanov (2017)")
-        tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(data.values)
+        tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(
+            data.values
+        )
     except ImportError:
         from sklearn.manifold import TSNE
 
-        print("Could not import 'MulticoreTSNE'. Install for faster runtime. Falling back to scikit-learn.")
-        tsne = TSNE(n_components= n_dim, perplexity= perplexity, **kwargs).fit_transform(data.values)
-    
+        print(
+            "Could not import 'MulticoreTSNE'. Install for faster runtime. Falling back to scikit-learn."
+        )
+        tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(
+            data.values
+        )
+
     tsne = pd.DataFrame(tsne, index=data.index)
     tsne.columns = ["x", "y"]
     return tsne

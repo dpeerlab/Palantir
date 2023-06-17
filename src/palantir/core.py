@@ -249,7 +249,12 @@ def _compute_pseudotime(data, start_cell, knn, waypoints, n_jobs, max_iterations
 
 
 def identify_terminal_states(
-    ms_data, early_cell, knn=30, num_waypoints=1200, n_jobs=-1, max_iterations=25,
+    ms_data,
+    early_cell,
+    knn=30,
+    num_waypoints=1200,
+    n_jobs=-1,
+    max_iterations=25,
 ):
 
     # Scale components
@@ -339,8 +344,8 @@ def _construct_markov_chain(wp_data, knn, pseudotime, n_jobs):
     # Affinity matrix and markov chain
     x, y, z = find(kNN)
     aff = np.exp(
-        -(z ** 2) / (adaptive_std[x] ** 2) * 0.5
-        - (z ** 2) / (adaptive_std[y] ** 2) * 0.5
+        -(z**2) / (adaptive_std[x] ** 2) * 0.5
+        - (z**2) / (adaptive_std[y] ** 2) * 0.5
     )
     W = csr_matrix((aff, (x, y)), [len(waypoints), len(waypoints)])
 
@@ -359,7 +364,7 @@ def _terminal_states_from_markov_chain(T, wp_data, pseudotime):
     waypoints = wp_data.index
     dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
     n = min(*T.shape)
-    vals, vecs = eigs(T.T, 10, maxiter=n*50)
+    vals, vecs = eigs(T.T, 10, maxiter=n * 50)
 
     ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
     ranks = pd.Series(ranks, index=waypoints)
