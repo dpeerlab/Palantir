@@ -1,3 +1,5 @@
+from typing import Iterable
+from warnings import warn
 import pandas as pd
 import numpy as np
 
@@ -301,3 +303,50 @@ def fallback_terminal_cell(ad, celltype, celltype_column="anno", seed=2353):
         "{celltype} when starting from {fake_early_cell}."
     )
     return early_cell
+
+
+def find_terminal_states(
+    ad: sc.AnnData,
+    celltypes: Iterable,
+    celltype_column: str = "anno",
+    fallback_seed: int = None,
+):
+    """
+    Identifies terminal states for a list of cell types in the AnnData object.
+
+    This function iterates over the provided cell types, attempting to find a terminal cell for each one
+    using the `palantir.utils.early_cell` function. In cases where no valid component is found for a cell type,
+    it emits a warning and skips to the next cell type.
+
+    Parameters
+    ----------
+    ad : AnnData
+        Annotated data matrix from Scanpy. It should contain computed diffusion maps.
+    celltypes : Iterable
+        An iterable (like a list or tuple) of cell type names for which terminal states are to be identified.
+    celltype_column : str, optional
+        Column name in the AnnData object where the cell type information is stored. Default is 'anno'.
+    fallback_seed : int, optional
+        Seed for the random number generator used in the fallback method of `palantir.utils.early_cell` function.
+        Defaults to None, in which case the RNG will be seeded randomly.
+
+    Returns
+    -------
+    pd.Series
+        A pandas Series where the index are the cell types and the values are the names of the terminal cells.
+        If no terminal cell is found for a cell type, it will not be included in the series.
+    """
+    terminal_states = pd.Series()
+    for ct in celltypes:
+        try:
+            cell = palantir.utils.early_cell(ad, ct, celltype_column, fallback_seed)
+        except CellNotFoundException:
+            warn(
+                f"No valid component found: {celltype} "
+                "Consider increasing the number of diffusion components "
+                "('n_components' in palantir.utils.run_diffusion_maps). "
+                "The cell type {celltype} will be sckipped."
+            )
+            continue
+        terminal_states[ct] = cell
+    return terminal_states
