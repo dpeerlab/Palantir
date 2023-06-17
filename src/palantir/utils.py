@@ -230,7 +230,12 @@ def _return_cell(ec, obs_names, celltype, mm, dcomp):
     return early_cell
 
 
-def early_cell(ad, celltype, celltype_column="anno", fallback_seed=None):
+def early_cell(
+    ad: sc.AnnData,
+    celltype: str,
+    celltype_column: str = "celltype",
+    fallback_seed: int = None,
+):
     """
     Helper to determine 'early_cell' for 'palantir.core.run_palantir'.
     Finds cell of 'celltype' at the extremes of the state space represented by diffusion maps.
@@ -239,7 +244,7 @@ def early_cell(ad, celltype, celltype_column="anno", fallback_seed=None):
         ad (AnnData): Annotated data matrix.
         celltype (str): The cell type of interest.
         celltype_column (str): Column name in the data matrix where the cell
-        type information is stored. Default is 'anno'.
+        type information is stored. Default is 'celltype'.
         fallback_seed (int): Seed for random number generator in fallback method.
         Default is None.
 
@@ -249,6 +254,32 @@ def early_cell(ad, celltype, celltype_column="anno", fallback_seed=None):
     Raises:
         CellNotFoundException: If no valid component is found for the provided cell type.
     """
+    if not isinstance(ad, sc.AnnData):
+        raise ValueError("'ad' should be an instance of sc.AnnData")
+
+    if "DM_EigenVectors" not in ad.obsm:
+        raise ValueError(
+            "'DM_EigenVectors' not found in ad.obsm. "
+            "Run `palantir.utils.run_diffusion_maps(ad)` first."
+        )
+
+    if not isinstance(celltype_column, str):
+        raise ValueError("'celltype_column' should be a string")
+
+    if not celltype_column in ad.obs.columns:
+        raise ValueError("'celltype_column' should be a column of ad.obs.")
+
+    if not isinstance(celltype, str):
+        raise ValueError("'celltype' should be a string")
+
+    if celltype not in ad.obs[celltype_column].values:
+        raise ValueError(
+            f"Celltype '{celltype}' not found in ad.obs['{celltype_column}']."
+        )
+
+    if fallback_seed is not None and not isinstance(fallback_seed, int):
+        raise ValueError("'fallback_seed' should be an integer")
+
     for dcomp in range(ad.obsm["DM_EigenVectors"].shape[1]):
         ec = ad.obsm["DM_EigenVectors"][:, dcomp].argmax()
         if ad.obs[celltype_column][ec] == celltype:
@@ -308,7 +339,7 @@ def fallback_terminal_cell(ad, celltype, celltype_column="anno", seed=2353):
 def find_terminal_states(
     ad: sc.AnnData,
     celltypes: Iterable,
-    celltype_column: str = "anno",
+    celltype_column: str = "celltype",
     fallback_seed: int = None,
 ):
     """
@@ -325,7 +356,7 @@ def find_terminal_states(
     celltypes : Iterable
         An iterable (like a list or tuple) of cell type names for which terminal states are to be identified.
     celltype_column : str, optional
-        Column name in the AnnData object where the cell type information is stored. Default is 'anno'.
+        Column name in the AnnData object where the cell type information is stored. Default is 'celltype'.
     fallback_seed : int, optional
         Seed for the random number generator used in the fallback method of `palantir.utils.early_cell` function.
         Defaults to None, in which case the RNG will be seeded randomly.
