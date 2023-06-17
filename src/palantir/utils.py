@@ -8,6 +8,12 @@ from scipy.sparse.linalg import eigs
 import scanpy as sc
 
 
+class CellNotFoundException(Exception):
+    """Exception raised when no valid component is found for the provided cell type."""
+
+    pass
+
+
 def run_pca(data, n_components=300, use_hvg=True):
     """Run PCA
 
@@ -198,3 +204,100 @@ def determine_cell_clusters(data, k=50):
     communities, _, _ = phenograph.cluster(data.values, k=k)
     communities = pd.Series(communities, index=data.index)
     return communities
+
+
+def _return_cell(ec, obs_names, celltype, mm, dcomp):
+    """
+    Helper function to print and return the early cell.
+
+    Args:
+        ec (int): Index of the early cell.
+        obs_names (list): Names of cells.
+        celltype (str): The cell type of interest.
+        mm (str): Max/min status of the diffusion component.
+        dcomp (int): Index of diffusion component.
+
+    Returns:
+        str: Name of the early cell.
+    """
+    early_cell = obs_names[ec]
+    print(
+        f"Using {early_cell} for cell type {celltype} which is {mm} in "
+        f"diffusion component {dcomp}."
+    )
+    return early_cell
+
+
+def early_cell(ad, celltype, celltype_column="anno", fallback_seed=None):
+    """
+    Helper to determine 'early_cell' for 'palantir.core.run_palantir'.
+    Finds cell of 'celltype' at the extremes of the state space represented by diffusion maps.
+
+    Args:
+        ad (AnnData): Annotated data matrix.
+        celltype (str): The cell type of interest.
+        celltype_column (str): Column name in the data matrix where the cell
+        type information is stored. Default is 'anno'.
+        fallback_seed (int): Seed for random number generator in fallback method.
+        Default is None.
+
+    Returns:
+        str: Name of the terminal cell for the given cell type.
+
+    Raises:
+        CellNotFoundException: If no valid component is found for the provided cell type.
+    """
+    for dcomp in range(ad.obsm["DM_EigenVectors"].shape[1]):
+        ec = ad.obsm["DM_EigenVectors"][:, dcomp].argmax()
+        if ad.obs[celltype_column][ec] == celltype:
+            return _return_cell(ec, ad.obs_names, celltype, "max", dcomp)
+        ec = ad.obsm["DM_EigenVectors"][:, dcomp].argmin()
+        if ad.obs[celltype_column][ec] == celltype:
+            return _return_cell(ec, ad.obs_names, celltype, "min", dcomp)
+
+    if fallback_seed is not None:
+        print("Falling back to slow early cell detection.")
+        return fallback_terminal_cell(
+            ad, celltype, celltype_column=celltype_column, seed=fallback_seed
+        )
+
+    raise CellNotFoundException(
+        f"No valid component found: {celltype} "
+        "Consider increasing the number of diffusion components "
+        "('n_components' in palantir.utils.run_diffusion_maps) "
+        "or specify a 'fallback_seed' to determine an early cell based on "
+        f"reverse pseudotime starting from random non-{celltype} cell."
+    )
+
+
+def fallback_terminal_cell(ad, celltype, celltype_column="anno", seed=2353):
+    """
+    Fallback method to find terminal cells when no valid diffusion component
+    is found for the provided cell type.
+
+    Args:
+        ad (AnnData): Annotated data matrix.
+        celltype (str): The cell type of interest.
+        celltype_column (str): Column name in the data matrix where the cell
+        type information is stored. Default is 'anno'.
+        seed (int): Seed for random number generator. Default is 2353.
+
+    Returns:
+        str: Name of the terminal cell for the given cell type.
+    """
+    other_cells = ad.obs_names[ad.obs[celltype_column] != celltype]
+    fake_early_cell = other_cells.to_series().sample(1, random_state=seed)[0]
+    pr_res = palantir.core.run_palantir(
+        ms_data,
+        fake_early_cell,
+        terminal_states=None,
+        use_early_cell_as_start=True,
+    )
+    idx = ad.obs[celltype_column] == celltype
+    ec = pr_res.pseudotime[idx].argmax()
+    early_cell = ad.obs_names[ec]
+    print(
+        f"Using {early_cell} for cell type {celltype} which is latest cell in "
+        "{celltype} when starting from {fake_early_cell}."
+    )
+    return early_cell
