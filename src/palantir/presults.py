@@ -283,13 +283,51 @@ def _gam_fit_predict_rpy2(x, y, weights=None, pred_x=None):
     return y_pred, stds
 
 
-def cluster_gene_trends(trends, k=150, n_jobs=-1):
-    """Function to cluster gene trends
-    :param trends: Matrix of gene expression trends
-    :param k: K for nearest neighbor construction
-    :param n_jobs: Number of jobs for parallel processing
-    :return: Clustering of gene trends
+def cluster_gene_trends(
+    data: Union[sc.AnnData, pd.DataFrame],
+    gene_trend_key: Optional[str] = None,
+    k: int = 150,
+    n_jobs: int = -1,
+) -> pd.Series:
+    """Cluster gene trends.
+
+    This function applies the PhenoGraph clustering algorithm to gene expression trends
+    along the pseudotemporal trajectory computed by Palantir.
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of gene expression trends.
+    gene_trend_key : str, optional
+        Key to access gene trends from varm of the AnnData object. If data is a DataFrame,
+        gene_trend_key should be None. If gene_trend_key is None when data is an AnnData,
+        a KeyError will be raised. Default is None.
+    k : int, optional
+        Number of nearest neighbors for the PhenoGraph clustering. Default is 150.
+    n_jobs : int, optional
+        Number of cores to use. Default is -1.
+
+    Returns
+    -------
+    pd.Series
+        Clustering of gene trends, indexed by gene names.
+
+    Raises
+    ------
+    KeyError
+        If gene_trend_key is None when data is an AnnData object.
     """
+    if isinstance(data, sc.AnnData):
+        if gene_trend_key is None:
+            raise KeyError(
+                "Must provide a gene_trend_key when data is an AnnData object."
+            )
+        pseudotimes = data.uns[gene_trend_key + "_pseudotime"]
+        trends = pd.DataFrame(
+            data.varm[gene_trend_key], index=data.var_names, columns=pseudotimes
+        )
+    else:
+        trends = data
 
     # Standardize the trends
     trends = pd.DataFrame(
@@ -301,6 +339,7 @@ def cluster_gene_trends(trends, k=150, n_jobs=-1):
     # Cluster
     clusters, _, _ = phenograph.cluster(trends, k=k, n_jobs=n_jobs)
     clusters = pd.Series(clusters, index=trends.index)
+
     return clusters
 
 
