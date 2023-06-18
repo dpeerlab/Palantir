@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Union, Tuple
 from warnings import warn
 import pandas as pd
 import numpy as np
@@ -9,6 +9,8 @@ from scipy.sparse import csr_matrix, find, issparse
 from scipy.sparse.linalg import eigs
 import scanpy as sc
 
+from .core import run_palantir
+
 
 class CellNotFoundException(Exception):
     """Exception raised when no valid component is found for the provided cell type."""
@@ -16,17 +18,41 @@ class CellNotFoundException(Exception):
     pass
 
 
-def run_pca(data, n_components=300, use_hvg=True):
-    """Run PCA
-
-    :param data: Dataframe of cells X genes. Typicaly multiscale space diffusion components
-    :param n_components: Number of principal components
-    :return: PCA projections of the data and the explained variance
+def run_pca(
+    data: Union[pd.DataFrame, sc.AnnData],
+    n_components: int = 300,
+    use_hvg: bool = True,
+    pca_key: str = "X_pca",
+) -> Union[Tuple[pd.DataFrame, np.array], None]:
     """
-    if type(data) is sc.AnnData:
-        ad = data
-    else:
+    Run PCA on the data.
+
+    Parameters
+    ----------
+    data : Union[pd.DataFrame, sc.AnnData]
+        Dataframe of cells X genes or sc.AnnData object.
+        Typically multi-scale space diffusion components.
+    n_components : int, optional
+        Number of principal components. Default is 300.
+    use_hvg : bool, optional
+        Whether to use highly variable genes only for PCA. Default is True.
+    pca_key : str, optional
+        Key to store the PCA projections in obsm of data if it is a sc.AnnData object. Default is 'X_pca'.
+
+    Returns
+    -------
+    Union[Tuple[pd.DataFrame, np.array], None]
+        Tuple of PCA projections of the data and the explained variance.
+        If sc.AnnData is passed as data, the results are also written to the input object and None is returned.
+    """
+    if isinstance(data, pd.DataFrame):
         ad = sc.AnnData(data.values)
+    else:
+        ad = data
+        if pca_key != "X_pca":
+            old_pca = ad.obsm.get("X_pca", None)
+        else:
+            old_pca = None
 
     # Run PCA
     if not use_hvg:
@@ -41,21 +67,70 @@ def run_pca(data, n_components=300, use_hvg=True):
     # Rerun with selection number of components
     sc.pp.pca(ad, n_comps=n_comps, use_highly_variable=use_hvg, zero_center=False)
 
-    # Return PCA projections if it is a dataframe
+    if isinstance(data, sc.AnnData):
+        data.obsm[pca_key] = ad.obsm["X_pca"]
+        if old_pca is None and pca_key != "X_pca":
+            del data.obsm["X_pca"]
+        else:
+            data.obsm["X_pca"] = old_pca
+
     pca_projections = pd.DataFrame(ad.obsm["X_pca"], index=ad.obs_names)
     return pca_projections, ad.uns["pca"]["variance_ratio"]
 
 
-def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0, seed=None):
-    """Run Diffusion maps using the adaptive anisotropic kernel
-
-    :param data_df: PCA projections of the data or adjacency matrix
-    :param n_components: Number of diffusion components
-    :param knn: Number of nearest neighbors for graph construction
-    :param alpha: Normalization parameter for the diffusion operator
-    :param seed: Numpy random seed, randomized if None, set to an arbitrary integer for reproducibility
-    :return: Diffusion components, corresponding eigen values and the diffusion operator
+def run_diffusion_maps(
+    data: Union[pd.DataFrame, sc.AnnData],
+    n_components: int = 10,
+    knn: int = 30,
+    alpha: float = 0,
+    seed: Union[int, None] = None,
+    pca_key: str = "X_pca",
+    kernel_key: str = "DM_Kernel",
+    eigval_key: str = "DM_EigenValues",
+    eigvec_key: str = "DM_EigenVectors",
+):
     """
+    Run Diffusion maps using the adaptive anisotropic kernel.
+
+    Parameters
+    ----------
+    data : Union[pd.DataFrame, sc.AnnData]
+        PCA projections of the data or adjacency matrix.
+        If sc.AnnData is passed, its obsm[pca_key] is used and the result is written to
+        its obsp[kernel_key], obsm[eigvec_key], and uns[eigval_key].
+    n_components : int, optional
+        Number of diffusion components. Default is 10.
+    knn : int, optional
+        Number of nearest neighbors for graph construction. Default is 30.
+    alpha : float, optional
+        Normalization parameter for the diffusion operator. Default is 0.
+    seed : Union[int, None], optional
+        Numpy random seed, randomized if None, set to an arbitrary integer for reproducibility.
+        Default is None.
+    pca_key : str, optional
+        Key to retrieve PCA projections from data if it is a sc.AnnData object. Default is 'X_pca'.
+    kernel_key : str, optional
+        Key to store the kernel in obsp of data if it is a sc.AnnData object. Default is 'DM_Kernel'.
+    eigval_key : str, optional
+        Key to store the EigenValues in uns of data if it is a sc.AnnData object. Default is 'DM_EigenValues'.
+    eigvec_key : str, optional
+        Key to store the EigenVectors in obsm of data if it is a sc.AnnData object. Default is 'DM_EigenVectors'.
+
+    Returns
+    -------
+    dict
+        Diffusion components, corresponding eigen values and the diffusion operator.
+        If sc.AnnData is passed as data, these results are also written to the input object
+        and returned.
+    """
+
+    if isinstance(data, sc.AnnData):
+        data_df = pd.DataFrame(data.obsm["X_pca"], index=data.obs_names)
+    else:
+        data_df = data
+
+    if not isinstance(data_df, pd.DataFrame):
+        raise ValueError("'data_df' should be a pd.DataFrame or a sc.AnnData instance")
 
     # Determine the kernel
     N = data_df.shape[0]
@@ -120,65 +195,174 @@ def run_diffusion_maps(data_df, n_components=10, knn=30, alpha=0, seed=None):
     res["EigenValues"] = pd.Series(res["EigenValues"])
     res["kernel"] = kernel
 
+    if isinstance(data, sc.AnnData):
+        data.obsp["DM_Kernel"] = res["kernel"]
+        data.obsm["DM_EigenVectors"] = res["EigenVectors"].values
+        data.uns["DM_EigenValues"] = res["EigenValues"].values
+
     return res
 
 
-def run_magic_imputation(data, dm_res, n_steps=3):
-    """Run MAGIC imputation
-
-    :param dm_res: Diffusion map results from run_diffusion_maps
-    :param n_steps: Number of steps in the diffusion operator
-    :return: Imputed data matrix
+def run_magic_imputation(
+    data: Union[pd.DataFrame, sc.AnnData],
+    dm_res: Union[dict, None] = None,
+    n_steps: int = 3,
+    kernel_key: str = "DM_Kernel",
+    imputation_key: str = "MAGIC_imputed_data",
+) -> Union[pd.DataFrame, None]:
     """
-    if type(data) is sc.AnnData:
-        data = pd.DataFrame(
+    Run MAGIC imputation on the data.
+
+    Parameters
+    ----------
+    data : Union[pd.DataFrame, sc.AnnData]
+        Dataframe of cells X genes or sc.AnnData object.
+    dm_res : Union[dict, None], optional
+        Diffusion map results from run_diffusion_maps.
+        If None and data is a sc.AnnData object, its obsp[kernel_key] is used. Default is None.
+    n_steps : int, optional
+        Number of steps in the diffusion operator. Default is 3.
+    kernel_key : str, optional
+        Key to access the kernel in obsp of data if it is a sc.AnnData object. Default is 'DM_Kernel'.
+    imputation_key : str, optional
+        Key to store the imputed data in layers of data if it is a sc.AnnData object. Default is 'MAGIC_imputed_data'.
+
+    Returns
+    -------
+    Union[pd.DataFrame, None]
+        Imputed data matrix. If sc.AnnData is passed as data, the result is written to its layers[imputation_key]
+        and None is returned.
+    """
+    if isinstance(data, sc.AnnData):
+        data_df = pd.DataFrame(
             data.X.todense(), index=data.obs_names, columns=data.var_names
         )
+        if dm_res is None:
+            T = data.obsp[kernel_key]
+    else:
+        data_df = data
+    if dm_res is not None:
+        T = dm_res["T"]
+    elif not isinstance(data, sc.AnnData):
+        raise ValueError(
+            "Diffusion map results (dm_res) must be provided if data is not sc.AnnData"
+        )
 
-    T_steps = dm_res["T"] ** n_steps
+    T_steps = T**n_steps
     imputed_data = pd.DataFrame(
-        np.dot(T_steps.todense(), data), index=data.index, columns=data.columns
+        np.dot(T_steps.todense(), data_df), index=data_df.index, columns=data_df.columns
     )
+
+    if isinstance(data, sc.AnnData):
+        data.layers[imputation_key] = imputed_data.values
 
     return imputed_data
 
 
-def determine_multiscale_space(dm_res, n_eigs=None):
-    """Determine multi scale space of the data
-
-    :param dm_res: Diffusion map results from run_diffusion_maps
-    :param n_eigs: Number of eigen vectors to use. If None specified, the number
-            of eigen vectors will be determined using eigen gap
-    :return: Multi scale data matrix
+def determine_multiscale_space(
+    dm_res: Union[dict, sc.AnnData],
+    n_eigs: Union[int, None] = None,
+    eigval_key: str = "DM_EigenValues",
+    eigvec_key: str = "DM_EigenVectors",
+    out_key: str = "DM_EigenVectors_multiscaled",
+) -> Union[pd.DataFrame, None]:
     """
+    Determine the multi-scale space of the data.
+
+    Parameters
+    ----------
+    dm_res : Union[dict, sc.AnnData]
+        Diffusion map results from run_diffusion_maps.
+        If sc.AnnData is passed, its uns[eigval_key] and obsm[eigvec_key] are used.
+    n_eigs : Union[int, None], optional
+        Number of eigen vectors to use. If None is specified, the number
+        of eigen vectors will be determined using the eigen gap. Default is None.
+    eigval_key : str, optional
+        Key to retrieve EigenValues from dm_res if it is a sc.AnnData object. Default is 'DM_EigenValues'.
+    eigvec_key : str, optional
+        Key to retrieve EigenVectors from dm_res if it is a sc.AnnData object. Default is 'DM_EigenVectors'.
+    out_key : str, optional
+        Key to store the result in obsm of dm_res if it is a sc.AnnData object. Default is 'DM_EigenVectors_multiscaled'.
+
+    Returns
+    -------
+    Union[pd.DataFrame, None]
+        Multi-scale data matrix. If sc.AnnData is passed as dm_res, the result
+        is written to its obsm[out_key] and None is returned.
+    """
+    if isinstance(dm_res, sc.AnnData):
+        eigenvectors = dm_res.obsm[eigvec_key]
+        if not isinstance(eigenvectors, pd.DataFrame):
+            eigenvectors = pd.DataFrame(eigenvectors, index=dm_res.obs_names)
+        dm_res_dict = {
+            "EigenValues": dm_res.uns[eigval_key],
+            "EigenVectors": eigenvectors,
+        }
+    else:
+        dm_res_dict = dm_res
+
+    if not isinstance(dm_res_dict, dict):
+        raise ValueError("'dm_res' should be a dict or a sc.AnnData instance")
     if n_eigs is None:
-        vals = np.ravel(dm_res["EigenValues"])
+        vals = np.ravel(dm_res_dict["EigenValues"])
         n_eigs = np.argsort(vals[: (len(vals) - 1)] - vals[1:])[-1] + 1
         if n_eigs < 3:
             n_eigs = np.argsort(vals[: (len(vals) - 1)] - vals[1:])[-2] + 1
 
     # Scale the data
     use_eigs = list(range(1, n_eigs))
-    eig_vals = np.ravel(dm_res["EigenValues"][use_eigs])
-    data = dm_res["EigenVectors"].values[:, use_eigs] * (eig_vals / (1 - eig_vals))
-    data = pd.DataFrame(data, index=dm_res["EigenVectors"].index)
+    eig_vals = np.ravel(dm_res_dict["EigenValues"][use_eigs])
+    data = dm_res_dict["EigenVectors"].values[:, use_eigs] * (eig_vals / (1 - eig_vals))
+    data = pd.DataFrame(data, index=dm_res_dict["EigenVectors"].index)
+
+    if isinstance(dm_res, sc.AnnData):
+        dm_res.obsm[out_key] = data
 
     return data
 
 
-def run_tsne(data, n_dim=2, perplexity=150, **kwargs):
-    """Run tSNE
-
-    :param data: Dataframe of cells X genes. Typicaly multiscale space diffusion components
-    :param n_dim: Number of dimensions for tSNE embedding
-    :return: tSNE embedding of the data
+def run_tsne(
+    data: Union[pd.DataFrame, sc.AnnData],
+    n_dim: int = 2,
+    perplexity: int = 150,
+    tsne_key: str = "X_tsne",
+    **kwargs,
+) -> Union[pd.DataFrame, None]:
     """
+    Run t-SNE on the data.
+
+    Parameters
+    ----------
+    data : Union[pd.DataFrame, sc.AnnData]
+        Dataframe of cells X genes or sc.AnnData object. Typically, multiscale space diffusion components.
+    n_dim : int, optional
+        Number of dimensions for t-SNE embedding. Default is 2.
+    perplexity : int, optional
+        The perplexity parameter for t-SNE. Default is 150.
+    tsne_key : str, optional
+        Key to store the t-SNE embedding in obsm of data if it is a sc.AnnData object. Default is 'X_tsne'.
+    **kwargs : dict, optional
+        Additional keyword arguments to pass to the t-SNE function.
+
+    Returns
+    -------
+    Union[pd.DataFrame, None]
+        t-SNE embedding of the data. If sc.AnnData is passed as data, the result is written to its obsm[tsne_key]
+        and None is returned.
+    """
+    if isinstance(data, sc.AnnData):
+        data_df = pd.DataFrame(
+            data.X.todense(), index=data.obs_names, columns=data.var_names
+        )
+    else:
+        data_df = data
+
     try:
         from MulticoreTSNE import MulticoreTSNE as TSNE
 
         print("Using the 'MulticoreTSNE' package by Ulyanov (2017)")
         tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(
-            data.values
+            data_df.values
         )
     except ImportError:
         from sklearn.manifold import TSNE
@@ -187,24 +371,61 @@ def run_tsne(data, n_dim=2, perplexity=150, **kwargs):
             "Could not import 'MulticoreTSNE'. Install for faster runtime. Falling back to scikit-learn."
         )
         tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(
-            data.values
+            data_df.values
         )
 
-    tsne = pd.DataFrame(tsne, index=data.index)
+    tsne = pd.DataFrame(tsne, index=data_df.index)
     tsne.columns = ["x", "y"]
+
+    if isinstance(data, sc.AnnData):
+        data.obsm[tsne_key] = tsne.values
+
     return tsne
 
 
-def determine_cell_clusters(data, k=50):
-    """Run phenograph for clustering cells
-
-    :param data: Principal components of the data.
-    :param k: Number of neighbors for kNN graph construction
-    :return: Clusters
+def determine_cell_clusters(
+    data: Union[pd.DataFrame, sc.AnnData],
+    k: int = 50,
+    pca_key: str = "X_pca",
+    cluster_key: str = "phenograph_clusters",
+) -> Union[pd.Series, None]:
     """
+    Run PhenoGraph for clustering cells.
+
+    Parameters
+    ----------
+    data : Union[pd.DataFrame, sc.AnnData]
+        Principal components of the data or a sc.AnnData object.
+    k : int, optional
+        Number of neighbors for k-NN graph construction. Default is 50.
+    pca_key : str, optional
+        Key to access PCA results from obsm of data if it is a sc.AnnData object. Default is 'X_pca'.
+    cluster_key : str, optional
+        Key to store the clusters in obs of data if it is a sc.AnnData object. Default is 'phenograph_clusters'.
+
+    Returns
+    -------
+    Union[pd.Series, None]
+        Cell clusters. If sc.AnnData is passed as data, the result is written to its obs[cluster_key]
+        and None is returned.
+    """
+    if isinstance(data, sc.AnnData):
+        if pca_key not in data.obsm.keys():
+            raise ValueError(
+                f"obsm[{pca_key}] not found in AnnData. "
+                "Consider running 'palantir.utils.run_pca' first."
+            )
+        data_df = pd.DataFrame(data.obsm[pca_key], index=data.obs_names)
+    else:
+        data_df = data
+
     # Cluster and cluster centrolds
-    communities, _, _ = phenograph.cluster(data.values, k=k)
-    communities = pd.Series(communities, index=data.index)
+    communities, _, _ = phenograph.cluster(data_df.values, k=k)
+    communities = pd.Series(communities, index=data_df.index)
+
+    if isinstance(data, sc.AnnData):
+        data.obs[cluster_key] = communities.values
+
     return communities
 
 
@@ -266,7 +487,7 @@ def early_cell(
     if not isinstance(celltype_column, str):
         raise ValueError("'celltype_column' should be a string")
 
-    if not celltype_column in ad.obs.columns:
+    if celltype_column not in ad.obs.columns:
         raise ValueError("'celltype_column' should be a column of ad.obs.")
 
     if not isinstance(celltype, str):
@@ -320,8 +541,8 @@ def fallback_terminal_cell(ad, celltype, celltype_column="anno", seed=2353):
     """
     other_cells = ad.obs_names[ad.obs[celltype_column] != celltype]
     fake_early_cell = other_cells.to_series().sample(1, random_state=seed)[0]
-    pr_res = palantir.core.run_palantir(
-        ms_data,
+    pr_res = run_palantir(
+        ad,
         fake_early_cell,
         terminal_states=None,
         use_early_cell_as_start=True,
@@ -367,16 +588,16 @@ def find_terminal_states(
         A pandas Series where the index are the cell types and the values are the names of the terminal cells.
         If no terminal cell is found for a cell type, it will not be included in the series.
     """
-    terminal_states = pd.Series()
+    terminal_states = pd.Series(dtype=str)
     for ct in celltypes:
         try:
-            cell = palantir.utils.early_cell(ad, ct, celltype_column, fallback_seed)
+            cell = early_cell(ad, ct, celltype_column, fallback_seed)
         except CellNotFoundException:
             warn(
-                f"No valid component found: {celltype} "
+                f"No valid component found: {ct} "
                 "Consider increasing the number of diffusion components "
                 "('n_components' in palantir.utils.run_diffusion_maps). "
-                "The cell type {celltype} will be sckipped."
+                f"The cell type {ct} will be skipped."
             )
             continue
         terminal_states[ct] = cell

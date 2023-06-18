@@ -1,6 +1,7 @@
 """
 Core functions for running Palantir
 """
+from typing import Union, Optional
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -19,6 +20,7 @@ from scipy.stats import entropy, pearsonr, norm
 from numpy.linalg import inv, pinv, LinAlgError
 from copy import deepcopy
 from palantir.presults import PResults
+import scanpy as sc
 
 import warnings
 
@@ -29,44 +31,77 @@ warnings.filterwarnings(
 
 
 def run_palantir(
-    ms_data,
+    data: Union[pd.DataFrame, sc.AnnData],
     early_cell,
     terminal_states=None,
-    knn=30,
-    num_waypoints=1200,
-    n_jobs=-1,
-    scale_components=True,
-    use_early_cell_as_start=False,
+    knn: int = 30,
+    num_waypoints: int = 1200,
+    n_jobs: int = -1,
+    scale_components: bool = True,
+    use_early_cell_as_start: bool = False,
     max_iterations: int = 25,
-):
-    """Function for max min sampling of waypoints
+    eigvec_key: str = "DM_EigenVectors_multiscaled",
+    pseudo_time_key: str = "palantir_pseudotime",
+    fate_prob_key: str = "palantir_fate_probabilities",
+) -> Optional[PResults]:
+    """
+    Function for max min sampling of waypoints.
 
-    :param ms_data: Multiscale space diffusion components
-    :param early_cell: Start cell for pseudotime construction
-    :param terminal_states: List/Series of user defined terminal states
-    :param knn: Number of nearest neighbors for graph construction
-    :param num_waypoints: Number of waypoints to sample
-    :param n_jobs: Number of jobs for parallel processing
-    :param scale_components:
-    :param use_early_cell_as_start:
-    :param max_iterations: Maximum number of iterations for pseudotime convergence
-    :return: PResults object with pseudotime, entropy, branch probabilities and waypoints
+    Parameters
+    ----------
+    data : Union[pd.DataFrame, sc.AnnData]
+        Multiscale space diffusion components or sc.AnnData object.
+    early_cell : Start cell for pseudotime construction
+    terminal_states : List/Series, optional
+        User defined terminal states.
+    knn : int, optional
+        Number of nearest neighbors for graph construction. Default is 30.
+    num_waypoints : int, optional
+        Number of waypoints to sample. Default is 1200.
+    n_jobs : int, optional
+        Number of jobs for parallel processing. Default is -1.
+    scale_components : bool, optional
+        If true, components are scaled. Default is True.
+    use_early_cell_as_start : bool, optional
+        If true, early cell is used as start. Default is False.
+    max_iterations : int, optional
+        Maximum number of iterations for pseudotime convergence. Default is 25.
+    eigvec_key : str, optional
+        Key to access multiscale space diffusion components from obsm of data if it is a sc.AnnData object.
+        Default is 'DM_EigenVectors_multiscaled'.
+    pseudo_time_key : str, optional
+        Key to store the pseudotime in obs of data if it is a sc.AnnData object. Default is 'palantir_pseudotime'.
+    fate_prob_key : str, optional
+        Key to store the fate probabilities in obsm of data if it is a sc.AnnData object. Default is 'palantir_fate_probabilities'.
+        Column names of the probability matrix are stored in the sc.AnnData uns[fate_prob_key + "_columns"].
+
+    Returns
+    -------
+    Optional[PResults]
+        PResults object with pseudotime, entropy, branch probabilities and waypoints.
+        If sc.AnnData is passed as data, the result is written to its obs, obsm, and uns
+        using the provided keys and None is returned.
     """
 
+    if isinstance(data, sc.AnnData):
+        ms_data = pd.DataFrame(data.obsm[eigvec_key], index=data.obs_names)
+    else:
+        ms_data = data
+
     if scale_components:
-        data = pd.DataFrame(
+        data_df = pd.DataFrame(
             preprocessing.minmax_scale(ms_data),
             index=ms_data.index,
             columns=ms_data.columns,
         )
     else:
-        data = copy.copy(ms_data)
+        data_df = copy.copy(ms_data)
 
     # ################################################
     # Determine the boundary cell closest to user defined early cell
-    dm_boundaries = pd.Index(set(data.idxmax()).union(data.idxmin()))
+    dm_boundaries = pd.Index(set(data_df.idxmax()).union(data_df.idxmin()))
     dists = pairwise_distances(
-        data.loc[dm_boundaries, :], data.loc[early_cell, :].values.reshape(1, -1)
+        data_df.loc[dm_boundaries, :], data_df.loc[early_cell, :].values.reshape(1, -1)
     )
     start_cell = pd.Series(np.ravel(dists), index=dm_boundaries).idxmin()
     if use_early_cell_as_start:
@@ -78,7 +113,7 @@ def run_palantir(
 
     # Append start cell
     if isinstance(num_waypoints, int):
-        waypoints = _max_min_sampling(data, num_waypoints)
+        waypoints = _max_min_sampling(data_df, num_waypoints)
     else:
         waypoints = num_waypoints
     waypoints = waypoints.union(dm_boundaries)
@@ -94,13 +129,13 @@ def run_palantir(
     # pseudotime and weighting matrix
     print("Determining pseudotime...")
     pseudotime, W = _compute_pseudotime(
-        data, start_cell, knn, waypoints, n_jobs, max_iterations
+        data_df, start_cell, knn, waypoints, n_jobs, max_iterations
     )
 
     # Entropy and branch probabilities
     print("Entropy and branch probabilities...")
     ent, branch_probs = _differentiation_entropy(
-        data.loc[waypoints, :], terminal_states, knn, n_jobs, pseudotime
+        data_df.loc[waypoints, :], terminal_states, knn, n_jobs, pseudotime
     )
 
     # Project results to all cells
@@ -112,8 +147,14 @@ def run_palantir(
     )
     ent = branch_probs.apply(entropy, axis=1)
 
-    # UPdate results into PResults class object
+    # Update results into PResults class object
     res = PResults(pseudotime, ent, branch_probs, waypoints)
+
+    if isinstance(data, sc.AnnData):
+        data.obs[pseudo_time_key] = res.pseudotime
+        data.obsm[fate_prob_key] = res.branch_probs
+        fate_prob_columns_key = f"{fate_prob_key}_columns"
+        data.uns[fate_prob_columns_key] = list(terminal_states)
 
     return res
 
