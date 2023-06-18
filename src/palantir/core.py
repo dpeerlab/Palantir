@@ -1,7 +1,7 @@
 """
 Core functions for running Palantir
 """
-from typing import Union, Optional
+from typing import Union, Optional, List, Dict
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -33,7 +33,7 @@ warnings.filterwarnings(
 def run_palantir(
     data: Union[pd.DataFrame, sc.AnnData],
     early_cell,
-    terminal_states=None,
+    terminal_states: Optional[Union[List, Dict, pd.Series]] = None,
     knn: int = 30,
     num_waypoints: int = 1200,
     n_jobs: int = -1,
@@ -42,18 +42,22 @@ def run_palantir(
     max_iterations: int = 25,
     eigvec_key: str = "DM_EigenVectors_multiscaled",
     pseudo_time_key: str = "palantir_pseudotime",
+    entropy_key: str = "palantir_entropy",
     fate_prob_key: str = "palantir_fate_probabilities",
+    waypoints_key: str = "palantir_waypoints",
 ) -> Optional[PResults]:
     """
-    Function for max min sampling of waypoints.
+    Executes the Palantir algorithm to derive pseudotemporal ordering of cells, their fate probabilities, and
+    state entropy based on the multiscale diffusion map results.
 
     Parameters
     ----------
     data : Union[pd.DataFrame, sc.AnnData]
-        Multiscale space diffusion components or sc.AnnData object.
-    early_cell : Start cell for pseudotime construction
-    terminal_states : List/Series, optional
-        User defined terminal states.
+        Either a DataFrame of multiscale space diffusion components or a Scanpy AnnData object.
+    early_cell : str
+        Start cell for pseudotime construction.
+    terminal_states : List/Series/Dict, optional
+        User-defined terminal states structure in the format {terminal_name:cell_name}. Default is None.
     knn : int, optional
         Number of nearest neighbors for graph construction. Default is 30.
     num_waypoints : int, optional
@@ -61,28 +65,37 @@ def run_palantir(
     n_jobs : int, optional
         Number of jobs for parallel processing. Default is -1.
     scale_components : bool, optional
-        If true, components are scaled. Default is True.
+        If True, components are scaled. Default is True.
     use_early_cell_as_start : bool, optional
-        If true, early cell is used as start. Default is False.
+        If True, the early cell is used as start. Default is False.
     max_iterations : int, optional
         Maximum number of iterations for pseudotime convergence. Default is 25.
     eigvec_key : str, optional
-        Key to access multiscale space diffusion components from obsm of data if it is a sc.AnnData object.
-        Default is 'DM_EigenVectors_multiscaled'.
+        Key to access multiscale space diffusion components from obsm of the AnnData object. Default is 'DM_EigenVectors_multiscaled'.
     pseudo_time_key : str, optional
-        Key to store the pseudotime in obs of data if it is a sc.AnnData object. Default is 'palantir_pseudotime'.
+        Key to store the pseudotime in obs of the AnnData object. Default is 'palantir_pseudotime'.
+    entropy_key : str, optional
+        Key to store the entropy in obs of the AnnData object. Default is 'palantir_entropy'.
     fate_prob_key : str, optional
-        Key to store the fate probabilities in obsm of data if it is a sc.AnnData object. Default is 'palantir_fate_probabilities'.
-        Column names of the probability matrix are stored in the sc.AnnData uns[fate_prob_key + "_columns"].
+        Key to store the fate probabilities in obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+        Column names of the probability matrix are stored in the AnnData's uns[fate_prob_key + "_columns"].
+    waypoints_key : str, optional
+        Key to store the waypoints in uns of the AnnData object. Default is 'palantir_waypoints'.
 
     Returns
     -------
     Optional[PResults]
-        PResults object with pseudotime, entropy, branch probabilities and waypoints.
-        If sc.AnnData is passed as data, the result is written to its obs, obsm, and uns
+        PResults object with pseudotime, entropy, branch probabilities, and waypoints.
+        If an AnnData object is passed as data, the result is written to its obs, obsm, and uns attributes
         using the provided keys and None is returned.
     """
 
+    if isinstance(terminal_states, dict):
+        terminal_states = pd.Series(terminal_states)
+    if isinstance(terminal_states, pd.Series):
+        terminal_cells = terminal_states.index.values
+    else:
+        terminal_cells = terminal_states
     if isinstance(data, sc.AnnData):
         ms_data = pd.DataFrame(data.obsm[eigvec_key], index=data.obs_names)
     else:
@@ -117,8 +130,8 @@ def run_palantir(
     else:
         waypoints = num_waypoints
     waypoints = waypoints.union(dm_boundaries)
-    if terminal_states is not None:
-        waypoints = waypoints.union(terminal_states)
+    if terminal_cells is not None:
+        waypoints = waypoints.union(terminal_cells)
     waypoints = pd.Index(waypoints.difference([start_cell]).unique())
 
     # Append start cell
@@ -135,7 +148,7 @@ def run_palantir(
     # Entropy and branch probabilities
     print("Entropy and branch probabilities...")
     ent, branch_probs = _differentiation_entropy(
-        data_df.loc[waypoints, :], terminal_states, knn, n_jobs, pseudotime
+        data_df.loc[waypoints, :], terminal_cells, knn, n_jobs, pseudotime
     )
 
     # Project results to all cells
@@ -148,15 +161,18 @@ def run_palantir(
     ent = branch_probs.apply(entropy, axis=1)
 
     # Update results into PResults class object
-    res = PResults(pseudotime, ent, branch_probs, waypoints)
+    pr_res = PResults(pseudotime, ent, branch_probs, waypoints)
 
     if isinstance(data, sc.AnnData):
-        data.obs[pseudo_time_key] = res.pseudotime
-        data.obsm[fate_prob_key] = res.branch_probs
-        fate_prob_columns_key = f"{fate_prob_key}_columns"
-        data.uns[fate_prob_columns_key] = list(terminal_states)
+        data.obs[pseudo_time_key] = pseudotime
+        data.obs[entropy_key] = ent
+        data.obsm[fate_prob_key] = branch_probs.values
+        data.uns[waypoints_key] = waypoints.values
+        if isinstance(terminal_states, pd.Series):
+            branch_probs.columns = terminal_states[branch_probs.columns]
+        data.uns[fate_prob_key + "_columns"] = branch_probs.columns.values
 
-    return res
+    return pr_res
 
 
 def _max_min_sampling(data, num_waypoints):

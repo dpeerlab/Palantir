@@ -1,3 +1,5 @@
+from typing import Union, Optional, List, Dict
+
 import numpy as np
 import pandas as pd
 import pickle
@@ -8,6 +10,7 @@ from collections import OrderedDict
 from joblib import delayed, Parallel
 from sklearn.preprocessing import StandardScaler
 from pygam import LinearGAM, s
+import scanpy as sc
 
 
 class PResults(object):
@@ -70,18 +73,70 @@ class PResults(object):
 
 
 def compute_gene_trends(
-    pr_res, gene_exprs, lineages=None, n_splines=4, spline_order=2, n_jobs=-1
-):
-    """Function for computing gene expression trends along Palantir pseudotime
+    data: Union[sc.AnnData, PResults],
+    gene_exprs: Optional[pd.DataFrame] = None,
+    lineages: Optional[List[str]] = None,
+    n_splines: int = 4,
+    spline_order: int = 2,
+    n_jobs: int = -1,
+    expression_key: str = "MAGIC_imputed_data",
+    pseudo_time_key: str = "palantir_pseudotime",
+    fate_prob_key: str = "palantir_fate_probabilities",
+    gene_trend_key: str = "palantir_gene_trends",
+) -> Dict[str, Dict[str, pd.DataFrame]]:
+    """Compute gene expression trends along pseudotemporal trajectory.
 
-    :param pr_res: Palantir results object
-    :param gene_exprs: Magic imputed data [Cells X Genes]
-    :param lineages: Subset of lineages for which to compute the trends
-    :param n_splines: Number of splines to use. Must be non-negative.
-    :param spline_order: Order of spline to use. Must be non-negative.
-    :param n_jobs: Number of cores to use
-    :return: Dictionary of gene expression trends and standard deviations for each branch
+    This function calculates gene expression trends and their standard deviations
+    along the pseudotemporal trajectory computed by Palantir.
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, palantir.presults.PResults]
+        Either a Scanpy AnnData object or a Palantir results object.
+    gene_exprs : pd.DataFrame, optional
+        DataFrame of gene expressions, shape (cells, genes).
+    lineages : List[str], optional
+        Subset of lineages for which to compute the trends.
+        If None uses all columns of the fate probability matrix.
+        Default is None.
+    n_splines : int, optional
+        Number of splines to use. Must be non-negative. Default is 4.
+    spline_order : int, optional
+        Order of the splines to use. Must be non-negative. Default is 2.
+    n_jobs : int, optional
+        Number of cores to use. Default is -1.
+    expression_key : str, optional
+        Key to access gene expression matrix from a layer of the AnnData object. Default is 'MAGIC_imputed_data'.
+        If `gene_exprs` is None, this key is used to fetch the gene expressions from `data.X`.
+    pseudo_time_key : str, optional
+        Key to access pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
+    fate_prob_key : str, optional
+        Key to access fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+    gene_trend_key : str, optional
+        Starting key to store the gene trends in the varm attribute of the AnnData object. The default is 'palantir_gene_trends'.
+        The gene trend matrices for each fate will be stored under 'varm[gene_trend_key + "_" + lineage_name]'.
+        The pseudotime points at which the gene trends are computed, corresponding to the columns of the gene trend matrices,
+        are stored in the uns attribute under 'uns[gene_trend_key + "_" + lineage_name + "_pseudotime"]'.
+
+
+    Returns
+    -------
+    Dict[str, Dict[str, pd.DataFrame]]
+        Dictionary of gene expression trends and standard deviations for each branch.
     """
+    # Extract palantir results from AnnData if necessary
+    if isinstance(data, sc.AnnData):
+        gene_exprs = data.to_df(expression_key)
+        pseudo_time = pd.Series(data.obs[pseudo_time_key], index=data.obs_names)
+        fate_probs = pd.DataFrame(
+            data.obsm[fate_prob_key],
+            index=data.obs_names,
+            columns=data.uns[fate_prob_key + "_columns"],
+        )
+
+        pr_res = PResults(pseudo_time, None, fate_probs, None)
+    else:
+        pr_res = data
 
     # Compute for all lineages if branch is not speicified
     if lineages is None:
@@ -127,6 +182,11 @@ def compute_gene_trends(
         for i, gene in enumerate(gene_exprs.columns):
             results[branch]["trends"].loc[gene, :] = res[i][0]
             results[branch]["std"].loc[gene, :] = res[i][1]
+        if isinstance(data, sc.AnnData):
+            data.varm[gene_trend_key + "_" + branch] = results[branch]["trends"].values
+            data.uns[gene_trend_key + "_" + branch + "_pseudotime"] = results[branch][
+                "trends"
+            ].columns.values
         end = time.time()
         print("Time for processing {}: {} minutes".format(branch, (end - start) / 60))
 

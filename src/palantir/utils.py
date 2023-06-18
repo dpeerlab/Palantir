@@ -196,9 +196,9 @@ def run_diffusion_maps(
     res["kernel"] = kernel
 
     if isinstance(data, sc.AnnData):
-        data.obsp["DM_Kernel"] = res["kernel"]
-        data.obsm["DM_EigenVectors"] = res["EigenVectors"].values
-        data.uns["DM_EigenValues"] = res["EigenValues"].values
+        data.obsp[kernel_key] = res["kernel"]
+        data.obsm[eigvec_key] = res["EigenVectors"].values
+        data.uns[eigval_key] = res["EigenValues"].values
 
     return res
 
@@ -316,7 +316,7 @@ def determine_multiscale_space(
     data = pd.DataFrame(data, index=dm_res_dict["EigenVectors"].index)
 
     if isinstance(dm_res, sc.AnnData):
-        dm_res.obsm[out_key] = data
+        dm_res.obsm[out_key] = data.values
 
     return data
 
@@ -455,34 +455,51 @@ def early_cell(
     ad: sc.AnnData,
     celltype: str,
     celltype_column: str = "celltype",
+    eigvec_key: str = "DM_EigenVectors_multiscaled",
     fallback_seed: int = None,
 ):
     """
-    Helper to determine 'early_cell' for 'palantir.core.run_palantir'.
-    Finds cell of 'celltype' at the extremes of the state space represented by diffusion maps.
+    Helper function to determine 'early_cell' for 'run_palantir'.
+    It identifies the cell of 'celltype' at the extremes of the state space represented by diffusion maps.
 
-    Args:
-        ad (AnnData): Annotated data matrix.
-        celltype (str): The cell type of interest.
-        celltype_column (str): Column name in the data matrix where the cell
-        type information is stored. Default is 'celltype'.
-        fallback_seed (int): Seed for random number generator in fallback method.
+    Parameters
+    ----------
+    ad : sc.AnnData
+        Annotated data matrix.
+    celltype : str
+        The specific cell type of interest for determining the early cell.
+    celltype_column : str, optional
+        Name of the column in the obs of the Anndata object where the cell type information is stored.
+        Default is 'celltype'.
+    eigvec_key : str, optional
+        Key to access multiscale space diffusion components from obsm of ad.
+        Default is 'DM_EigenVectors_multiscaled'.
+    fallback_seed : int, optional
+        Seed for random number generator in fallback method. If not specified, no seed is used.
         Default is None.
 
-    Returns:
-        str: Name of the terminal cell for the given cell type.
+    Returns
+    -------
+    str
+        Name of the early cell for the given cell type.
 
-    Raises:
-        CellNotFoundException: If no valid component is found for the provided cell type.
+    Raises
+    ------
+    CellNotFoundException
+        If no valid cell of the specified type can be found at the extremes of the diffusion map.
     """
     if not isinstance(ad, sc.AnnData):
         raise ValueError("'ad' should be an instance of sc.AnnData")
 
-    if "DM_EigenVectors" not in ad.obsm:
+    if eigvec_key not in ad.obsm:
         raise ValueError(
-            "'DM_EigenVectors' not found in ad.obsm. "
-            "Run `palantir.utils.run_diffusion_maps(ad)` first."
+            f"'{eigvec_key}' not found in ad.obsm. "
+            "Run `palantir.utils.run_diffusion_maps(ad)` to "
+            "compute diffusion map eigenvectors."
         )
+    eigenvectors = ad.obsm[eigvec_key]
+    if isinstance(eigenvectors, pd.DataFrame):
+        eigenvectors = eigenvectors.values
 
     if not isinstance(celltype_column, str):
         raise ValueError("'celltype_column' should be a string")
@@ -501,11 +518,11 @@ def early_cell(
     if fallback_seed is not None and not isinstance(fallback_seed, int):
         raise ValueError("'fallback_seed' should be an integer")
 
-    for dcomp in range(ad.obsm["DM_EigenVectors"].shape[1]):
-        ec = ad.obsm["DM_EigenVectors"][:, dcomp].argmax()
+    for dcomp in range(eigenvectors.shape[1]):
+        ec = eigenvectors[:, dcomp].argmax()
         if ad.obs[celltype_column][ec] == celltype:
             return _return_cell(ec, ad.obs_names, celltype, "max", dcomp)
-        ec = ad.obsm["DM_EigenVectors"][:, dcomp].argmin()
+        ec = eigenvectors[:, dcomp].argmin()
         if ad.obs[celltype_column][ec] == celltype:
             return _return_cell(ec, ad.obs_names, celltype, "min", dcomp)
 
@@ -524,26 +541,45 @@ def early_cell(
     )
 
 
-def fallback_terminal_cell(ad, celltype, celltype_column="anno", seed=2353):
+def fallback_terminal_cell(
+    ad: sc.AnnData,
+    celltype: str,
+    celltype_column: str = "anno",
+    eigvec_key: str = "DM_EigenVectors_multiscaled",
+    seed: int = 2353,
+):
     """
-    Fallback method to find terminal cells when no valid diffusion component
-    is found for the provided cell type.
+    Fallback method to identify terminal cells when no valid diffusion component
+    is found for the specified cell type.
 
-    Args:
-        ad (AnnData): Annotated data matrix.
-        celltype (str): The cell type of interest.
-        celltype_column (str): Column name in the data matrix where the cell
-        type information is stored. Default is 'anno'.
-        seed (int): Seed for random number generator. Default is 2353.
+    Parameters
+    ----------
+    ad : sc.AnnData
+        Annotated data matrix.
+    celltype : str
+        The specific cell type of interest for determining the terminal cell.
+    celltype_column : str, optional
+        Name of the column in the obs of the Anndata object where the cell type information is stored.
+        Default is 'anno'.
+    eigvec_key : str, optional
+        Key to access multiscale space diffusion components from obsm of ad.
+        Default is 'DM_EigenVectors_multiscaled'.
+    seed : int, optional
+        Seed for random number generator in fallback method. If not specified, no seed is used.
+        Default is 2353.
 
-    Returns:
-        str: Name of the terminal cell for the given cell type.
+    Returns
+    -------
+    str
+        Name of the terminal cell for the given cell type.
+
     """
     other_cells = ad.obs_names[ad.obs[celltype_column] != celltype]
     fake_early_cell = other_cells.to_series().sample(1, random_state=seed)[0]
     pr_res = run_palantir(
         ad,
         fake_early_cell,
+        eigvec_key=eigvec_key,
         terminal_states=None,
         use_early_cell_as_start=True,
     )
@@ -561,37 +597,42 @@ def find_terminal_states(
     ad: sc.AnnData,
     celltypes: Iterable,
     celltype_column: str = "celltype",
+    eigvec_key: str = "DM_EigenVectors_multiscaled",
     fallback_seed: int = None,
 ):
     """
     Identifies terminal states for a list of cell types in the AnnData object.
 
-    This function iterates over the provided cell types, attempting to find a terminal cell for each one
-    using the `palantir.utils.early_cell` function. In cases where no valid component is found for a cell type,
-    it emits a warning and skips to the next cell type.
+    This function iterates over the provided cell types, trying to find a terminal cell for each one
+    using the 'early_cell' function. If no valid component is found for a cell type, it emits a warning and
+    proceeds to the next cell type.
 
     Parameters
     ----------
-    ad : AnnData
+    ad : sc.AnnData
         Annotated data matrix from Scanpy. It should contain computed diffusion maps.
     celltypes : Iterable
-        An iterable (like a list or tuple) of cell type names for which terminal states are to be identified.
+        An iterable such as a list or tuple of cell type names for which terminal states should be identified.
     celltype_column : str, optional
-        Column name in the AnnData object where the cell type information is stored. Default is 'celltype'.
+        The name of the column in the obs dataframe of the Anndata object where the cell type information is
+        stored. By default, it is 'celltype'.
+    eigvec_key : str, optional
+        Key to access multiscale space diffusion components from obsm of ad.
+        Default is 'DM_EigenVectors_multiscaled'.
     fallback_seed : int, optional
-        Seed for the random number generator used in the fallback method of `palantir.utils.early_cell` function.
-        Defaults to None, in which case the RNG will be seeded randomly.
+        Seed for the random number generator used in the fallback method. Defaults to None, in which case
+        the random number generator will be randomly seeded.
 
     Returns
     -------
     pd.Series
-        A pandas Series where the index are the cell types and the values are the names of the terminal cells.
+        A pandas Series where the indices are the cell types and the values are the names of the terminal cells.
         If no terminal cell is found for a cell type, it will not be included in the series.
     """
     terminal_states = pd.Series(dtype=str)
     for ct in celltypes:
         try:
-            cell = early_cell(ad, ct, celltype_column, fallback_seed)
+            cell = early_cell(ad, ct, celltype_column, eigvec_key, fallback_seed)
         except CellNotFoundException:
             warn(
                 f"No valid component found: {ct} "
@@ -600,5 +641,5 @@ def find_terminal_states(
                 f"The cell type {ct} will be skipped."
             )
             continue
-        terminal_states[ct] = cell
+        terminal_states[cell] = ct
     return terminal_states
