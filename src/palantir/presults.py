@@ -302,3 +302,61 @@ def cluster_gene_trends(trends, k=150, n_jobs=-1):
     clusters, _, _ = phenograph.cluster(trends, k=k, n_jobs=n_jobs)
     clusters = pd.Series(clusters, index=trends.index)
     return clusters
+
+
+def select_branch_cells(
+    ad: sc.AnnData,
+    pseudo_time_key: str = "palantir_pseudotime",
+    fate_prob_key: str = "palantir_fate_probabilities",
+    eps: float = 1e-2,
+    selection_key: str = "branch_mask",
+):
+    """
+    Selects cells along specific branches of pseudotime ordering.
+
+    Parameters
+    ----------
+    ad : sc.AnnData
+        Annotated data matrix. The pseudotime and fate probabilities should be stored under the keys provided.
+    pseudo_time_key : str, optional
+        Key to access the pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
+    fate_prob_key : str, optional
+        Key to access the fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+    eps : float, optional
+        Epsilon value used to create a buffer around the fate probabilities. Default is 1e-2.
+    selection_key : str, optional
+        Key under which the resulting branch cell selection mask is stored in the AnnData object. Default is 'branch_mask'.
+
+    Returns
+    -------
+    None
+        The resulting selection mask is written to the obs of the AnnData object.
+    """
+    # make sure that the necessary keys are in the AnnData object
+    assert pseudo_time_key in ad.obs, f"{pseudo_time_key} not found in ad.obs"
+    assert fate_prob_key in ad.obsm, f"{fate_prob_key} not found in ad.obsm"
+    assert (
+        fate_prob_key + "_columns" in ad.uns
+    ), f"{fate_prob_key}_columns not found in ad.uns"
+
+    # retrieve fate probabilities and names
+    fate_probs = ad.obsm[fate_prob_key]
+    fate_names = ad.uns[fate_prob_key + "_columns"]
+
+    # calculate the max probability along the pseudotime
+    max_prob = np.max(fate_probs, axis=1)
+    pt = ad.obs[pseudo_time_key] / ad.obs[pseudo_time_key].max()
+
+    # find the early cell
+    early_cell = np.argmin(pt)
+
+    # calculate the mask for each branch
+    for i, fate in enumerate(fate_names):
+        out_column = selection_key + "_" + fate
+        fate_prob = fate_probs[:, i]
+        probability_buffer = max_prob[early_cell] - fate_prob[early_cell]
+        ad.obs[out_column] = (max_prob - fate_prob) < probability_buffer * (
+            1 - pt
+        ) + eps
+
+    return None
