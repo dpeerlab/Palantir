@@ -3,7 +3,10 @@ from warnings import warn
 import pandas as pd
 import numpy as np
 
-from scipy.sparse import csr_matrix, find, issparse
+from joblib import Parallel, delayed
+import gc
+
+from scipy.sparse import csr_matrix, find, issparse, hstack
 from scipy.sparse.linalg import eigs
 import scanpy as sc
 
@@ -123,7 +126,7 @@ def run_diffusion_maps(
     """
 
     if isinstance(data, sc.AnnData):
-        data_df = pd.DataFrame(data.obsm["X_pca"], index=data.obs_names)
+        data_df = pd.DataFrame(data.obsm[pca_key], index=data.obs_names)
     else:
         data_df = data
 
@@ -201,20 +204,25 @@ def run_diffusion_maps(
     return res
 
 
+def _dot_herlper_func(x, y):
+    return x.dot(y)
+
+
 def run_magic_imputation(
-    data: Union[pd.DataFrame, sc.AnnData],
+    data: Union[np.ndarray, pd.DataFrame, sc.AnnData, csr_matrix],
     dm_res: Union[dict, None] = None,
     n_steps: int = 3,
     kernel_key: str = "DM_Kernel",
     imputation_key: str = "MAGIC_imputed_data",
-) -> Union[pd.DataFrame, None]:
+    n_jobs: int = -1,
+) -> Union[pd.DataFrame, None, csr_matrix]:
     """
     Run MAGIC imputation on the data.
 
     Parameters
     ----------
-    data : Union[pd.DataFrame, sc.AnnData]
-        Dataframe of cells X genes or sc.AnnData object.
+    data : Union[np.ndarray, pd.DataFrame, sc.AnnData, csr_matrix]
+        Array or DataFrame of cells X genes, sc.AnnData object, or a sparse csr_matrix.
     dm_res : Union[dict, None], optional
         Diffusion map results from run_diffusion_maps.
         If None and data is a sc.AnnData object, its obsp[kernel_key] is used. Default is None.
@@ -224,21 +232,25 @@ def run_magic_imputation(
         Key to access the kernel in obsp of data if it is a sc.AnnData object. Default is 'DM_Kernel'.
     imputation_key : str, optional
         Key to store the imputed data in layers of data if it is a sc.AnnData object. Default is 'MAGIC_imputed_data'.
+    n_jobs : int, optional
+        Number of cores to use for parallel processing. If -1, all available cores are used. Default is -1.
 
     Returns
     -------
-    Union[pd.DataFrame, None]
-        Imputed data matrix. If sc.AnnData is passed as data, the result is written to its layers[imputation_key]
-        and None is returned.
+    Union[np.ndarray, pd.DataFrame, None, csr_matrix]
+        Imputed data matrix. If sc.AnnData is passed as data, the result is written to its layers[imputation_key].
     """
     if isinstance(data, sc.AnnData):
-        data_df = pd.DataFrame(
-            data.X.todense(), index=data.obs_names, columns=data.var_names
-        )
+        X = data.X
         if dm_res is None:
             T = data.obsp[kernel_key]
-    else:
-        data_df = data
+    elif isinstance(data, pd.DataFrame):
+        X = data.values
+    elif issparse(data):  # assuming csr_matrix
+        X = data
+    else:  # assuming np.ndarray
+        X = data
+
     if dm_res is not None:
         T = dm_res["T"]
     elif not isinstance(data, sc.AnnData):
@@ -246,13 +258,37 @@ def run_magic_imputation(
             "Diffusion map results (dm_res) must be provided if data is not sc.AnnData"
         )
 
-    T_steps = T**n_steps
-    imputed_data = pd.DataFrame(
-        np.dot(T_steps.todense(), data_df), index=data_df.index, columns=data_df.columns
+    # Preparing the operator
+    T_steps = (T**n_steps).astype(np.float32)
+
+    # Define chunks of columns for parallel processing
+    chunks = np.append(np.arange(0, X.shape[1], 100), [X.shape[1]])
+
+    # Run the dot product in parallel on chunks
+    res = Parallel(n_jobs=n_jobs)(
+        delayed(_dot_herlper_func)(T_steps, X[:, chunks[i - 1] : chunks[i]])
+        for i in range(1, len(chunks))
     )
 
+    # Stack the results together
+    if issparse(X):
+        imputed_data = hstack(res).todense()
+    else:
+        imputed_data = np.hstack(res)
+
+    # Set small values to zero
+    imputed_data[imputed_data < 1e-2] = 0
+
+    # Clean up
+    gc.collect()
+
     if isinstance(data, sc.AnnData):
-        data.layers[imputation_key] = imputed_data.values
+        data.layers[imputation_key] = imputed_data
+
+    if isinstance(data, pd.DataFrame):
+        imputed_data = pd.DataFrame(
+            imputed_data, index=data.index, columns=data.columns
+        )
 
     return imputed_data
 
@@ -317,68 +353,6 @@ def determine_multiscale_space(
         dm_res.obsm[out_key] = data.values
 
     return data
-
-
-def run_tsne(
-    data: Union[pd.DataFrame, sc.AnnData],
-    n_dim: int = 2,
-    perplexity: int = 150,
-    tsne_key: str = "X_tsne",
-    **kwargs,
-) -> Union[pd.DataFrame, None]:
-    """
-    Run t-SNE on the data.
-
-    Parameters
-    ----------
-    data : Union[pd.DataFrame, sc.AnnData]
-        Dataframe of cells X genes or sc.AnnData object. Typically, multiscale space diffusion components.
-    n_dim : int, optional
-        Number of dimensions for t-SNE embedding. Default is 2.
-    perplexity : int, optional
-        The perplexity parameter for t-SNE. Default is 150.
-    tsne_key : str, optional
-        Key to store the t-SNE embedding in obsm of data if it is a sc.AnnData object. Default is 'X_tsne'.
-    **kwargs : dict, optional
-        Additional keyword arguments to pass to the t-SNE function.
-
-    Returns
-    -------
-    Union[pd.DataFrame, None]
-        t-SNE embedding of the data. If sc.AnnData is passed as data, the result is written to its obsm[tsne_key]
-        and None is returned.
-    """
-    if isinstance(data, sc.AnnData):
-        data_df = pd.DataFrame(
-            data.X.todense(), index=data.obs_names, columns=data.var_names
-        )
-    else:
-        data_df = data
-
-    try:
-        from MulticoreTSNE import MulticoreTSNE as TSNE
-
-        print("Using the 'MulticoreTSNE' package by Ulyanov (2017)")
-        tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(
-            data_df.values
-        )
-    except ImportError:
-        from sklearn.manifold import TSNE
-
-        print(
-            "Could not import 'MulticoreTSNE'. Install for faster runtime. Falling back to scikit-learn."
-        )
-        tsne = TSNE(n_components=n_dim, perplexity=perplexity, **kwargs).fit_transform(
-            data_df.values
-        )
-
-    tsne = pd.DataFrame(tsne, index=data_df.index)
-    tsne.columns = ["x", "y"]
-
-    if isinstance(data, sc.AnnData):
-        data.obsm[tsne_key] = tsne.values
-
-    return tsne
 
 
 def determine_cell_clusters(

@@ -341,7 +341,7 @@ def cluster_gene_trends(
     communities = pd.Series(gt_ad.obs["leiden"].values, index=trends.index)
 
     if isinstance(data, sc.AnnData):
-        col_name = gene_trend_key + '_clusters'
+        col_name = gene_trend_key + "_clusters"
         data.var[col_name] = communities
 
     return communities
