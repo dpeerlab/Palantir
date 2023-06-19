@@ -3,8 +3,6 @@ from warnings import warn
 import pandas as pd
 import numpy as np
 
-import phenograph
-
 from scipy.sparse import csr_matrix, find, issparse
 from scipy.sparse.linalg import eigs
 import scanpy as sc
@@ -387,10 +385,10 @@ def determine_cell_clusters(
     data: Union[pd.DataFrame, sc.AnnData],
     k: int = 50,
     pca_key: str = "X_pca",
-    cluster_key: str = "phenograph_clusters",
+    **kwargs,
 ) -> Union[pd.Series, None]:
     """
-    Run PhenoGraph for clustering cells.
+    Run Leiden for clustering cells.
 
     Parameters
     ----------
@@ -400,8 +398,6 @@ def determine_cell_clusters(
         Number of neighbors for k-NN graph construction. Default is 50.
     pca_key : str, optional
         Key to access PCA results from obsm of data if it is a sc.AnnData object. Default is 'X_pca'.
-    cluster_key : str, optional
-        Key to store the clusters in obs of data if it is a sc.AnnData object. Default is 'phenograph_clusters'.
 
     Returns
     -------
@@ -419,14 +415,11 @@ def determine_cell_clusters(
     else:
         data_df = data
 
-    # Cluster and cluster centrolds
-    communities, _, _ = phenograph.cluster(data_df.values, k=k)
-    communities = pd.Series(communities, index=data_df.index)
+    gt_ad = sc.AnnData(data_df)
+    sc.pp.neighbors(gt_ad, n_neighbors=k)
+    sc.tl.leiden(gt_ad, **kwargs)
 
-    if isinstance(data, sc.AnnData):
-        data.obs[cluster_key] = communities.values
-
-    return communities
+    return gt_ad.obs["leiden"]
 
 
 def _return_cell(ec, obs_names, celltype, mm, dcomp):

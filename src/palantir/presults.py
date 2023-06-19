@@ -1,10 +1,8 @@
 from typing import Union, Optional, List, Dict
-
 import numpy as np
 import pandas as pd
 import pickle
 import time
-import phenograph
 
 from collections import OrderedDict
 from joblib import delayed, Parallel
@@ -286,12 +284,12 @@ def _gam_fit_predict_rpy2(x, y, weights=None, pred_x=None):
 def cluster_gene_trends(
     data: Union[sc.AnnData, pd.DataFrame],
     gene_trend_key: Optional[str] = None,
-    k: int = 150,
-    n_jobs: int = -1,
+    n_neighbors: int = 150,
+    **kwargs,
 ) -> pd.Series:
     """Cluster gene trends.
 
-    This function applies the PhenoGraph clustering algorithm to gene expression trends
+    This function applies the Leiden clustering algorithm to gene expression trends
     along the pseudotemporal trajectory computed by Palantir.
 
     Parameters
@@ -302,10 +300,10 @@ def cluster_gene_trends(
         Key to access gene trends from varm of the AnnData object. If data is a DataFrame,
         gene_trend_key should be None. If gene_trend_key is None when data is an AnnData,
         a KeyError will be raised. Default is None.
-    k : int, optional
-        Number of nearest neighbors for the PhenoGraph clustering. Default is 150.
-    n_jobs : int, optional
-        Number of cores to use. Default is -1.
+    n_neighbors : int, optional
+        The number of nearest neighbors to use for the k-NN graph construction. Default is 150.
+    **kwargs
+        Additional arguments to be passed to `scanpy.pp.neighbors`.
 
     Returns
     -------
@@ -336,11 +334,17 @@ def cluster_gene_trends(
         columns=trends.columns,
     )
 
-    # Cluster
-    clusters, _, _ = phenograph.cluster(trends, k=k, n_jobs=n_jobs)
-    clusters = pd.Series(clusters, index=trends.index)
+    gt_ad = sc.AnnData(trends.values)
+    sc.pp.neighbors(gt_ad, n_neighbors=n_neighbors, use_rep="X")
+    sc.tl.leiden(gt_ad, **kwargs)
 
-    return clusters
+    communities = pd.Series(gt_ad.obs["leiden"].values, index=trends.index)
+
+    if isinstance(data, sc.AnnData):
+        col_name = gene_trend_key + '_clusters'
+        data.var[col_name] = communities
+
+    return communities
 
 
 def select_branch_cells(
