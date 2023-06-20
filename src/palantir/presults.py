@@ -194,6 +194,7 @@ def compute_gene_trends_legacy(
 
 def compute_gene_trends(
     ad: sc.AnnData,
+    lineages: Optional[List[str]] = None,
     masks_key: str = "branch_masks",
     expression_key: str = None,
     pseudo_time_key: str = "palantir_pseudotime",
@@ -216,6 +217,10 @@ def compute_gene_trends(
     ----------
     ad : sc.AnnData
         AnnData object containing the gene expression data and pseudotime.
+    lineages : List[str], optional
+        Subset of lineages for which to compute the trends.
+        If None uses all columns of the fate probability matrix.
+        Default is None.
     masks_key : str, optional
         Key to access the branch cell selection masks from obsm of the AnnData object.
         Default is 'branch_masks'.
@@ -251,6 +256,15 @@ def compute_gene_trends(
     pseudo_time = ad.obs[pseudo_time_key].values
     masks = ad.obsm[masks_key]
     branches = ad.uns[masks_key + "_columns"]
+    
+    if lineages is not None:
+        for lin in lineages:
+            if lin not in branches:
+                raise ValueError(
+                    f"Lineage '{lin}' does not seem to have a selection in obsm['{masks_key}']."
+                )
+    else:
+        lineages = branches
 
     # Set the default arguments for mellon.FunctionEstimator
     mellon_args = dict(sigma=1, ls=5, n_landmarks=0)
@@ -259,6 +273,8 @@ def compute_gene_trends(
     lagacy_results = dict()
     # Compute the gene expression trends
     for i, branch in enumerate(branches):
+        if branch not in lineages:
+            continue
         print(branch)
         mask = masks[:, i]
         pt = pseudo_time[mask]
