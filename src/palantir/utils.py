@@ -87,6 +87,7 @@ def run_diffusion_maps(
     seed: Union[int, None] = None,
     pca_key: str = "X_pca",
     kernel_key: str = "DM_Kernel",
+    sim_key: str = "DM_Similarity",
     eigval_key: str = "DM_EigenValues",
     eigvec_key: str = "DM_EigenVectors",
 ):
@@ -112,6 +113,8 @@ def run_diffusion_maps(
         Key to retrieve PCA projections from data if it is a sc.AnnData object. Default is 'X_pca'.
     kernel_key : str, optional
         Key to store the kernel in obsp of data if it is a sc.AnnData object. Default is 'DM_Kernel'.
+    sim_key : str, optional
+        Key to store the similarity in obsp of data if it is a sc.AnnData object. Default is 'DM_Similarity'.
     eigval_key : str, optional
         Key to store the EigenValues in uns of data if it is a sc.AnnData object. Default is 'DM_EigenValues'.
     eigvec_key : str, optional
@@ -198,6 +201,7 @@ def run_diffusion_maps(
 
     if isinstance(data, sc.AnnData):
         data.obsp[kernel_key] = res["kernel"]
+        data.obsp[sim_key] = res["T"]
         data.obsm[eigvec_key] = res["EigenVectors"].values
         data.uns[eigval_key] = res["EigenValues"].values
 
@@ -212,7 +216,7 @@ def run_magic_imputation(
     data: Union[np.ndarray, pd.DataFrame, sc.AnnData, csr_matrix],
     dm_res: Union[dict, None] = None,
     n_steps: int = 3,
-    kernel_key: str = "DM_Kernel",
+    sim_key: str = "DM_Similarity",
     imputation_key: str = "MAGIC_imputed_data",
     n_jobs: int = -1,
 ) -> Union[pd.DataFrame, None, csr_matrix]:
@@ -228,8 +232,9 @@ def run_magic_imputation(
         If None and data is a sc.AnnData object, its obsp[kernel_key] is used. Default is None.
     n_steps : int, optional
         Number of steps in the diffusion operator. Default is 3.
-    kernel_key : str, optional
-        Key to access the kernel in obsp of data if it is a sc.AnnData object. Default is 'DM_Kernel'.
+    sim_key : str, optional
+        Key to access the similarity in obsp of data if it is a sc.AnnData object.
+        Default is 'DM_Similarity'.
     imputation_key : str, optional
         Key to store the imputed data in layers of data if it is a sc.AnnData object. Default is 'MAGIC_imputed_data'.
     n_jobs : int, optional
@@ -243,7 +248,7 @@ def run_magic_imputation(
     if isinstance(data, sc.AnnData):
         X = data.X
         if dm_res is None:
-            T = data.obsp[kernel_key]
+            T = data.obsp[sim_key]
     elif isinstance(data, pd.DataFrame):
         X = data.values
     elif issparse(data):  # assuming csr_matrix

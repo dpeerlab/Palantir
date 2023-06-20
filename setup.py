@@ -40,6 +40,7 @@ setup(
         "seaborn>=0.8.1",
         "tzlocal",
         "scanpy>=1.6.0",
+        "mellon>=1.3.0",
         "pygam",
     ],
     classifiers=[

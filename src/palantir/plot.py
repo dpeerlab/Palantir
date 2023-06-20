@@ -1,3 +1,4 @@
+from typing import Union, Optional, List
 import warnings
 import os
 import numpy as np
@@ -5,6 +6,7 @@ import pandas as pd
 from itertools import chain
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import gaussian_kde
+import scanpy as sc
 
 import matplotlib
 from matplotlib import font_manager
@@ -416,74 +418,251 @@ def plot_terminal_state_probs(pr_res, cells):
         ax.set_title(cell, fontsize=10)
     sns.despine()
 
-
-def plot_gene_trends(gene_trends, genes=None):
-    """Plot the gene trends: each gene is plotted in a different panel
-    :param: gene_trends: Results of the compute_marker_trends function
+def plot_branch_selection(
+    ad: sc.AnnData,
+    pseudo_time_key: str = "palantir_pseudotime",
+    fate_prob_key: str = "palantir_fate_probabilities",
+    selection_key: str = "branch_mask",
+    embedding_basis: str = "X_umap",
+    **kwargs,
+):
     """
+    Plot cells along specific branches of pseudotime ordering and the UMAP embedding.
 
-    # Branches and genes
-    branches = list(gene_trends.keys())
-    colors = pd.Series(
-        sns.color_palette("Set2", len(branches)).as_hex(), index=branches
-    )
+    Parameters
+    ----------
+    ad : sc.AnnData
+        Annotated data matrix. The pseudotime and fate probabilities should be stored under the keys provided.
+    pseudo_time_key : str, optional
+        Key to access the pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
+    fate_prob_key : str, optional
+        Key to access the fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+    selection_key : str, optional
+        Key under which the branch cell selection mask is stored in the AnnData object. Default is 'branch_mask'.
+    embedding_basis : str, optional
+        Key to access the UMAP embedding from obsm of the AnnData object. Default is 'X_umap'.
+    **kwargs
+        Additional arguments passed to `matplotlib.pyplot.scatter`.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        A matplotlib Figure object representing the plot of the branch selections.
+        
+    """
+    assert pseudo_time_key in ad.obs, f"{pseudo_time_key} not found in ad.obs"
+    assert fate_prob_key in ad.obsm, f"{fate_prob_key} not found in ad.obsm"
+    assert (
+        fate_prob_key + "_columns" in ad.uns
+    ), f"{fate_prob_key}_columns not found in ad.uns"
+    assert embedding_basis in ad.obsm, f"{embedding_basis} not found in ad.obsm"
+
+    fate_probs = ad.obsm[fate_prob_key]
+    fate_names = ad.uns[fate_prob_key + "_columns"]
+    pt = ad.obs[pseudo_time_key]
+    umap = ad.obsm[embedding_basis]
+
+    fig, axes = plt.subplots(len(fate_names), 2, figsize=(15, 5*len(fate_names)), width_ratios=[2, 1])
+
+    colors = {True: "#003366", False: "#f0f8ff"}
+
+    for i, fate in enumerate(fate_names):
+        ax1 = axes[i, 0]
+        ax2 = axes[i, 1]
+        mask = ad.obs[selection_key + "_" + fate].astype(bool)
+
+        # plot cells along pseudotime
+        ax1.scatter(pt[~mask], fate_probs[~mask, i], c='#f0f8ff', label='Other Cells', **kwargs)
+        ax1.scatter(pt[mask], fate_probs[mask, i], c='#003366', label='Selected Cells', **kwargs)
+        ax1.set_title(f"Branch: {fate}")
+        ax1.set_xlabel("Pseudotime")
+        ax1.set_ylabel("Fate Probability")
+        ax1.legend()
+
+        # plot UMAP
+        ax2.scatter(umap[~mask, 0], umap[~mask, 1], c='#f0f8ff', label='Other Cells', **kwargs)
+        ax2.scatter(umap[mask, 0], umap[mask, 1], c='#003366', label='Selected Cells', **kwargs)
+        ax2.set_title(f"Branch: {fate}")
+        ax2.axis("off")
+
+    plt.tight_layout()
+    sns.despine()
+
+    return fig
+
+
+def plot_gene_trends(
+    data: Union[sc.AnnData, pd.DataFrame],
+    genes: Optional[List[str]] = None,
+    gene_trend_key: Optional[str] = "palantir_gene_trends",
+) -> plt.Figure:
+    """
+    Plot the gene trends: each gene is plotted in a different panel.
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of gene expression trends.
+    genes : list of str, optional
+        List of gene names to plot. If None, all genes in the DataFrame or AnnData object are plotted. Default is None.
+    gene_trend_key : str, optional
+        Key to access gene trends from varm of the AnnData object. If data is a DataFrame,
+        gene_trend_key should be None. If gene_trend_key is None when data is an AnnData,
+        a KeyError will be raised. Default is None.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        A matplotlib Figure object representing the plot of the gene trends.
+
+    Raises
+    ------
+    KeyError
+        If gene_trend_key is None when data is an AnnData object.
+    """
+    # Retrieve the gene expression trends from the AnnData object or DataFrame
+    if isinstance(data, sc.AnnData):
+        if gene_trend_key is None:
+            raise KeyError(
+                "Must provide a gene_trend_key when data is an AnnData object."
+            )
+        pseudotimes = data.uns[gene_trend_key + "_pseudotime"]
+        gene_trends = pd.DataFrame(
+            data.varm[gene_trend_key], index=data.var_names, columns=pseudotimes
+        )
+    else:
+        gene_trends = data
+
     if genes is None:
-        genes = gene_trends[branches[0]]["trends"].index
+        genes = gene_trends.index.tolist()
 
     # Set up figure
     fig = plt.figure(figsize=[7, 3 * len(genes)])
     for i, gene in enumerate(genes):
         ax = fig.add_subplot(len(genes), 1, i + 1)
-        for branch in branches:
-            trends = gene_trends[branch]["trends"]
-            stds = gene_trends[branch]["std"]
-            ax.plot(
-                trends.columns, trends.loc[gene, :], color=colors[branch], label=branch
-            )
-            ax.set_xticks([0, 1])
-            ax.fill_between(
-                trends.columns,
-                trends.loc[gene, :] - stds.loc[gene, :],
-                trends.loc[gene, :] + stds.loc[gene, :],
-                alpha=0.1,
-                color=colors[branch],
-            )
-            ax.set_title(gene)
-        # Add legend
-        if i == 0:
-            ax.legend()
+        trend = gene_trends.loc[gene, :]
+        ax.plot(
+            trend.index, trend.values, label=gene
+        )
+        ax.set_xticks([trend.index.min(), trend.index.max()])
+        ax.set_title(gene)
 
     sns.despine()
 
+    return fig
 
-def plot_gene_trend_heatmaps(gene_trends):
-    """Plot the gene trends on heatmap: a heatmap is generated or each branch
-    :param: gene_trends: Results of the compute_marker_trends function
+def plot_gene_trend_heatmaps(
+    data: Union[sc.AnnData, pd.DataFrame],
+    genes: Optional[List[str]] = None,
+    gene_trend_key: Optional[str] = "palantir_gene_trends",
+) -> plt.Figure:
     """
+    Plot the gene trends on heatmap: a heatmap is generated for each gene.
 
-    # Plot height
-    branches = list(gene_trends.keys())
-    genes = gene_trends[branches[0]]["trends"].index
-    height = 0.7 * len(genes) * len(branches)
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of gene expression trends.
+    genes : list of str, optional
+        List of gene names to plot. If None, all genes in the DataFrame or AnnData object are plotted. Default is None.
+    gene_trend_key : str, optional
+        Key to access gene trends from varm of the AnnData object. If data is a DataFrame,
+        gene_trend_key should be None. If gene_trend_key is None when data is an AnnData,
+        a KeyError will be raised. Default is None.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        A matplotlib Figure object representing the heatmap of the gene trends.
+
+    Raises
+    ------
+    KeyError
+        If gene_trend_key is None when data is an AnnData object.
+    """
+    # Retrieve the gene expression trends from the AnnData object or DataFrame
+    if isinstance(data, sc.AnnData):
+        if gene_trend_key is None:
+            raise KeyError(
+                "Must provide a gene_trend_key when data is an AnnData object."
+            )
+        pseudotimes = data.uns[gene_trend_key + "_pseudotime"]
+        gene_trends = pd.DataFrame(
+            data.varm[gene_trend_key], index=data.var_names, columns=pseudotimes
+        )
+    else:
+        gene_trends = data
+
+    if genes is None:
+        genes = gene_trends.index.tolist()
+
+    gene_trends = gene_trends.loc[genes, :]
+
+    # Standardize the matrix
+    mat = pd.DataFrame(
+        StandardScaler().fit_transform(gene_trends.T).T,
+        index=gene_trends.index,
+        columns=gene_trends.columns,
+    )
 
     #  Set up plot
-    fig = plt.figure(figsize=[7, height])
-    for i, branch in enumerate(branches):
-        ax = fig.add_subplot(len(branches), 1, i + 1)
+    fig = plt.figure(figsize=[7, 0.7 * len(genes)])
+    sns.heatmap(mat, xticklabels=False, cmap=matplotlib.cm.Spectral_r)
 
-        # Standardize the matrix
-        mat = gene_trends[branch]["trends"]
-        mat = pd.DataFrame(
-            StandardScaler().fit_transform(mat.T).T,
-            index=mat.index,
-            columns=mat.columns,
+    return fig
+
+
+
+def plot_gene_trend_clusters(
+    data: Union[sc.AnnData, pd.DataFrame],
+    clusters: Optional[Union[pd.Series, str]] = None,
+    gene_trend_key: Optional[str] = "palantir_gene_trends",
+) -> plt.Figure:
+    """
+    Plot the gene trend clusters.
+
+    This function takes either a Scanpy AnnData object or a DataFrame of gene expression trends,
+    and a Series of clusters or a key to clusters in AnnData object's var, and creates a plot of the gene trend clusters.
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of gene expression trends.
+    clusters : pd.Series or str, optional
+        A Series of clusters indexed by gene names, or a string key to access clusters from var of the AnnData object.
+        If data is a DataFrame, clusters should be a Series. If clusters is None, it is set to gene_trend_key+"_clusters".
+        Default is None.
+    gene_trend_key : str, optional
+        Key to access gene trends from varm of the AnnData object. If data is a DataFrame,
+        gene_trend_key should be None. If gene_trend_key is None when data is an AnnData,
+        a KeyError will be raised. Default is None.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        A matplotlib Figure object representing the plot of the gene trend clusters.
+
+    Raises
+    ------
+    KeyError
+        If gene_trend_key is None when data is an AnnData object.
+    """
+    # Retrieve the gene expression trends from the AnnData object or DataFrame
+    if isinstance(data, sc.AnnData):
+        if gene_trend_key is None:
+            raise KeyError(
+                "Must provide a gene_trend_key when data is an AnnData object."
+            )
+        pseudotimes = data.uns[gene_trend_key + "_pseudotime"]
+        trends = pd.DataFrame(
+            data.varm[gene_trend_key], index=data.var_names, columns=pseudotimes
         )
-        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=matplotlib.cm.Spectral_r)
-        ax.set_title(branch, fontsize=12)
-
-
-def plot_gene_trend_clusters(trends, clusters):
-    """Plot the gene trend clusters"""
+        if clusters is None:
+            clusters = gene_trend_key + "_clusters"
+        if isinstance(clusters, str):
+            clusters = data.var[clusters]
+    else:
+        trends = data
 
     # Standardize the trends
     trends = pd.DataFrame(
@@ -492,9 +671,17 @@ def plot_gene_trend_clusters(trends, clusters):
         columns=trends.columns,
     )
 
-    n_rows = int(np.ceil(len(set(clusters)) / 3))
+    # Check if clusters is a categorical series
+    if isinstance(clusters, pd.Series) and pd.api.types.is_categorical_dtype(clusters):
+        cluster_labels = clusters.cat.categories
+    else:
+        cluster_labels = set(clusters)
+
+    # Plot the gene trend clusters
+    n_rows = int(np.ceil(len(cluster_labels) / 3))
     fig = plt.figure(figsize=[5.5 * 3, 2.5 * n_rows])
-    for i, c in enumerate(set(clusters)):
+
+    for i, c in enumerate(cluster_labels):
         ax = fig.add_subplot(n_rows, 3, i + 1)
         means = trends.loc[clusters.index[clusters == c], :].mean()
         std = trends.loc[clusters.index[clusters == c], :].std()
@@ -528,6 +715,6 @@ def plot_gene_trend_clusters(trends, clusters):
         ax.tick_params("both", length=2, width=1, which="major")
         ax.tick_params(axis="both", which="major", labelsize=8, direction="in")
         ax.set_xticklabels([])
-        # ax.set_xticklabels( ax.get_xticklabels(), fontsize=8 )
-        # ax.set_yticklabels( ax.get_yticklabels(), fontsize=8 )
     sns.despine()
+
+    return fig

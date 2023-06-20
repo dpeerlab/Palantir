@@ -9,6 +9,7 @@ from joblib import delayed, Parallel
 from sklearn.preprocessing import StandardScaler
 from pygam import LinearGAM, s
 import scanpy as sc
+import mellon
 
 
 class PResults(object):
@@ -70,7 +71,7 @@ class PResults(object):
         pickle.dump(vars(self), pkl_file)
 
 
-def compute_gene_trends(
+def compute_gene_trends_legacy(
     data: Union[sc.AnnData, PResults],
     gene_exprs: Optional[pd.DataFrame] = None,
     lineages: Optional[List[str]] = None,
@@ -190,6 +191,86 @@ def compute_gene_trends(
 
     return results
 
+def compute_gene_trends(
+    ad: sc.AnnData,
+    mask: Union[str, np.ndarray],
+    gene_trend_key: str = "palantir_gene_trends",
+    expression_key: str = None,
+    pseudo_time_key: str = "palantir_pseudotime",
+    **kwargs,
+) -> pd.DataFrame:
+    """
+    Compute gene expression trends along pseudotime in the given AnnData object.
+
+    Parameters
+    ----------
+    ad : sc.AnnData
+        AnnData object containing the gene expression data and pseudotime.
+    mask : Union[str, np.ndarray]
+        Boolean mask or string key to subset cells in the AnnData object.
+    gene_trend_key : str, optional
+        Key to store the gene expression trends in varm of the AnnData object.
+        Default is 'palantir_gene_trends'.
+    expression_key : str, optional
+        Key to access the gene expression data in the layers of the AnnData object.
+        If None, uses raw expression data in .X. Default is None.
+    pseudo_time_key : str, optional
+        Key to access the pseudotime values in the AnnData object. Default is 'palantir_pseudotime'.
+    **kwargs
+        Additional arguments to be passed to mellon.FunctionEstimator.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the gene expression trends, indexed by gene names and columns as pseudotime points.
+        The pseudotime grid used for the trends is stored in the unstructured
+        annotation of the AnnData object (.uns) with the key as '{gene_trend_key}_pseudotime'.
+    """
+    # Check the AnnData object for the necessary keys
+    if pseudo_time_key not in ad.obs_keys():
+        raise ValueError(f"'{pseudo_time_key}' is not found in the AnnData object's obs.")
+
+    # Convert mask to boolean array if it's a string key
+    if isinstance(mask, str):
+        if mask not in ad.obs_keys():
+            raise ValueError(f"'{mask}' is not found in the AnnData object's obs.")
+        mask = ad.obs[mask].values.astype(bool)
+
+    try:
+        sub_ad = ad[mask, :]
+    except KeyError:
+        raise ValueError("The passed value of `mask` cannot be used as index for the AnnData.")
+        
+    # Retrieve the gene expression data and pseudotime
+    gene_exprs = sub_ad.to_df(expression_key)
+    pseudo_time = sub_ad.obs[pseudo_time_key]
+
+    # Set the default arguments for mellon.FunctionEstimator
+    mellon_args = dict(
+        sigma=1,  # account for high noise level of unimputed data
+        ls=5,  # a length scale that works well for the default Matern52 kernel on pseudotime
+        n_landmarks=0,  # deactivate sparsification since we do not need to sacrifice accuracy for speed here
+    )
+    # Update the default arguments with any provided kwargs
+    mellon_args.update(kwargs)
+
+    # Compute the gene expression trends
+    pt_grid = np.linspace(pseudo_time.min(), pseudo_time.max(), 500)
+    func_est = mellon.FunctionEstimator(**mellon_args)
+    result = func_est.fit_predict(
+        pseudo_time.values,
+        gene_exprs,
+        pt_grid,
+    ).T
+    result = np.asarray(result)
+
+    # Store the trends in the AnnData object and return as a DataFrame
+    ad.varm[gene_trend_key] = result
+    ad.uns[gene_trend_key + "_pseudotime"] = pt_grid
+    result = pd.DataFrame(result, index=ad.var_names, columns=pt_grid)
+
+    return result
+
 
 def gam_fit_predict(x, y, weights=None, pred_x=None, n_splines=4, spline_order=2):
     """
@@ -283,7 +364,7 @@ def _gam_fit_predict_rpy2(x, y, weights=None, pred_x=None):
 
 def cluster_gene_trends(
     data: Union[sc.AnnData, pd.DataFrame],
-    gene_trend_key: Optional[str] = None,
+    gene_trend_key: Optional[str] = "palantir_gene_trends",
     n_neighbors: int = 150,
     **kwargs,
 ) -> pd.Series:
@@ -351,7 +432,7 @@ def select_branch_cells(
     ad: sc.AnnData,
     pseudo_time_key: str = "palantir_pseudotime",
     fate_prob_key: str = "palantir_fate_probabilities",
-    eps: float = 1e-2,
+    eps: float = 1e-1,
     selection_key: str = "branch_mask",
 ):
     """
