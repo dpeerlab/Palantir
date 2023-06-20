@@ -208,7 +208,7 @@ def run_diffusion_maps(
     return res
 
 
-def _dot_herlper_func(x, y):
+def _dot_helper_func(x, y):
     return x.dot(y)
 
 
@@ -271,7 +271,7 @@ def run_magic_imputation(
 
     # Run the dot product in parallel on chunks
     res = Parallel(n_jobs=n_jobs)(
-        delayed(_dot_herlper_func)(T_steps, X[:, chunks[i - 1] : chunks[i]])
+        delayed(_dot_helper_func)(T_steps, X[:, chunks[i - 1] : chunks[i]])
         for i in range(1, len(chunks))
     )
 
