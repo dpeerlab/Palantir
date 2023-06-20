@@ -84,7 +84,7 @@ def run_diffusion_maps(
     n_components: int = 10,
     knn: int = 30,
     alpha: float = 0,
-    seed: Union[int, None] = None,
+    seed: Union[int, None] = 0,
     pca_key: str = "X_pca",
     kernel_key: str = "DM_Kernel",
     sim_key: str = "DM_Similarity",
@@ -108,7 +108,7 @@ def run_diffusion_maps(
         Normalization parameter for the diffusion operator. Default is 0.
     seed : Union[int, None], optional
         Numpy random seed, randomized if None, set to an arbitrary integer for reproducibility.
-        Default is None.
+        Default is 0.
     pca_key : str, optional
         Key to retrieve PCA projections from data if it is a sc.AnnData object. Default is 'X_pca'.
     kernel_key : str, optional
@@ -358,47 +358,6 @@ def determine_multiscale_space(
         dm_res.obsm[out_key] = data.values
 
     return data
-
-
-def determine_cell_clusters(
-    data: Union[pd.DataFrame, sc.AnnData],
-    k: int = 50,
-    pca_key: str = "X_pca",
-    **kwargs,
-) -> Union[pd.Series, None]:
-    """
-    Run Leiden for clustering cells.
-
-    Parameters
-    ----------
-    data : Union[pd.DataFrame, sc.AnnData]
-        Principal components of the data or a sc.AnnData object.
-    k : int, optional
-        Number of neighbors for k-NN graph construction. Default is 50.
-    pca_key : str, optional
-        Key to access PCA results from obsm of data if it is a sc.AnnData object. Default is 'X_pca'.
-
-    Returns
-    -------
-    Union[pd.Series, None]
-        Cell clusters. If sc.AnnData is passed as data, the result is written to its obs[cluster_key]
-        and None is returned.
-    """
-    if isinstance(data, sc.AnnData):
-        if pca_key not in data.obsm.keys():
-            raise ValueError(
-                f"obsm[{pca_key}] not found in AnnData. "
-                "Consider running 'palantir.utils.run_pca' first."
-            )
-        data_df = pd.DataFrame(data.obsm[pca_key], index=data.obs_names)
-    else:
-        data_df = data
-
-    gt_ad = sc.AnnData(data_df)
-    sc.pp.neighbors(gt_ad, n_neighbors=k)
-    sc.tl.leiden(gt_ad, **kwargs)
-
-    return gt_ad.obs["leiden"]
 
 
 def _return_cell(ec, obs_names, celltype, mm, dcomp):

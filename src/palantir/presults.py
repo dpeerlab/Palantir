@@ -191,85 +191,91 @@ def compute_gene_trends_legacy(
 
     return results
 
+
 def compute_gene_trends(
     ad: sc.AnnData,
-    mask: Union[str, np.ndarray],
-    gene_trend_key: str = "palantir_gene_trends",
+    masks_key: str = "branch_masks",
     expression_key: str = None,
     pseudo_time_key: str = "palantir_pseudotime",
+    gene_trend_key: str = "gene_trends",
     **kwargs,
 ) -> pd.DataFrame:
     """
     Compute gene expression trends along pseudotime in the given AnnData object.
 
+    This function computes the gene expression trends for each branch of the
+    pseudotime trajectory using mellon.FunctionEstimator. The computed gene
+    trends are stored in the varm attribute of the AnnData object, with keys
+    in the format '{gene_trend_key}_{branch}'. Each key maps to a 2D numpy
+    array where rows correspond to genes and columns correspond to the
+    pseudotime grid. The pseudotime grid for each branch is stored in the uns
+    attribute of the AnnData object, with keys in the format
+    '{gene_trend_key}_{branch}_pseudotime'.
+
     Parameters
     ----------
     ad : sc.AnnData
         AnnData object containing the gene expression data and pseudotime.
-    mask : Union[str, np.ndarray]
-        Boolean mask or string key to subset cells in the AnnData object.
-    gene_trend_key : str, optional
-        Key to store the gene expression trends in varm of the AnnData object.
-        Default is 'palantir_gene_trends'.
+    masks_key : str, optional
+        Key to access the branch cell selection masks from obsm of the AnnData object.
+        Default is 'branch_masks'.
     expression_key : str, optional
         Key to access the gene expression data in the layers of the AnnData object.
         If None, uses raw expression data in .X. Default is None.
     pseudo_time_key : str, optional
         Key to access the pseudotime values in the AnnData object. Default is 'palantir_pseudotime'.
+    gene_trend_key : str, optional
+        Key base to store the gene expression trends in varm of the AnnData object.
+        Default is 'palantir_gene_trends'.
     **kwargs
         Additional arguments to be passed to mellon.FunctionEstimator.
 
     Returns
     -------
-    pd.DataFrame
-        DataFrame containing the gene expression trends, indexed by gene names and columns as pseudotime points.
-        The pseudotime grid used for the trends is stored in the unstructured
-        annotation of the AnnData object (.uns) with the key as '{gene_trend_key}_pseudotime'.
+    dict
+        A dictionary containing gene expression trends for each branch. The keys of the dictionary
+        are the branch names. The value for each branch is a sub-dictionary with a key 'trends' that
+        maps to a DataFrame. The DataFrame contains the gene expression trends, indexed by gene names
+        and columns representing pseudotime points.
     """
     # Check the AnnData object for the necessary keys
     if pseudo_time_key not in ad.obs_keys():
-        raise ValueError(f"'{pseudo_time_key}' is not found in the AnnData object's obs.")
+        raise ValueError(
+            f"'{pseudo_time_key}' is not found in the AnnData object's obs."
+        )
 
-    # Convert mask to boolean array if it's a string key
-    if isinstance(mask, str):
-        if mask not in ad.obs_keys():
-            raise ValueError(f"'{mask}' is not found in the AnnData object's obs.")
-        mask = ad.obs[mask].values.astype(bool)
+    assert masks_key in ad.obsm, f"{masks_key} not found in ad.obsm"
+    assert masks_key + "_columns" in ad.uns, f"{masks_key}_columns not found in ad.uns"
 
-    try:
-        sub_ad = ad[mask, :]
-    except KeyError:
-        raise ValueError("The passed value of `mask` cannot be used as index for the AnnData.")
-        
-    # Retrieve the gene expression data and pseudotime
-    gene_exprs = sub_ad.to_df(expression_key)
-    pseudo_time = sub_ad.obs[pseudo_time_key]
+    gene_exprs = ad.to_df(expression_key)
+    pseudo_time = ad.obs[pseudo_time_key].values
+    masks = ad.obsm[masks_key]
+    branches = ad.uns[masks_key + "_columns"]
 
     # Set the default arguments for mellon.FunctionEstimator
-    mellon_args = dict(
-        sigma=1,  # account for high noise level of unimputed data
-        ls=5,  # a length scale that works well for the default Matern52 kernel on pseudotime
-        n_landmarks=0,  # deactivate sparsification since we do not need to sacrifice accuracy for speed here
-    )
-    # Update the default arguments with any provided kwargs
+    mellon_args = dict(sigma=1, ls=5, n_landmarks=0)
     mellon_args.update(kwargs)
 
+    lagacy_results = dict()
     # Compute the gene expression trends
-    pt_grid = np.linspace(pseudo_time.min(), pseudo_time.max(), 500)
-    func_est = mellon.FunctionEstimator(**mellon_args)
-    result = func_est.fit_predict(
-        pseudo_time.values,
-        gene_exprs,
-        pt_grid,
-    ).T
-    result = np.asarray(result)
+    for i, branch in enumerate(branches):
+        print(branch)
+        mask = masks[:, i]
+        pt = pseudo_time[mask]
+        pt_grid = np.linspace(pt.min(), pt.max(), 500)
+        expr = gene_exprs.loc[mask, :]
+        func_est = mellon.FunctionEstimator(**mellon_args)
+        result = func_est.fit_predict(pt, expr, pt_grid).T
+        result = np.asarray(result)
 
-    # Store the trends in the AnnData object and return as a DataFrame
-    ad.varm[gene_trend_key] = result
-    ad.uns[gene_trend_key + "_pseudotime"] = pt_grid
-    result = pd.DataFrame(result, index=ad.var_names, columns=pt_grid)
+        lagacy_results[branch] = {
+            "trends": pd.DataFrame(result, columns=pt_grid, index=ad.var_names)
+        }
+        # Store the trends in the AnnData object and return as a DataFrame
+        ad.varm[gene_trend_key + "_" + branch] = result
+        ad.uns[gene_trend_key + "_" + branch + "_pseudotime"] = pt_grid
 
-    return result
+    return lagacy_results
 
 
 def gam_fit_predict(x, y, weights=None, pred_x=None, n_splines=4, spline_order=2):
@@ -364,49 +370,70 @@ def _gam_fit_predict_rpy2(x, y, weights=None, pred_x=None):
 
 def cluster_gene_trends(
     data: Union[sc.AnnData, pd.DataFrame],
-    gene_trend_key: Optional[str] = "palantir_gene_trends",
+    branch_name: str,
+    genes: Optional[List[str]] = None,
+    gene_trend_key: Optional[str] = "gene_trends",
     n_neighbors: int = 150,
     **kwargs,
 ) -> pd.Series:
-    """Cluster gene trends.
+    """
+    Cluster gene trends using the Leiden algorithm.
 
     This function applies the Leiden clustering algorithm to gene expression trends
-    along the pseudotemporal trajectory computed by Palantir.
+    along the pseudotemporal trajectory. If the input is an AnnData object, it uses
+    the gene trends stored in the `varm` attribute accessed using the `gene_trend_key`.
+    If the input is a DataFrame, it directly uses the input data for clustering.
 
     Parameters
     ----------
     data : Union[sc.AnnData, pd.DataFrame]
-        Either a Scanpy AnnData object or a DataFrame of gene expression trends.
+        AnnData object or a DataFrame of gene expression trends.
+    branch_name : str
+        Name of the branch for which the gene trends are to be clustered.
+    genes : list of str, optional
+        List of genes to be considered for clustering. If None, all genes are considered. Default is None.
     gene_trend_key : str, optional
-        Key to access gene trends from varm of the AnnData object. If data is a DataFrame,
-        gene_trend_key should be None. If gene_trend_key is None when data is an AnnData,
-        a KeyError will be raised. Default is None.
+        Key to access gene trends in the AnnData object's varm. Default is 'palantir_gene_trends'.
     n_neighbors : int, optional
         The number of nearest neighbors to use for the k-NN graph construction. Default is 150.
     **kwargs
-        Additional arguments to be passed to `scanpy.pp.neighbors`.
+        Additional keyword arguments passed to `scanpy.tl.leiden`.
 
     Returns
     -------
     pd.Series
-        Clustering of gene trends, indexed by gene names.
+        A pandas series with the cluser lables for all passed genes.
 
     Raises
     ------
     KeyError
-        If gene_trend_key is None when data is an AnnData object.
+        If `gene_trend_key` is None when `data` is an AnnData object.
     """
     if isinstance(data, sc.AnnData):
         if gene_trend_key is None:
             raise KeyError(
                 "Must provide a gene_trend_key when data is an AnnData object."
             )
-        pseudotimes = data.uns[gene_trend_key + "_pseudotime"]
+        varm_name = gene_trend_key + "_" + branch_name
+        if varm_name not in data.varm:
+            raise ValueError(
+                f"'gene_trend_key + \"_\" + branch_name' = '{varm_name}' not found in .varm. "
+            )
+        pt_grid_name = gene_trend_key + "_" + branch_name + "_pseudotime"
+        if pt_grid_name not in data.uns.keys():
+            raise ValueError(
+                '\'gene_trend_key + "_" + branch_name + "_pseudotime"\' '
+                f"= '{pt_grid_name}' not found in .uns. "
+            )
+        pseudotimes = data.uns[pt_grid_name]
         trends = pd.DataFrame(
-            data.varm[gene_trend_key], index=data.var_names, columns=pseudotimes
+            data.varm[varm_name], index=data.var_names, columns=pseudotimes
         )
     else:
         trends = data
+
+    if genes is not None:
+        trends = trends.loc[genes, :]
 
     # Standardize the trends
     trends = pd.DataFrame(
@@ -423,7 +450,11 @@ def cluster_gene_trends(
 
     if isinstance(data, sc.AnnData):
         col_name = gene_trend_key + "_clusters"
-        data.var[col_name] = communities
+        if genes is None:
+            data.var[col_name] = communities
+        else:
+            data.var[col_name] = communities
+            data.var[col_name] = data.var[col_name].astype("category")
 
     return communities
 
@@ -432,8 +463,8 @@ def select_branch_cells(
     ad: sc.AnnData,
     pseudo_time_key: str = "palantir_pseudotime",
     fate_prob_key: str = "palantir_fate_probabilities",
-    eps: float = 1e-1,
-    selection_key: str = "branch_mask",
+    eps: float = 1e-2,
+    masks_key: str = "branch_masks",
 ):
     """
     Selects cells along specific branches of pseudotime ordering.
@@ -448,8 +479,9 @@ def select_branch_cells(
         Key to access the fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
     eps : float, optional
         Epsilon value used to create a buffer around the fate probabilities. Default is 1e-2.
-    selection_key : str, optional
-        Key under which the resulting branch cell selection mask is stored in the AnnData object. Default is 'branch_mask'.
+    masks_key : str, optional
+        Key under which the resulting branch cell selection masks are stored in
+        the obsm of the AnnData object. Default is 'branch_masks'.
 
     Returns
     -------
@@ -468,19 +500,17 @@ def select_branch_cells(
     fate_names = ad.uns[fate_prob_key + "_columns"]
 
     # calculate the max probability along the pseudotime
-    max_prob = np.max(fate_probs, axis=1)
-    pt = ad.obs[pseudo_time_key] / ad.obs[pseudo_time_key].max()
+    max_prob = np.max(fate_probs, axis=1)[:, None]
+    term_cells = np.argmax(fate_probs, axis=0)
+    pt = ad.obs[pseudo_time_key].values
+    pt -= np.min(pt)
+    pt = pt[:, None] / pt[None, term_cells]
 
     # find the early cell
     early_cell = np.argmin(pt)
 
-    # calculate the mask for each branch
-    for i, fate in enumerate(fate_names):
-        out_column = selection_key + "_" + fate
-        fate_prob = fate_probs[:, i]
-        probability_buffer = max_prob[early_cell] - fate_prob[early_cell]
-        ad.obs[out_column] = (max_prob - fate_prob) < probability_buffer * (
-            1 - pt
-        ) + eps
+    probability_buffers = max_prob[None, early_cell] - fate_probs[None, early_cell, :]
+    ad.obsm[masks_key] = (max_prob - fate_probs) < probability_buffers * (1 - pt) + eps
+    ad.uns[masks_key + "_columns"] = fate_names
 
     return None
