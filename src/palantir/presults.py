@@ -256,7 +256,7 @@ def compute_gene_trends(
     pseudo_time = ad.obs[pseudo_time_key].values
     masks = ad.obsm[masks_key]
     branches = ad.uns[masks_key + "_columns"]
-    
+
     if lineages is not None:
         for lin in lineages:
             if lin not in branches:
