@@ -2,7 +2,6 @@
 Functions for preprocessing of single cell RNA-seq counts
 """
 import numpy as np
-import scanpy as sc
 import anndata
 from scipy.sparse import issparse
 
@@ -37,7 +36,7 @@ def normalize_counts(data):
 
 def log_transform(data, pseudo_count=0.1):
     """Log transform the matrix
-    
+
     :param data: Counts matrix: Cells x Genes or Anndata object
     :return: Log transformed matrix
     """
