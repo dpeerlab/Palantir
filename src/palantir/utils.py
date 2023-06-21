@@ -575,7 +575,7 @@ def run_magic_imputation(
     gc.collect()
 
     if isinstance(data, sc.AnnData):
-        data.layers[imputation_key] = imputed_data
+        data.layers[imputation_key] = np.asarray(imputed_data)
 
     if isinstance(data, pd.DataFrame):
         imputed_data = pd.DataFrame(
