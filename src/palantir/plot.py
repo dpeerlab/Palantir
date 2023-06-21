@@ -15,19 +15,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from .presults import PResults
 
-try:
-    os.environ["DISPLAY"]
-except KeyError:
-    matplotlib.use("Agg")
-
 import matplotlib.pyplot as plt
-
-with warnings.catch_warnings():
-    # catch experimental ipython widget warning
-    warnings.simplefilter("ignore")
-    import seaborn as sns
-
-    sns.set(context="paper", style="ticks", font_scale=1.5, font="Bitstream Vera Sans")
 
 # set plotting defaults
 with warnings.catch_warnings():
@@ -35,11 +23,13 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     import seaborn as sns
 
+    sns.set(context="paper", style="ticks", font_scale=1.5, font="Bitstream Vera Sans")
     fm = font_manager.fontManager
     fm.findfont("Raleway")
     fm.findfont("Lato")
 
-warnings.filterwarnings(action="ignore", message="remove_na is deprecated")
+SELECTED_COLOR = "#377eb8"
+DESELECTED_COLOR = "#CFD5E2"
 
 
 class FigureGrid:
@@ -172,7 +162,8 @@ def highlight_cells_on_umap(
     data: Union[sc.AnnData, pd.DataFrame],
     cells: Union[List[str], Dict[str, str], pd.Series],
     annotation_offset: float = 0.03,
-    s: float = 0.1,
+    s: float = 1,
+    s_highlighted: float = 10,
     fig: Optional[plt.Figure] = None,
     ax: Optional[plt.Axes] = None,
     embedding_bases: str = "X_umap",
@@ -191,6 +182,8 @@ def highlight_cells_on_umap(
         Offset for the annotations in proportion to the data range. Default is 0.03.
     s : float, optional
         Size of the points in the scatter plot. Default is 0.1.
+    s_highlighted : float, optional
+        Size of the points in the highlighted cells. Default is 10.
     fig : Optional[plt.Figure], optional
         Matplotlib Figure object. If None, a new figure is created. Default is None.
     ax : Optional[plt.Axes], optional
@@ -233,12 +226,12 @@ def highlight_cells_on_umap(
     xpad, ypad = (umap.max() - umap.min()) * annotation_offset
 
     fig, ax = get_fig(fig=fig, ax=ax)
-    ax.scatter(umap["x"], umap["y"], s=s, color="lightgrey")
+    ax.scatter(umap["x"], umap["y"], s=s, color=DESELECTED_COLOR)
 
     for cell, annotation in cells.items():
         if cell in umap.index:
             x, y = umap.loc[cell, ["x", "y"]]
-            ax.scatter(x, y, c="#003366", s=100 * s)
+            ax.scatter(x, y, c=SELECTED_COLOR, s=s_highlighted)
             if annotation:
                 ax.annotate(annotation, (x, y), (x + xpad, y + ypad), "data")
     ax.set_axis_off()
@@ -607,14 +600,18 @@ def plot_branch_selection(
         A matplotlib Figure object representing the plot of the branch selections.
 
     """
-    assert pseudo_time_key in ad.obs, f"{pseudo_time_key} not found in ad.obs"
-    assert fate_prob_key in ad.obsm, f"{fate_prob_key} not found in ad.obsm"
-    assert (
-        fate_prob_key + "_columns" in ad.uns
-    ), f"{fate_prob_key}_columns not found in ad.uns"
-    assert masks_key in ad.obsm, f"{masks_key} not found in ad.obsm"
-    assert masks_key + "_columns" in ad.uns, f"{masks_key}_columns not found in ad.uns"
-    assert embedding_basis in ad.obsm, f"{embedding_basis} not found in ad.obsm"
+    if pseudo_time_key not in ad.obs:
+        raise KeyError(f"{pseudo_time_key} not found in ad.obs")
+    if fate_prob_key not in ad.obsm:
+        raise KeyError(f"{fate_prob_key} not found in ad.obsm")
+    if fate_prob_key + "_columns" not in ad.uns:
+        raise KeyError(f"{fate_prob_key}_columns not found in ad.uns")
+    if masks_key not in ad.obsm:
+        raise KeyError(f"{masks_key} not found in ad.obsm")
+    if masks_key + "_columns" not in ad.uns:
+        raise KeyError(f"{masks_key}_columns not found in ad.uns")
+    if embedding_basis not in ad.obsm:
+        raise KeyError(f"{embedding_basis} not found in ad.obsm")
 
     fate_probs = ad.obsm[fate_prob_key]
     fate_names = ad.uns[fate_prob_key + "_columns"]
@@ -638,22 +635,38 @@ def plot_branch_selection(
 
         # plot cells along pseudotime
         ax1.scatter(
-            pt[~mask], fate_probs[~mask, i], c="#f0f8ff", label="Other Cells", **kwargs
+            pt[~mask],
+            fate_probs[~mask, i],
+            c=DESELECTED_COLOR,
+            label="Other Cells",
+            **kwargs,
         )
         ax1.scatter(
-            pt[mask], fate_probs[mask, i], c="#003366", label="Selected Cells", **kwargs
+            pt[mask],
+            fate_probs[mask, i],
+            c=SELECTED_COLOR,
+            label="Selected Cells",
+            **kwargs,
         )
         ax1.set_title(f"Branch: {fate}")
         ax1.set_xlabel("Pseudotime")
-        ax1.set_ylabel("Fate Probability")
+        ax1.set_ylabel(f"{fate}-Fate Probability")
         ax1.legend()
 
         # plot UMAP
         ax2.scatter(
-            umap[~mask, 0], umap[~mask, 1], c="#f0f8ff", label="Other Cells", **kwargs
+            umap[~mask, 0],
+            umap[~mask, 1],
+            c=DESELECTED_COLOR,
+            label="Other Cells",
+            **kwargs,
         )
         ax2.scatter(
-            umap[mask, 0], umap[mask, 1], c="#003366", label="Selected Cells", **kwargs
+            umap[mask, 0],
+            umap[mask, 1],
+            c=SELECTED_COLOR,
+            label="Selected Cells",
+            **kwargs,
         )
         ax2.set_title(f"Branch: {fate}")
         ax2.axis("off")
@@ -729,7 +742,7 @@ def _validate_gene_trend_input(
     if isinstance(data, sc.AnnData):
         if isinstance(branch_names, str):
             if branch_names not in data.uns.keys():
-                raise ValueError(
+                raise KeyError(
                     f"'{branch_names}' not found in .uns. "
                     "'branch_names' must either be in .uns or a list of branch names."
                 )
@@ -740,12 +753,12 @@ def _validate_gene_trend_input(
             gene_names = data.var_names
             varm_name = gene_trend_key + "_" + branch
             if varm_name not in data.varm:
-                raise ValueError(
+                raise KeyError(
                     f"'gene_trend_key + \"_\" + branch_name' = '{varm_name}' not found in .varm. "
                 )
             pt_grid_name = gene_trend_key + "_" + branch + "_pseudotime"
             if pt_grid_name not in data.uns.keys():
-                raise ValueError(
+                raise KeyError(
                     '\'gene_trend_key + "_" + branch_name + "_pseudotime"\' '
                     f"= '{pt_grid_name}' not found in .uns. "
                 )
@@ -789,7 +802,7 @@ def plot_gene_trends(
 
     Raises
     ------
-    ValueError
+    KeyError
         If 'branch_names' is not found in .uns when it's a string or 'gene_trend_key + "_" + branch_name'
         is not found in .varm.
     ValueError
@@ -931,13 +944,13 @@ def plot_gene_trend_clusters(
 
         varm_name = gene_trend_key + "_" + branch_name
         if varm_name not in data.varm:
-            raise ValueError(
+            raise KeyError(
                 f"'gene_trend_key + \"_\" + branch_name' = '{varm_name}' not found in .varm."
             )
 
         pt_grid_name = gene_trend_key + "_" + branch_name + "_pseudotime"
         if pt_grid_name not in data.uns.keys():
-            raise ValueError(
+            raise KeyError(
                 '\'gene_trend_key + "_" + branch_name + "_pseudotime"\' '
                 f"= '{pt_grid_name}' not found in .uns."
             )
@@ -977,14 +990,25 @@ def plot_gene_trend_clusters(
         std = cluster_trends.std()
 
         ax.plot(
-            cluster_trends.columns, cluster_trends.T, linewidth=0.5, color="lightgrey"
+            cluster_trends.columns,
+            cluster_trends.T,
+            linewidth=0.5,
+            color=DESELECTED_COLOR,
         )
-        ax.plot(means.index, means, color="#377eb8")
+        ax.plot(means.index, means, color=SELECTED_COLOR)
         ax.plot(
-            means.index, means - std, linestyle="--", color="#377eb8", linewidth=0.75
+            means.index,
+            means - std,
+            linestyle="--",
+            color=SELECTED_COLOR,
+            linewidth=0.75,
         )
         ax.plot(
-            means.index, means + std, linestyle="--", color="#377eb8", linewidth=0.75
+            means.index,
+            means + std,
+            linestyle="--",
+            color=SELECTED_COLOR,
+            linewidth=0.75,
         )
 
         ax.set_title(f"Cluster {c}", fontsize=12)
