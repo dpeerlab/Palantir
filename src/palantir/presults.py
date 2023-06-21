@@ -12,6 +12,10 @@ import scanpy as sc
 import mellon
 
 
+# Used for trend computation and branch selection
+PSEUDOTIME_RES = 500
+
+
 class PResults(object):
     """
     Container of palantir results
@@ -147,7 +151,7 @@ def compute_gene_trends_legacy(
         results[branch] = OrderedDict()
         # Bins along the pseudotime
         br_cells = pr_res.branch_probs.index[pr_res.branch_probs.loc[:, branch] > 0.7]
-        bins = np.linspace(0, pr_res.pseudotime[br_cells].max(), 500)
+        bins = np.linspace(0, pr_res.pseudotime[br_cells].max(), PSEUDOTIME_RES)
 
         # Branch results container
         results[branch]["trends"] = pd.DataFrame(
@@ -278,7 +282,7 @@ def compute_gene_trends(
         print(branch)
         mask = masks[:, i]
         pt = pseudo_time[mask]
-        pt_grid = np.linspace(pt.min(), pt.max(), 500)
+        pt_grid = np.linspace(pt.min(), pt.max(), PSEUDOTIME_RES)
         expr = gene_exprs.loc[mask, :]
         func_est = mellon.FunctionEstimator(**mellon_args)
         result = func_est.fit_predict(pt, expr, pt_grid).T
@@ -479,11 +483,16 @@ def select_branch_cells(
     ad: sc.AnnData,
     pseudo_time_key: str = "palantir_pseudotime",
     fate_prob_key: str = "palantir_fate_probabilities",
+    q: float = 1e-2,
     eps: float = 1e-2,
     masks_key: str = "branch_masks",
 ):
     """
     Selects cells along specific branches of pseudotime ordering.
+
+    This function identifies cells that are most likely to follow a certain lineage or "fate" by looking at
+    their pseudotime order and fate probabilities. These cells are expected to be along the path of differentiation
+    towards that specific fate.
 
     Parameters
     ----------
@@ -493,40 +502,52 @@ def select_branch_cells(
         Key to access the pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
     fate_prob_key : str, optional
         Key to access the fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+    q : float, optional
+        Quantile used to determine the threshold for the fate probability.
+        This parameter should be between 0 and 1. Default is 1e-2.
     eps : float, optional
-        Epsilon value used to create a buffer around the fate probabilities. Default is 1e-2.
+        A small constant substracted from the fate probability threshold. Default is 1e-2.
     masks_key : str, optional
-        Key under which the resulting branch cell selection masks are stored in
-        the obsm of the AnnData object. Default is 'branch_masks'.
+        Key under which the resulting branch cell selection masks are stored in the obsm of the AnnData object.
+        Default is 'branch_masks'.
 
     Returns
     -------
-    None
-        The resulting selection mask is written to the obs of the AnnData object.
+    masks : np.ndarray
+        An array of boolean masks that indicates whether each cell is on the path to each fate.
     """
-    # make sure that the necessary keys are in the AnnData object
-    assert pseudo_time_key in ad.obs, f"{pseudo_time_key} not found in ad.obs"
-    assert fate_prob_key in ad.obsm, f"{fate_prob_key} not found in ad.obsm"
-    assert (
-        fate_prob_key + "_columns" in ad.uns
-    ), f"{fate_prob_key}_columns not found in ad.uns"
 
-    # retrieve fate probabilities and names
+    # make sure that the necessary keys are in the AnnData object
+    if pseudo_time_key not in ad.obs:
+        raise KeyError(f"{pseudo_time_key} not found in ad.obs")
+    if fate_prob_key not in ad.obsm:
+        raise KeyError(f"{fate_prob_key} not found in ad.obsm")
+    if fate_prob_key + "_columns" not in ad.uns:
+        raise KeyError(f"{fate_prob_key}_columns not found in ad.uns")
+
+    # retrieve fate probabilities, names, and pseudotime
     fate_probs = ad.obsm[fate_prob_key]
     fate_names = ad.uns[fate_prob_key + "_columns"]
+    pseudotime = ad.obs[pseudo_time_key].values
 
-    # calculate the max probability along the pseudotime
-    max_prob = np.max(fate_probs, axis=1)[:, None]
-    term_cells = np.argmax(fate_probs, axis=0)
-    pt = ad.obs[pseudo_time_key].values
+    idx = np.argsort(pseudotime)
+    sorted_fate_probs = fate_probs[idx, :]
+    max_probs = np.empty_like(fate_probs)
+    n = max_probs.shape[0]
 
-    early_cell = np.argmin(pt)
+    step = n // PSEUDOTIME_RES
+    nsteps = n // step
+    for i in range(nsteps):
+        l, r = i * step, (i + 1) * step
+        mprob = np.quantile(sorted_fate_probs[:r, :], 1 - eps, axis=0)
+        max_probs[l:r, :] = mprob[None, :]
+    mprob = np.quantile(sorted_fate_probs, 1 - q, axis=0)
+    max_probs[r:, :] = mprob[None, :]
 
-    pt -= np.min(pt)
-    pt = pt[:, None] / pt[None, term_cells]
+    masks = np.empty_like(fate_probs).astype(bool)
+    masks[idx, :] = max_probs < sorted_fate_probs + eps
 
-    probability_buffers = max_prob[None, early_cell] - fate_probs[None, early_cell, :]
-    ad.obsm[masks_key] = (max_prob - fate_probs) < probability_buffers * (1 - pt) + eps
+    ad.obsm[masks_key] = masks
     ad.uns[masks_key + "_columns"] = fate_names
 
-    return None
+    return masks
