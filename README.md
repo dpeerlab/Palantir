@@ -111,7 +111,7 @@ Release Notes
 
  #### New Features
  * Enable an AnnData-centric workflow for improved usability and interoperability with other single-cell analysis tools.
- * Introduced new utility functions (`palantir.utils.early_cell`, `palantir.utils.find_terminal_states`, `palantir.presults.select_branch_cells`, `palantir.plot.plot_branch_selection`) for more fine-grained analysis.
+ * Introduced new utility functions (`palantir.utils.early_cell`, `palantir.utils.find_terminal_states`, `palantir.presults.select_branch_cells`, `palantir.plot.plot_branch_selection`, `palantir.utils.run_local_variability`, `palantir.utils.run_density`, `palantir.utils.run_low_density_variability`) for more fine-grained analysis.
  * Added input validation for better error handling and improved user experience.
  * Expanded documentation within docstrings, providing additional clarity for users and developers.
 
