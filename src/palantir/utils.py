@@ -82,7 +82,7 @@ def run_pca(
 
 def run_low_density_variability(
     ad: sc.AnnData,
-    mask: Union[str, np.ndarray] = "branch_masks",
+    cell_mask: Union[str, np.ndarray, List[str], pd.Series, pd.Index] = "branch_masks",
     density_key: str = "mellon_log_density",
     localvar_key: str = "local_variability",
     score_key: str = "low_density_gene_variability",
@@ -94,9 +94,11 @@ def run_low_density_variability(
     ----------
     ad : sc.AnnData
         AnnData object containing the gene expression data and pseudotime.
-    mask : str or np.ndarray, optional
+    cell_mask : str, np.ndarray, list of str, pd.Series, pd.Index, optional
         Key to access the mask matrix in the obsm or obs attributes of the AnnData object.
-        If mask is a numpy array with shape (ad.n_obs, ), it is used directly.
+        If cell_mask is a numpy array with shape (ad.n_obs, ), it is used directly.
+        If cell_mask is a list of cell names, a pd.Series, or a pd.Index,
+        it is used to create a boolean mask of the same length as ad.n_obs.
         Default is 'branch_masks'.
     density_key : str, optional
         Key to access the density values in the obs attribute of the AnnData object.
@@ -106,7 +108,7 @@ def run_low_density_variability(
         Default is 'local_variability'.
     score_key : str, optional
         Prefix of the key under which the computed scores are stored in the var attribute of the
-        AnnData object. Actual keys are '{score_key}_{branch_name}' if mask points to an ad.obsm.
+        AnnData object. Actual keys are '{score_key}_{branch_name}' if cell_mask points to an ad.obsm.
         Default is 'low_density_gene_variability'.
 
     Returns
@@ -125,28 +127,34 @@ def run_low_density_variability(
     if localvar_key not in ad.layers.keys():
         raise ValueError(f"'{localvar_key}' not found in ad.layers.")
     local_var = ad.layers[localvar_key]
-    if isinstance(mask, str):
-        if mask in ad.obsm.keys():
+    if isinstance(cell_mask, str):
+        if cell_mask in ad.obsm.keys():
             assert (
-                mask + "_columns" in ad.uns
-            ), f"{mask} in ad.obsm but {mask}_columns not found in ad.uns"
-            branch_names = ["_" + b for b in ad.uns[mask + "_columns"]]
-            masks = ad.obsm[mask]
-        elif mask in ad.obs.columns:
+                cell_mask + "_columns" in ad.uns
+            ), f"{cell_mask} in ad.obsm but {cell_mask}_columns not found in ad.uns"
+            branch_names = ["_" + b for b in ad.uns[cell_mask + "_columns"]]
+            masks = ad.obsm[cell_mask]
+        elif cell_mask in ad.obs.columns:
             branch_names = [
-                "_" + mask,
+                "_" + cell_mask,
             ]
-            masks = ad.obs[mask].values[:, None]
+            masks = ad.obs[cell_mask].values[:, None]
         else:
-            raise ValueError(f"'{mask}' not found in ad.obsm or ad.obs.columns.")
-    elif isinstance(mask, np.ndarray) and mask.shape == (ad.n_obs,):
-        masks = mask[:, None]
+            raise ValueError(f"'{cell_mask}' not found in ad.obsm or ad.obs.columns.")
+    elif isinstance(cell_mask, np.ndarray) and cell_mask.shape == (ad.n_obs,):
+        masks = cell_mask[:, None]
+        branch_names = [
+            "",
+        ]
+    elif isinstance(cell_mask, (list, pd.Series, pd.Index)):
+        masks = ad.obs_names.isin(cell_mask)[:, None]
         branch_names = [
             "",
         ]
     else:
         raise ValueError(
-            "Mask must be either a string key or a numpy array with shape (ad.n_obs, )."
+            "cell_mask must be either a string key, a numpy array with shape "
+            "(ad.n_obs, ), a list of cell names, a pd.Series, or a pd.Index."
         )
 
     out_columns = list()
