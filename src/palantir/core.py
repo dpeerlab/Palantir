@@ -1,11 +1,11 @@
 """
 Core functions for running Palantir
 """
+from typing import Union, Optional, List, Dict
 import numpy as np
 import pandas as pd
 import networkx as nx
 import time
-import random
 import copy
 
 from sklearn.metrics import pairwise_distances
@@ -19,6 +19,7 @@ from scipy.stats import entropy, pearsonr, norm
 from numpy.linalg import inv, pinv, LinAlgError
 from copy import deepcopy
 from palantir.presults import PResults
+import scanpy as sc
 
 import warnings
 
@@ -29,44 +30,93 @@ warnings.filterwarnings(
 
 
 def run_palantir(
-    ms_data,
+    data: Union[pd.DataFrame, sc.AnnData],
     early_cell,
-    terminal_states=None,
-    knn=30,
-    num_waypoints=1200,
-    n_jobs=-1,
-    scale_components=True,
-    use_early_cell_as_start=False,
+    terminal_states: Optional[Union[List, Dict, pd.Series]] = None,
+    knn: int = 30,
+    num_waypoints: int = 1200,
+    n_jobs: int = -1,
+    scale_components: bool = True,
+    use_early_cell_as_start: bool = False,
     max_iterations: int = 25,
-):
-    """Function for max min sampling of waypoints
+    eigvec_key: str = "DM_EigenVectors_multiscaled",
+    pseudo_time_key: str = "palantir_pseudotime",
+    entropy_key: str = "palantir_entropy",
+    fate_prob_key: str = "palantir_fate_probabilities",
+    waypoints_key: str = "palantir_waypoints",
+    seed: int = 20,
+) -> Optional[PResults]:
+    """
+    Executes the Palantir algorithm to derive pseudotemporal ordering of cells, their fate probabilities, and
+    state entropy based on the multiscale diffusion map results.
 
-    :param ms_data: Multiscale space diffusion components
-    :param early_cell: Start cell for pseudotime construction
-    :param terminal_states: List/Series of user defined terminal states
-    :param knn: Number of nearest neighbors for graph construction
-    :param num_waypoints: Number of waypoints to sample
-    :param n_jobs: Number of jobs for parallel processing
-    :param scale_components:
-    :param use_early_cell_as_start:
-    :param max_iterations: Maximum number of iterations for pseudotime convergence
-    :return: PResults object with pseudotime, entropy, branch probabilities and waypoints
+    Parameters
+    ----------
+    data : Union[pd.DataFrame, sc.AnnData]
+        Either a DataFrame of multiscale space diffusion components or a Scanpy AnnData object.
+    early_cell : str
+        Start cell for pseudotime construction.
+    terminal_states : List/Series/Dict, optional
+        User-defined terminal states structure in the format {terminal_name:cell_name}. Default is None.
+    knn : int, optional
+        Number of nearest neighbors for graph construction. Default is 30.
+    num_waypoints : int, optional
+        Number of waypoints to sample. Default is 1200.
+    n_jobs : int, optional
+        Number of jobs for parallel processing. Default is -1.
+    scale_components : bool, optional
+        If True, components are scaled. Default is True.
+    use_early_cell_as_start : bool, optional
+        If True, the early cell is used as start. Default is False.
+    max_iterations : int, optional
+        Maximum number of iterations for pseudotime convergence. Default is 25.
+    eigvec_key : str, optional
+        Key to access multiscale space diffusion components from obsm of the AnnData object. Default is 'DM_EigenVectors_multiscaled'.
+    pseudo_time_key : str, optional
+        Key to store the pseudotime in obs of the AnnData object. Default is 'palantir_pseudotime'.
+    entropy_key : str, optional
+        Key to store the entropy in obs of the AnnData object. Default is 'palantir_entropy'.
+    fate_prob_key : str, optional
+        Key to store the fate probabilities in obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+        Column names of the probability matrix are stored in the AnnData's uns[fate_prob_key + "_columns"].
+    waypoints_key : str, optional
+        Key to store the waypoints in uns of the AnnData object. Default is 'palantir_waypoints'.
+    seed : int, optional
+        The seed for the random number generator used in waypoint sampling. Default is 20.
+
+    Returns
+    -------
+    Optional[PResults]
+        PResults object with pseudotime, entropy, branch probabilities, and waypoints.
+        If an AnnData object is passed as data, the result is written to its obs, obsm, and uns attributes
+        using the provided keys and None is returned.
     """
 
+    if isinstance(terminal_states, dict):
+        terminal_states = pd.Series(terminal_states)
+    if isinstance(terminal_states, pd.Series):
+        terminal_cells = terminal_states.index.values
+    else:
+        terminal_cells = terminal_states
+    if isinstance(data, sc.AnnData):
+        ms_data = pd.DataFrame(data.obsm[eigvec_key], index=data.obs_names)
+    else:
+        ms_data = data
+
     if scale_components:
-        data = pd.DataFrame(
+        data_df = pd.DataFrame(
             preprocessing.minmax_scale(ms_data),
             index=ms_data.index,
             columns=ms_data.columns,
         )
     else:
-        data = copy.copy(ms_data)
+        data_df = copy.copy(ms_data)
 
     # ################################################
     # Determine the boundary cell closest to user defined early cell
-    dm_boundaries = pd.Index(set(data.idxmax()).union(data.idxmin()))
+    dm_boundaries = pd.Index(set(data_df.idxmax()).union(data_df.idxmin()))
     dists = pairwise_distances(
-        data.loc[dm_boundaries, :], data.loc[early_cell, :].values.reshape(1, -1)
+        data_df.loc[dm_boundaries, :], data_df.loc[early_cell, :].values.reshape(1, -1)
     )
     start_cell = pd.Series(np.ravel(dists), index=dm_boundaries).idxmin()
     if use_early_cell_as_start:
@@ -78,12 +128,12 @@ def run_palantir(
 
     # Append start cell
     if isinstance(num_waypoints, int):
-        waypoints = _max_min_sampling(data, num_waypoints)
+        waypoints = _max_min_sampling(data_df, num_waypoints, seed)
     else:
         waypoints = num_waypoints
     waypoints = waypoints.union(dm_boundaries)
-    if terminal_states is not None:
-        waypoints = waypoints.union(terminal_states)
+    if terminal_cells is not None:
+        waypoints = waypoints.union(terminal_cells)
     waypoints = pd.Index(waypoints.difference([start_cell]).unique())
 
     # Append start cell
@@ -94,13 +144,13 @@ def run_palantir(
     # pseudotime and weighting matrix
     print("Determining pseudotime...")
     pseudotime, W = _compute_pseudotime(
-        data, start_cell, knn, waypoints, n_jobs, max_iterations
+        data_df, start_cell, knn, waypoints, n_jobs, max_iterations
     )
 
     # Entropy and branch probabilities
     print("Entropy and branch probabilities...")
     ent, branch_probs = _differentiation_entropy(
-        data.loc[waypoints, :], terminal_states, knn, n_jobs, pseudotime
+        data_df.loc[waypoints, :], terminal_cells, knn, n_jobs, pseudotime
     )
 
     # Project results to all cells
@@ -112,24 +162,35 @@ def run_palantir(
     )
     ent = branch_probs.apply(entropy, axis=1)
 
-    # UPdate results into PResults class object
-    res = PResults(pseudotime, ent, branch_probs, waypoints)
+    # Update results into PResults class object
+    pr_res = PResults(pseudotime, ent, branch_probs, waypoints)
 
-    return res
+    if isinstance(data, sc.AnnData):
+        data.obs[pseudo_time_key] = pseudotime
+        data.obs[entropy_key] = ent
+        data.obsm[fate_prob_key] = branch_probs.values
+        data.uns[waypoints_key] = waypoints.values
+        if isinstance(terminal_states, pd.Series):
+            branch_probs.columns = terminal_states[branch_probs.columns]
+        data.uns[fate_prob_key + "_columns"] = branch_probs.columns.values
+
+    return pr_res
 
 
-def _max_min_sampling(data, num_waypoints):
+def _max_min_sampling(data, num_waypoints, seed=None):
     """Function for max min sampling of waypoints
 
     :param data: Data matrix along which to sample the waypoints,
                  usually diffusion components
     :param num_waypoints: Number of waypoints to sample
-    :param num_jobs: Number of jobs for parallel processing
+    :param seed: Random number generator seed to find initial guess.
     :return: pandas Series reprenting the sampled waypoints
     """
 
     waypoint_set = list()
     no_iterations = int((num_waypoints) / data.shape[1])
+    if seed is not None:
+        np.random.seed(seed)
 
     # Sample along each component
     N = data.shape[0]
@@ -138,7 +199,9 @@ def _max_min_sampling(data, num_waypoints):
         vec = np.ravel(data[ind])
 
         # Random initialzlation
-        iter_set = random.sample(range(N), 1)
+        iter_set = [
+            np.random.randint(N),
+        ]
 
         # Distances along the component
         dists = np.zeros([N, no_iterations])
@@ -249,7 +312,13 @@ def _compute_pseudotime(data, start_cell, knn, waypoints, n_jobs, max_iterations
 
 
 def identify_terminal_states(
-    ms_data, early_cell, knn=30, num_waypoints=1200, n_jobs=-1, max_iterations=25,
+    ms_data,
+    early_cell,
+    knn=30,
+    num_waypoints=1200,
+    n_jobs=-1,
+    max_iterations=25,
+    seed=20,
 ):
 
     # Scale components
@@ -268,7 +337,7 @@ def identify_terminal_states(
 
     # Sample waypoints
     # Append start cell
-    waypoints = _max_min_sampling(data, num_waypoints)
+    waypoints = _max_min_sampling(data, num_waypoints, seed)
     waypoints = waypoints.union(dm_boundaries)
     waypoints = pd.Index(waypoints.difference([start_cell]).unique())
 
@@ -339,8 +408,8 @@ def _construct_markov_chain(wp_data, knn, pseudotime, n_jobs):
     # Affinity matrix and markov chain
     x, y, z = find(kNN)
     aff = np.exp(
-        -(z ** 2) / (adaptive_std[x] ** 2) * 0.5
-        - (z ** 2) / (adaptive_std[y] ** 2) * 0.5
+        -(z**2) / (adaptive_std[x] ** 2) * 0.5
+        - (z**2) / (adaptive_std[y] ** 2) * 0.5
     )
     W = csr_matrix((aff, (x, y)), [len(waypoints), len(waypoints)])
 
@@ -359,7 +428,7 @@ def _terminal_states_from_markov_chain(T, wp_data, pseudotime):
     waypoints = wp_data.index
     dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
     n = min(*T.shape)
-    vals, vecs = eigs(T.T, 10, maxiter=n*50)
+    vals, vecs = eigs(T.T, 10, maxiter=n * 50)
 
     ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
     ranks = pd.Series(ranks, index=waypoints)

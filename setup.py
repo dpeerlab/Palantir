@@ -32,7 +32,7 @@ setup(
         "scikit-learn",
         "joblib",
         "fcsparser>=0.1.2",
-        "PhenoGraph>=1.5.3",
+        "leidenalg>=0.9.1",
         "tables>=3.4.2",
         "Cython",
         "cmake",
@@ -40,7 +40,8 @@ setup(
         "seaborn>=0.8.1",
         "tzlocal",
         "scanpy>=1.6.0",
-        "pygam"
+        "mellon>=1.3.0",
+        "pygam",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

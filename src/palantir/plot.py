@@ -1,3 +1,4 @@
+from typing import Union, Optional, List, Tuple, Dict
 import warnings
 import os
 import numpy as np
@@ -5,9 +6,13 @@ import pandas as pd
 from itertools import chain
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import gaussian_kde
+import scanpy as sc
 
 import matplotlib
 from matplotlib import font_manager
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from .presults import PResults
 
 try:
     os.environ["DISPLAY"]
@@ -162,70 +167,47 @@ def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
         ax.set_title(cluster, fontsize=10)
 
 
-def plot_cell_clusters(plot_embedding, clusters):
-    """Plot cell clusters on the tSNE map
-    :param plot_embedding: tSNE map
-    :param clusters: Results of the determine_cell_clusters function
+def highlight_cells_on_umap(
+    data: Union[sc.AnnData, pd.DataFrame],
+    cells: List[str],
+    fig: Optional[plt.Figure] = None,
+    ax: Optional[plt.Axes] = None,
+    embedding_bases: str = "X_umap",
+) -> Tuple[plt.Figure, plt.Axes]:
+    """Function to highlight specific cells on the tSNE map
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of tSNE coordinates.
+    cells : List[str]
+        List of cells to highlight on the tSNE plot.
+    fig : Optional[plt.Figure]
+        Matplotlib Figure object. If None, a new figure is created. Default is None.
+    ax : Optional[plt.Axes]
+        Matplotlib Axes object. If None, a new Axes object is created. Default is None.
+    embedding_bases : str, optional
+        The key to retrieve UMAP results from the AnnData object. Default is 'X_umap'.
+
+    Returns
+    -------
+    Tuple[plt.Figure, plt.Axes]
+        A matplotlib Figure object representing the tSNE plot and the corresponding Axes object.
     """
-    tsne = plot_embedding.copy()
-    tsne.columns = ['x', 'y']
-
-    # Cluster colors
-    n_clusters = len(set(clusters))
-    cluster_colors = pd.Series(
-        sns.color_palette("hls", n_clusters), index=set(clusters)
-    )
-
-    # Set up figure
-    n_cols = 6
-    n_rows = int(np.ceil(n_clusters / n_cols))
-    fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
-    gs = plt.GridSpec(
-        n_rows + 2, n_cols, height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows))
-    )
-
-    # Clusters
-    ax = plt.subplot(gs[0:2, 2:4])
-    ax.scatter(tsne["x"], tsne["y"], s=3, color=cluster_colors[clusters[tsne.index]])
-    ax.set_axis_off()
-
-    # Branch probabilities
-    for i, cluster in enumerate(set(clusters)):
-        row = int(np.floor(i / n_cols))
-        ax = plt.subplot(gs[row + 2, i % n_cols])
-        ax.scatter(tsne.loc[:, "x"], tsne.loc[:, "y"], s=3, color="lightgrey")
-        cells = clusters.index[clusters == cluster]
-        ax.scatter(
-            tsne.loc[cells, "x"],
-            tsne.loc[cells, "y"],
-            s=3,
-            color=cluster_colors[cluster],
+    if isinstance(data, sc.AnnData):
+        if embedding_bases not in data.obsm:
+            raise KeyError(f"'{embedding_bases}' not found in .obsm.")
+        tsne = pd.DataFrame(
+            data.obsm[embedding_bases], index=data.obs_names, columns=["x", "y"]
         )
-        ax.set_axis_off()
-        ax.set_title(cluster, fontsize=10)
+    else:
+        tsne = data.copy()
 
-
-def plot_tsne(tsne, fig=None, ax=None):
-    """Plot tSNE projections of the data
-    :param fig: matplotlib Figure object
-    :param ax: matplotlib Axis object
-    :param title: Title for the plot
-    """
     fig, ax = get_fig(fig=fig, ax=ax)
-    ax.scatter(tsne["x"], tsne["y"], s=5)
-    ax.set_axis_off()
-    return fig, ax
-
-
-def highlight_cells_on_tsne(plot_tsne, cells, fig=None, ax=None):
-    """    Function to highlight specific cells on the tSNE map
-    """
-    fig, ax = get_fig(fig=fig, ax=ax)
-    tsne = plot_tsne.copy()
-    tsne.columns = ['x', 'y']
     ax.scatter(tsne["x"], tsne["y"], s=5, color="lightgrey")
     ax.scatter(tsne.loc[cells, "x"], tsne.loc[cells, "y"], s=30)
     ax.set_axis_off()
+
     return fig, ax
 
 
@@ -255,7 +237,7 @@ def plot_gene_expression(
     percentile=0,
     cmap=matplotlib.cm.Spectral_r,
 ):
-    """ Plot gene expression on tSNE maps
+    """Plot gene expression on tSNE maps
     :param genes: Iterable of strings to plot on tSNE
     """
 
@@ -305,22 +287,55 @@ def plot_gene_expression(
             matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
 
 
-def plot_diffusion_components(tsne, dm_res):
-    """ Plots the diffusion components on tSNE maps
-    :return: fig, ax
+def plot_diffusion_components(
+    data: Union[sc.AnnData, pd.DataFrame],
+    dm_res: Optional[Union[pd.DataFrame, str]] = "DM_EigenVectors",
+    embedding_bases: str = "X_umap",
+) -> Tuple[plt.Figure, plt.Axes]:
     """
+    Visualize diffusion components on tSNE or UMAP plots.
 
-    # Please run tSNE before plotting diffusion components. #
-    # Please run diffusion maps using run_diffusion_map before plotting #
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of tSNE or UMAP results.
+    dm_res : pd.DataFrame or str, optional
+        DataFrame containing diffusion map results or a string key to access diffusion map
+        results from the AnnData object's obsm. Default is 'DM_Eigenvectors'.
+    embedding_bases : str, optional
+        The key to retrieve UMAP results from the AnnData object. Defaults to 'X_umap'.
 
-    # Plot
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        A matplotlib Figure and Axes objects representing the plot of the diffusion components.
+
+    Raises
+    ------
+    KeyError
+        If `embedding_bases` or `dm_res` is not found when `data` is an AnnData object.
+    """
+    # Retrieve the embedding data
+    if isinstance(data, sc.AnnData):
+        if embedding_bases not in data.obsm:
+            raise KeyError(f"'{embedding_bases}' not found in .obsm.")
+        embedding_data = pd.DataFrame(data.obsm[embedding_bases], index=data.obs_names)
+        if isinstance(dm_res, str):
+            if dm_res not in data.obsm:
+                raise KeyError(f"'{dm_res}' not found in .obsm.")
+            dm_res = {
+                "EigenVectors": pd.DataFrame(data.obsm[dm_res], index=data.obs_names)
+            }
+    else:
+        embedding_data = data
+
     fig = FigureGrid(dm_res["EigenVectors"].shape[1], 5)
 
     for i, ax in enumerate(fig):
         ax.scatter(
-            tsne.iloc[:, 0],
-            tsne.iloc[:, 1],
-            c=dm_res["EigenVectors"].loc[tsne.index, i],
+            embedding_data.iloc[:, 0],
+            embedding_data.iloc[:, 1],
+            c=dm_res["EigenVectors"].loc[embedding_data.index, i],
             cmap=matplotlib.cm.Spectral_r,
             edgecolors="none",
             s=3,
@@ -328,62 +343,164 @@ def plot_diffusion_components(tsne, dm_res):
         ax.xaxis.set_major_locator(plt.NullLocator())
         ax.yaxis.set_major_locator(plt.NullLocator())
         ax.set_aspect("equal")
-        ax.set_title("Component %d" % i, fontsize=10)
+        ax.set_title(f"Component {i}", fontsize=10)
         ax.set_axis_off()
 
+    return fig, ax
 
-def plot_palantir_results(pr_res, tsne, s=3):
-    """ Plot Palantir results on tSNE
+
+def plot_palantir_results(
+    data: Union[sc.AnnData, pd.DataFrame],
+    pr_res: Optional[PResults] = None,
+    embedding_bases: str = "X_umap",
+    pseudo_time_key: str = "palantir_pseudotime",
+    entropy_key: str = "palantir_entropy",
+    fate_prob_key: str = "palantir_fate_probabilities",
+    **kwargs,
+):
     """
+    Plot Palantir results on t-SNE or UMAP plots.
 
-    # Set up figure
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of tSNE or UMAP results.
+    pr_res : Optional[PResults]
+        Optional PResults object containing Palantir results. If None, results are expected to be found in the provided AnnData object.
+    embedding_bases : str, optional
+        The key to retrieve UMAP results from the AnnData object. Defaults to 'X_umap'.
+    pseudo_time_key : str, optional
+        Key to access the pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
+    entropy_key : str, optional
+        Key to access the entropy from obs of the AnnData object. Default is 'palantir_entropy'.
+    fate_prob_key : str, optional
+        Key to access the fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+    **kwargs
+        Additional keyword arguments passed to `ax.scatter`.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        A matplotlib Figure object representing the plot of the Palantir results.
+    """
+    if isinstance(data, sc.AnnData):
+        if embedding_bases not in data.obsm:
+            raise KeyError(f"'{embedding_bases}' not found in .obsm.")
+        embedding_data = pd.DataFrame(data.obsm[embedding_bases], index=data.obs_names)
+        if pr_res is None:
+            if (
+                pseudo_time_key not in data.obs
+                or entropy_key not in data.obs
+                or fate_prob_key not in data.obsm
+            ):
+                raise KeyError("Required Palantir results not found in .obs or .obsm.")
+            pr_res = PResults(
+                data.obs[pseudo_time_key],
+                data.obs[entropy_key],
+                pd.DataFrame(
+                    data.obsm[fate_prob_key],
+                    index=data.obs_names,
+                    columns=data.uns[fate_prob_key + "_columns"],
+                ),
+                None,
+            )
+    else:
+        embedding_data = data
+
     n_branches = pr_res.branch_probs.shape[1]
     n_cols = 6
     n_rows = int(np.ceil(n_branches / n_cols))
-    fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
+    plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(
         n_rows + 2, n_cols, height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows))
     )
     cmap = matplotlib.cm.plasma
+
+    def scatter_with_colorbar(ax, x, y, c, cmap):
+        sc = ax.scatter(x, y, c=c, cmap=cmap, **kwargs)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(sc, cax=cax, orientation="vertical")
+
     # Pseudotime
     ax = plt.subplot(gs[0:2, 1:3])
-    c = pr_res.pseudotime[tsne.index]
-    ax.scatter(tsne.iloc[:, 0], tsne.iloc[:, 1], s=s, cmap=matplotlib.cm.plasma, c=c)
-    normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
-    cax, _ = matplotlib.colorbar.make_axes(ax)
-    cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
+    scatter_with_colorbar(
+        ax,
+        embedding_data.iloc[:, 0],
+        embedding_data.iloc[:, 1],
+        pr_res.pseudotime[embedding_data.index],
+        cmap,
+    )
     ax.set_axis_off()
     ax.set_title("Pseudotime")
 
     # Entropy
     ax = plt.subplot(gs[0:2, 3:5])
-    c = pr_res.entropy[tsne.index]
-    ax.scatter(tsne.iloc[:, 0], tsne.iloc[:, 1], s=s, cmap=matplotlib.cm.plasma, c=c)
-    normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
-    cax, _ = matplotlib.colorbar.make_axes(ax)
-    cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
+    scatter_with_colorbar(
+        ax,
+        embedding_data.iloc[:, 0],
+        embedding_data.iloc[:, 1],
+        pr_res.entropy[embedding_data.index],
+        cmap,
+    )
     ax.set_axis_off()
-    ax.set_title("Differentiation potential")
+    ax.set_title("Entropy")
 
+    # Branch probabilities
     for i, branch in enumerate(pr_res.branch_probs.columns):
-        row = int(np.floor(i / n_cols))
-        ax = plt.subplot(gs[row + 2, np.remainder(i, n_cols)])
-        c = pr_res.branch_probs.loc[tsne.index, branch]
-        ax.scatter(
-            tsne.iloc[:, 0], tsne.iloc[:, 1], s=s, cmap=matplotlib.cm.plasma, c=c
+        ax = plt.subplot(gs[i // n_cols + 2, i % n_cols])
+        scatter_with_colorbar(
+            ax,
+            embedding_data.iloc[:, 0],
+            embedding_data.iloc[:, 1],
+            pr_res.branch_probs[branch][embedding_data.index],
+            cmap,
         )
-        normalize = matplotlib.colors.Normalize(vmin=np.min(c), vmax=np.max(c))
-        cax, _ = matplotlib.colorbar.make_axes(ax)
-        cbar = matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
         ax.set_axis_off()
         ax.set_title(branch, fontsize=10)
 
+    plt.tight_layout()
+    return plt.gcf()
 
-def plot_terminal_state_probs(pr_res, cells):
-    """ Function to plot barplot for probabilities for each cell in the list
-    :param: pr_res: Palantir results object
-    :param: cells: List of cell for which the barplots need to be plotted
+
+def plot_terminal_state_probs(
+    data: Union[sc.AnnData, pd.DataFrame],
+    cells: List[str],
+    pr_res: Optional[PResults] = None,
+    fate_prob_key: str = "palantir_fate_probabilities",
+):
+    """Function to plot barplot for probabilities for each cell in the list
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of fate probabilities.
+    cells : List[str]
+        List of cell for which the barplots need to be plotted.
+    pr_res : Optional[PResults]
+        Optional PResults object containing Palantir results. If None, results are expected to be found in the provided AnnData object.
+    fate_prob_key : str, optional
+        Key to access the fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        A matplotlib Figure object representing the plot of the cell fate probabilities.
     """
+    if isinstance(data, sc.AnnData):
+        if pr_res is None:
+            if fate_prob_key not in data.obsm:
+                raise KeyError(f"'{fate_prob_key}' not found in .obsm.")
+            branch_probs = pd.DataFrame(
+                data.obsm[fate_prob_key],
+                index=data.obs_names,
+                columns=data.uns[fate_prob_key + "_columns"],
+            )
+    else:
+        if pr_res is None:
+            raise ValueError("pr_res must be provided when data is a DataFrame.")
+        branch_probs = pr_res.branch_probs
+
     n_cols = 5
     n_rows = int(np.ceil(len(cells) / n_cols))
     if len(cells) < n_cols:
@@ -395,16 +512,16 @@ def plot_terminal_state_probs(pr_res, cells):
     set2_colors = sns.color_palette("Set2", 8).as_hex()
     cluster_colors = np.array(list(chain(*[set1_colors, set2_colors])))
     branch_colors = pd.Series(
-        cluster_colors[range(pr_res.branch_probs.shape[1])],
-        index=pr_res.branch_probs.columns,
+        cluster_colors[range(branch_probs.shape[1])],
+        index=branch_probs.columns,
     )
 
     for i, cell in enumerate(cells):
         ax = fig.add_subplot(n_rows, n_cols, i + 1)
 
         # Probs
-        df = pd.DataFrame(pr_res.branch_probs.loc[cell, :])
-        df.loc[:, "x"] = pr_res.branch_probs.columns
+        df = pd.DataFrame(branch_probs.loc[cell, :])
+        df.loc[:, "x"] = branch_probs.columns
         df.columns = ["y", "x"]
 
         # Plot
@@ -418,9 +535,102 @@ def plot_terminal_state_probs(pr_res, cells):
         ax.set_title(cell, fontsize=10)
     sns.despine()
 
+    return fig
 
-def plot_gene_trends(gene_trends, genes=None):
-    """ Plot the gene trends: each gene is plotted in a different panel
+
+def plot_branch_selection(
+    ad: sc.AnnData,
+    pseudo_time_key: str = "palantir_pseudotime",
+    fate_prob_key: str = "palantir_fate_probabilities",
+    masks_key: str = "branch_masks",
+    embedding_basis: str = "X_umap",
+    **kwargs,
+):
+    """
+    Plot cells along specific branches of pseudotime ordering and the UMAP embedding.
+
+    Parameters
+    ----------
+    ad : sc.AnnData
+        Annotated data matrix. The pseudotime and fate probabilities should be stored under the keys provided.
+    pseudo_time_key : str, optional
+        Key to access the pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
+    fate_prob_key : str, optional
+        Key to access the fate probabilities from obsm of the AnnData object.
+        Default is 'palantir_fate_probabilities'.
+    masks_key : str, optional
+        Key to access the branch cell selection masks from obsm of the AnnData object.
+        Default is 'branch_masks'.
+    embedding_basis : str, optional
+        Key to access the UMAP embedding from obsm of the AnnData object. Default is 'X_umap'.
+    **kwargs
+        Additional arguments passed to `matplotlib.pyplot.scatter`.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        A matplotlib Figure object representing the plot of the branch selections.
+
+    """
+    assert pseudo_time_key in ad.obs, f"{pseudo_time_key} not found in ad.obs"
+    assert fate_prob_key in ad.obsm, f"{fate_prob_key} not found in ad.obsm"
+    assert (
+        fate_prob_key + "_columns" in ad.uns
+    ), f"{fate_prob_key}_columns not found in ad.uns"
+    assert masks_key in ad.obsm, f"{masks_key} not found in ad.obsm"
+    assert masks_key + "_columns" in ad.uns, f"{masks_key}_columns not found in ad.uns"
+    assert embedding_basis in ad.obsm, f"{embedding_basis} not found in ad.obsm"
+
+    fate_probs = ad.obsm[fate_prob_key]
+    fate_names = ad.uns[fate_prob_key + "_columns"]
+    fate_mask = ad.obsm[masks_key]
+    fate_mask_names = ad.uns[masks_key + "_columns"]
+    assert set(fate_names) == set(
+        fate_mask_names
+    ), f"Fates in .uns['{fate_prob_key}_columns'] and .uns['{masks_key}_columns'] must be the same."
+    fate_mask = pd.DataFrame(fate_mask, columns=fate_mask_names, index=ad.obs_names)
+    pt = ad.obs[pseudo_time_key]
+    umap = ad.obsm[embedding_basis]
+
+    fig, axes = plt.subplots(
+        len(fate_names), 2, figsize=(15, 5 * len(fate_names)), width_ratios=[2, 1]
+    )
+
+    for i, fate in enumerate(fate_names):
+        ax1 = axes[i, 0]
+        ax2 = axes[i, 1]
+        mask = fate_mask[fate].astype(bool)
+
+        # plot cells along pseudotime
+        ax1.scatter(
+            pt[~mask], fate_probs[~mask, i], c="#f0f8ff", label="Other Cells", **kwargs
+        )
+        ax1.scatter(
+            pt[mask], fate_probs[mask, i], c="#003366", label="Selected Cells", **kwargs
+        )
+        ax1.set_title(f"Branch: {fate}")
+        ax1.set_xlabel("Pseudotime")
+        ax1.set_ylabel("Fate Probability")
+        ax1.legend()
+
+        # plot UMAP
+        ax2.scatter(
+            umap[~mask, 0], umap[~mask, 1], c="#f0f8ff", label="Other Cells", **kwargs
+        )
+        ax2.scatter(
+            umap[mask, 0], umap[mask, 1], c="#003366", label="Selected Cells", **kwargs
+        )
+        ax2.set_title(f"Branch: {fate}")
+        ax2.axis("off")
+
+    plt.tight_layout()
+    sns.despine()
+
+    return fig
+
+
+def plot_gene_trends_legacy(gene_trends, genes=None):
+    """Plot the gene trends: each gene is plotted in a different panel
     :param: gene_trends: Results of the compute_marker_trends function
     """
 
@@ -458,79 +668,294 @@ def plot_gene_trends(gene_trends, genes=None):
     sns.despine()
 
 
-def plot_gene_trend_heatmaps(gene_trends):
-    """ Plot the gene trends on heatmap: a heatmap is generated or each branch
-    :param: gene_trends: Results of the compute_marker_trends function
+def _validate_gene_trend_input(
+    data: Union[sc.AnnData, Dict],
+    gene_trend_key: str = "gene_trends",
+    branch_names: Union[str, List] = "branch_masks_columns",
+) -> Dict:
     """
+    Validates the input for gene trend plots, and converts it into a dictionary of gene trends.
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, Dict]
+        AnnData object or dictionary of gene trends.
+    gene_trend_key : str, optional
+        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
+    branch_names : Union[str, List], optional
+        Key to access branch names from AnnData object or list of branch names. If a string is provided,
+        it is assumed to be a key in AnnData.uns. Default is 'branch_masks_columns'.
+
+    Returns
+    -------
+    gene_trends : Dict
+        Dictionary of gene trends.
+    """
+    if isinstance(data, sc.AnnData):
+        if isinstance(branch_names, str):
+            if branch_names not in data.uns.keys():
+                raise ValueError(
+                    f"'{branch_names}' not found in .uns. "
+                    "'branch_names' must either be in .uns or a list of branch names."
+                )
+            branch_names = data.uns[branch_names]
+
+        gene_trends = dict()
+        for branch in branch_names:
+            gene_names = data.var_names
+            varm_name = gene_trend_key + "_" + branch
+            if varm_name not in data.varm:
+                raise ValueError(
+                    f"'gene_trend_key + \"_\" + branch_name' = '{varm_name}' not found in .varm. "
+                )
+            pt_grid_name = gene_trend_key + "_" + branch + "_pseudotime"
+            if pt_grid_name not in data.uns.keys():
+                raise ValueError(
+                    '\'gene_trend_key + "_" + branch_name + "_pseudotime"\' '
+                    f"= '{pt_grid_name}' not found in .uns. "
+                )
+            pt_grid = data.uns[pt_grid_name]
+            trends = data.varm[varm_name]
+            gene_trends[branch] = {
+                "trends": pd.DataFrame(trends, columns=pt_grid, index=gene_names)
+            }
+    elif isinstance(data, Dict):
+        gene_trends = data
+    else:
+        raise ValueError("Input should be an AnnData object or a dictionary.")
+
+    return gene_trends
+
+
+def plot_gene_trends(
+    data: Union[Dict, sc.AnnData],
+    genes: Optional[List[str]] = None,
+    gene_trend_key: str = "gene_trends",
+    branch_names: Union[str, List] = "branch_masks_columns",
+) -> plt.Figure:
+    """Plot the gene trends: each gene is plotted in a different panel.
+
+    Parameters
+    ----------
+    data : Union[Dict, sc.AnnData]
+        AnnData object or dictionary of gene trends.
+    genes : Union[List, Set, Tuple], optional
+        List of genes to plot. If None, plot all genes. Default is None.
+    gene_trend_key : str, optional
+        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
+    branch_names : Union[str, List], optional
+        Key to access branch names from AnnData object or list of branch names. If a string is provided,
+        it is assumed to be a key in AnnData.uns. Default is 'branch_masks_columns'.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure object of the plot.
+
+    Raises
+    ------
+    ValueError
+        If 'branch_names' is not found in .uns when it's a string or 'gene_trend_key + "_" + branch_name'
+        is not found in .varm.
+    ValueError
+        If 'data' is neither an AnnData object nor a dictionary.
+    """
+
+    gene_trends = _validate_gene_trend_input(data, gene_trend_key, branch_names)
+
+    # Branches and genes
+    branches = list(gene_trends.keys())
+    colors = pd.Series(
+        sns.color_palette("Set2", len(branches)).as_hex(), index=branches
+    )
+
+    if genes is None:
+        genes = gene_trends[branches[0]]["trends"].index
+
+    # Set up figure
+    fig = plt.figure(figsize=[7, 3 * len(genes)])
+    for i, gene in enumerate(genes):
+        ax = fig.add_subplot(len(genes), 1, i + 1)
+        for branch in branches:
+            trends = gene_trends[branch]["trends"]
+            ax.plot(
+                trends.columns, trends.loc[gene, :], color=colors[branch], label=branch
+            )
+            ax.set_xticks([0, 1])
+            ax.set_title(gene)
+
+        # Add legend
+        if i == 0:
+            ax.legend()
+
+    sns.despine()
+
+    return fig
+
+
+def plot_gene_trend_heatmaps(
+    data: Union[sc.AnnData, Dict],
+    genes: Optional[List[str]] = None,
+    gene_trend_key: str = "gene_trends",
+    branch_names: Union[str, List] = "branch_masks_columns",
+) -> plt.Figure:
+    """
+    Plot the gene trends on heatmaps: a heatmap is generated for each branch.
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, Dict]
+        AnnData object or dictionary of gene trends.
+    genes : Optional[List[str]], optional
+        List of genes to include in the plot. If None, all genes are included.
+        Default is None.
+    gene_trend_key : str, optional
+        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
+    branch_names : Union[str, List], optional
+        Key to access branch names from AnnData object or list of branch names. If a string is provided,
+        it is assumed to be a key in AnnData.uns. Default is 'branch_masks_columns'.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure object of the plot.
+    """
+
+    gene_trends = _validate_gene_trend_input(data, gene_trend_key, branch_names)
 
     # Plot height
     branches = list(gene_trends.keys())
-    genes = gene_trends[branches[0]]["trends"].index
+    if genes is None:
+        genes = gene_trends[branches[0]]["trends"].index
     height = 0.7 * len(genes) * len(branches)
 
-    #  Set up plot
+    if genes is None:
+        genes = gene_trends[branches[0]]["trends"].index
+
     fig = plt.figure(figsize=[7, height])
     for i, branch in enumerate(branches):
         ax = fig.add_subplot(len(branches), 1, i + 1)
 
         # Standardize the matrix
-        mat = gene_trends[branch]["trends"]
+        mat = gene_trends[branch]["trends"].loc[genes, :]
         mat = pd.DataFrame(
             StandardScaler().fit_transform(mat.T).T,
             index=mat.index,
             columns=mat.columns,
         )
-        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=matplotlib.cm.Spectral_r)
+        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=plt.cm.Spectral_r)
         ax.set_title(branch, fontsize=12)
 
+    return fig
 
-def plot_gene_trend_clusters(trends, clusters):
-    """ Plot the gene trend clusters
+
+def plot_gene_trend_clusters(
+    data: Union[sc.AnnData, pd.DataFrame],
+    branch_name: str = "",
+    clusters: Optional[Union[pd.Series, str]] = None,
+    gene_trend_key: Optional[str] = "gene_trends",
+) -> plt.Figure:
     """
+    Visualize gene trend clusters.
 
-    # Standardize the trends
+    This function accepts either a Scanpy AnnData object or a DataFrame of gene
+    expression trends, along with a Series of clusters or a key to clusters in
+    AnnData object's var. It creates a plot representing gene trend clusters.
+
+    Parameters
+    ----------
+    data : Union[sc.AnnData, pd.DataFrame]
+        AnnData object or DataFrame of gene expression trends.
+    branch_name : str, optional
+        Name of the branch for which to plot gene trends.
+        It is added to the gene_trend_key when accessing gene trends from varm.
+        Defaults to "".
+    clusters : Union[pd.Series, str], optional
+        Series of clusters indexed by gene names or string key to access clusters
+        from the AnnData object's var. If data is a DataFrame, clusters should be
+        a Series. Default key is 'gene_trend_key + "_" + branch_name + "_clusters"'.
+    gene_trend_key : str, optional
+        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        Matplotlib Figure object representing the plot of the gene trend clusters.
+
+    Raises
+    ------
+    KeyError
+        If `gene_trend_key` is None when `data` is an AnnData object.
+    """
+    # Process inputs and standardize trends
+    if isinstance(data, sc.AnnData):
+        if gene_trend_key is None:
+            raise KeyError(
+                "Must provide a gene_trend_key when data is an AnnData object."
+            )
+
+        varm_name = gene_trend_key + "_" + branch_name
+        if varm_name not in data.varm:
+            raise ValueError(
+                f"'gene_trend_key + \"_\" + branch_name' = '{varm_name}' not found in .varm."
+            )
+
+        pt_grid_name = gene_trend_key + "_" + branch_name + "_pseudotime"
+        if pt_grid_name not in data.uns.keys():
+            raise ValueError(
+                '\'gene_trend_key + "_" + branch_name + "_pseudotime"\' '
+                f"= '{pt_grid_name}' not found in .uns."
+            )
+
+        pseudotimes = data.uns[pt_grid_name]
+        trends = pd.DataFrame(
+            data.varm[varm_name], index=data.var_names, columns=pseudotimes
+        )
+
+        if clusters is None:
+            clusters = gene_trend_key + "_clusters"
+        if isinstance(clusters, str):
+            clusters = data.var[clusters]
+    else:
+        trends = data
+
     trends = pd.DataFrame(
         StandardScaler().fit_transform(trends.T).T,
         index=trends.index,
         columns=trends.columns,
     )
 
-    n_rows = int(np.ceil(len(set(clusters)) / 3))
+    # Obtain unique clusters and prepare figure
+    cluster_labels = (
+        clusters.cat.categories
+        if pd.api.types.is_categorical_dtype(clusters)
+        else set(clusters)
+    )
+    n_rows = int(np.ceil(len(cluster_labels) / 3))
     fig = plt.figure(figsize=[5.5 * 3, 2.5 * n_rows])
-    for i, c in enumerate(set(clusters)):
+
+    # Plot each cluster
+    for i, c in enumerate(cluster_labels):
         ax = fig.add_subplot(n_rows, 3, i + 1)
-        means = trends.loc[clusters.index[clusters == c], :].mean()
-        std = trends.loc[clusters.index[clusters == c], :].std()
+        cluster_trends = trends.loc[clusters.index[clusters == c], :]
+        means = cluster_trends.mean()
+        std = cluster_trends.std()
 
-        # Plot all trends
-        for g in clusters.index[clusters == c]:
-            ax.plot(
-                means.index,
-                np.ravel(trends.loc[g, :]),
-                linewidth=0.5,
-                color="lightgrey",
-            )
-
-        # Mean
-        ax.plot(means.index, np.ravel(means), color="#377eb8")
         ax.plot(
-            means.index,
-            np.ravel(means - std),
-            linestyle="--",
-            color="#377eb8",
-            linewidth=0.75,
+            cluster_trends.columns, cluster_trends.T, linewidth=0.5, color="lightgrey"
+        )
+        ax.plot(means.index, means, color="#377eb8")
+        ax.plot(
+            means.index, means - std, linestyle="--", color="#377eb8", linewidth=0.75
         )
         ax.plot(
-            means.index,
-            np.ravel(means + std),
-            linestyle="--",
-            color="#377eb8",
-            linewidth=0.75,
+            means.index, means + std, linestyle="--", color="#377eb8", linewidth=0.75
         )
-        ax.set_title("Cluster {}".format(c), fontsize=12)
+
+        ax.set_title(f"Cluster {c}", fontsize=12)
         ax.tick_params("both", length=2, width=1, which="major")
         ax.tick_params(axis="both", which="major", labelsize=8, direction="in")
         ax.set_xticklabels([])
-        # ax.set_xticklabels( ax.get_xticklabels(), fontsize=8 )
-        # ax.set_yticklabels( ax.get_yticklabels(), fontsize=8 )
+
     sns.despine()
+    return fig

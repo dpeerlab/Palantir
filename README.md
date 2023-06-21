@@ -7,8 +7,7 @@ Palantir is an algorithm to align cells along differentiation trajectories. Pala
 #### Installation and dependencies
 1. Palantir has been implemented in Python3 and can be installed using:
 
-        $> pip install PhenoGraph
-        $> pip install palantir
+        pip install palantir
 
 2. Palantir depends on a number of `python3` packages available on pypi and these dependencies are listed in `setup.py`
 
@@ -16,7 +15,7 @@ Palantir is an algorithm to align cells along differentiation trajectories. Pala
 
 3. To uninstall:
 		
-		$> pip uninstall palantir
+		pip uninstall palantir
 		
 4. Palantir can also be used with [**Scanpy**](https://github.com/theislab/scanpy). It is fully integrated into Scanpy, and can be found under Scanpy's external modules ([link](https://scanpy.readthedocs.io/en/latest/api/scanpy.external.html#external-api))
 
@@ -108,6 +107,26 @@ ____
 
 Release Notes
 -------------
+ ### Version 1.2.0
+
+ #### New Features
+ * Enable an AnnData-centric workflow for improved usability and interoperability with other single-cell analysis tools.
+ * Introduced new utility functions (`palantir.utils.early_cell`, `palantir.utils.find_terminal_states`, `palantir.presults.select_branch_cells`, `palantir.plot.plot_branch_selection`) for more fine-grained analysis.
+ * Added input validation for better error handling and improved user experience.
+ * Expanded documentation within docstrings, providing additional clarity for users and developers.
+
+ #### Enhancements
+ * Updated tutorial notebook to reflect the new workflow, guiding users through the updated processes.
+ * Implemented gene trend computation using [Mellon](https://github.com/settylab/Mellon), providing more robust and efficient gene trend analysis.
+
+ #### Changes
+ * Replaced PhenoGraph dependency with `scanpy.tl.leiden` for gene trend clustering.
+ * Deprecated the `run_tsne`, `determine_cell_clusters`, and `plot_cell_clusters` functions. Use corresponding implementations from [Scanpy](https://scanpy.readthedocs.io/en/stable/), widely used single-cell analysis library and direct dependecy of Palantir.
+
+ #### Fixes
+ * Addressed the issue of variability when reproducing results ([issue#64](https://github.com/dpeerlab/Palantir/issues/64)), enhancing the reproducibility and reliability of Palantir.
+
+
 ### Version 1.1.0
  * Replaced rpy2 with pyGAM for computing gene expression trends. 
  * Updated tutorial and plotting functions 
