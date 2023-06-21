@@ -111,7 +111,15 @@ Release Notes
 
  #### New Features
  * Enable an AnnData-centric workflow for improved usability and interoperability with other single-cell analysis tools.
- * Introduced new utility functions (`palantir.utils.early_cell`, `palantir.utils.find_terminal_states`, `palantir.presults.select_branch_cells`, `palantir.plot.plot_branch_selection`, `palantir.utils.run_local_variability`, `palantir.utils.run_density`, `palantir.utils.run_low_density_variability`) for more fine-grained analysis.
+ * Introduced new utility functions
+     * `palantir.utils.early_cell` To automate fining an early cell based on cell type and diffusion components.
+     * `palantir.utils.find_terminal_states` To automate finding terminal cell states based on cell type and diffusion components.
+     * `palantir.presults.select_branch_cells` To find cells associated to each branch based on fate probability.
+     * `palantir.plot.plot_branch_selection` To inspect the cell to branch association.
+     * `palantir.utils.run_local_variability` To compute local gene expression variability.
+     * `palantir.utils.run_density` A wrapper for [mellon.DensityEstimator](https://mellon.readthedocs.io/en/latest/model.html#mellon.model.DensityEstimator).
+     * `palantir.utils.run_density_evaluation` Evaluate computed density on a different dataset.
+     * `palantir.utils.run_low_density_variability`. To aggregate local gene expression variability in low density.
  * Added input validation for better error handling and improved user experience.
  * Expanded documentation within docstrings, providing additional clarity for users and developers.
 

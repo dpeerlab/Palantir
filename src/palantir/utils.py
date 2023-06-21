@@ -183,6 +183,10 @@ def run_density(
     AnnData object. The function returns the computed density. If 'DM_EigenVectors' is not found in the AnnData object,
     an error is raised suggesting the user to run the function `palantir.utils.run_diffusion_maps(ad)`.
 
+    Additionally, the density prediction model is serialized and stored in the `.uns` attribute of the AnnData object
+    under the key `'{density_key}_predictor'`. This can be deserialized and used for prediction by using the `mellon.Predictor.from_dict()`
+    method.
+
     Parameters
     ----------
     ad : sc.AnnData
@@ -222,6 +226,67 @@ def run_density(
 
     ad.obs[density_key] = log_density
     ad.obs[density_key + "_clipped"] = np.clip(
+        log_density, *np.quantile(log_density, [0.01, 1])
+    )
+    ad.uns[density_key + "_predictor"] = dest.predict.to_dict()
+
+    return log_density
+
+
+def run_density_evaluation(
+    in_ad: sc.AnnData,
+    out_ad: sc.AnnData,
+    predictor_key: str = "mellon_log_density_predictor",
+    repr_key: str = "DM_EigenVectors",
+    density_key: str = "cross_log_density",
+    **kwargs,
+) -> np.ndarray:
+    """
+    Evaluates the density function of `in_ad.uns[predictor_key]` on the representations of `out_ad.obsm[repr_key]`.
+
+    Parameters
+    ----------
+    in_ad : sc.AnnData
+        AnnData object containing the gene expression data and the serialized predictor.
+    out_ad : sc.AnnData
+        AnnData object containing the gene expression data and representations to be evaluated.
+    predictor_key : str, optional
+        Key to access the predictor in the uns of the `in_ad` AnnData object. Default is 'mellon_log_density_predictor'.
+    repr_key : str, optional
+        Key to access representations in the obsm of the `out_ad` AnnData object. Default is 'DM_EigenVectors'.
+    density_key : str, optional
+        Key under which the computed density values are stored in the obs of the `out_ad` AnnData object.
+        Default is 'cross_log_density'.
+    **kwargs : dict
+        Additional keyword arguments, unused in this function.
+
+    Returns
+    -------
+    log_density : np.ndarray
+        A numpy array of log density values computed for each cell in `out_ad`.
+
+    Raises
+    ------
+    ValueError
+        If `repr_key` is not found in `out_ad.obsm` or `predictor_key` is not found in `in_ad.uns`.
+    """
+    if repr_key not in out_ad.obsm:
+        raise ValueError(
+            f"'{repr_key}' not found in out_ad.obsm. "
+            "Run `palantir.utils.run_diffusion_maps(ad)` to "
+            "compute diffusion map eigenvectors."
+        )
+    if predictor_key not in in_ad.uns:
+        raise ValueError(
+            f"'{predictor_key}' not found in in_ad.uns. "
+            "Run `run_density(ad)` to compute the density estimator."
+        )
+
+    X = out_ad.obsm[repr_key]
+    predictor = mellon.Predictor.from_dict(in_ad.uns[predictor_key])
+    log_density = predictor(X)
+    out_ad.obs[density_key] = log_density
+    out_ad.obs[density_key + "_clipped"] = np.clip(
         log_density, *np.quantile(log_density, [0.01, 1])
     )
 
