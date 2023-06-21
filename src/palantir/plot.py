@@ -170,43 +170,77 @@ def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
 
 def highlight_cells_on_umap(
     data: Union[sc.AnnData, pd.DataFrame],
-    cells: List[str],
+    cells: Union[List[str], Dict[str, str], pd.Series],
+    annotation_offset: float = 0.03,
+    s: float = 0.1,
     fig: Optional[plt.Figure] = None,
     ax: Optional[plt.Axes] = None,
     embedding_bases: str = "X_umap",
 ) -> Tuple[plt.Figure, plt.Axes]:
-    """Function to highlight specific cells on the tSNE map
+    """
+    Highlights and annotates specific cells on a UMAP plot.
 
     Parameters
     ----------
     data : Union[sc.AnnData, pd.DataFrame]
-        Either a Scanpy AnnData object or a DataFrame of tSNE coordinates.
-    cells : List[str]
-        List of cells to highlight on the tSNE plot.
-    fig : Optional[plt.Figure]
+        Either a Scanpy AnnData object or a DataFrame of UMAP coordinates.
+    cells : Union[List[str], Dict[str, str], pd.Series]
+        List of cells to highlight on the UMAP. If provided as a dictionary or pd.Series,
+        keys are used as cell names and values are used as annotations.
+    annotation_offset : float, optional
+        Offset for the annotations in proportion to the data range. Default is 0.03.
+    s : float, optional
+        Size of the points in the scatter plot. Default is 0.1.
+    fig : Optional[plt.Figure], optional
         Matplotlib Figure object. If None, a new figure is created. Default is None.
-    ax : Optional[plt.Axes]
+    ax : Optional[plt.Axes], optional
         Matplotlib Axes object. If None, a new Axes object is created. Default is None.
     embedding_bases : str, optional
         The key to retrieve UMAP results from the AnnData object. Default is 'X_umap'.
 
     Returns
     -------
-    Tuple[plt.Figure, plt.Axes]
-        A matplotlib Figure object representing the tSNE plot and the corresponding Axes object.
+    fig : plt.Figure
+        A matplotlib Figure object containing the UMAP plot.
+    ax : plt.Axes
+        The corresponding Axes object.
+
+    Raises
+    ------
+    KeyError
+        If 'embedding_bases' is not found in 'data.obsm'.
+    TypeError
+        If 'cells' is neither list, dict nor pd.Series.
     """
     if isinstance(data, sc.AnnData):
         if embedding_bases not in data.obsm:
             raise KeyError(f"'{embedding_bases}' not found in .obsm.")
-        tsne = pd.DataFrame(
+        umap = pd.DataFrame(
             data.obsm[embedding_bases], index=data.obs_names, columns=["x", "y"]
         )
+    elif isinstance(data, pd.DataFrame):
+        umap = data.copy()
     else:
-        tsne = data.copy()
+        raise TypeError("'data' should be either sc.AnnData or pd.DataFrame.")
+
+    if isinstance(cells, list):
+        cells = {cell: "" for cell in cells}
+    elif isinstance(cells, (dict, pd.Series)):
+        cells = dict(cells)
+    else:
+        raise TypeError("'cells' should be either list, dict or pd.Series.")
+
+    xpad, ypad = (umap.max() - umap.min()) * annotation_offset
 
     fig, ax = get_fig(fig=fig, ax=ax)
-    ax.scatter(tsne["x"], tsne["y"], s=5, color="lightgrey")
-    ax.scatter(tsne.loc[cells, "x"], tsne.loc[cells, "y"], s=30)
+    ax.scatter(umap["x"], umap["y"], s=s, color="lightgrey")
+
+    for cell, annotation in cells.items():
+        if cell in umap.index:
+            x, y = umap.loc[cell, ["x", "y"]]
+            ax.scatter(x, y, c="#003366", s=100 * s)
+            if annotation:
+                ax.annotate(annotation, (x, y), (x + xpad, y + ypad), "data")
     ax.set_axis_off()
 
     return fig, ax
