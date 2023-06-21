@@ -532,20 +532,20 @@ def select_branch_cells(
 
     idx = np.argsort(pseudotime)
     sorted_fate_probs = fate_probs[idx, :]
-    max_probs = np.empty_like(fate_probs)
-    n = max_probs.shape[0]
+    prob_thresholds = np.empty_like(fate_probs)
+    n = fate_probs.shape[0]
 
     step = n // PSEUDOTIME_RES
     nsteps = n // step
     for i in range(nsteps):
         l, r = i * step, (i + 1) * step
         mprob = np.quantile(sorted_fate_probs[:r, :], 1 - eps, axis=0)
-        max_probs[l:r, :] = mprob[None, :]
+        prob_thresholds[l:r, :] = mprob[None, :]
     mprob = np.quantile(sorted_fate_probs, 1 - q, axis=0)
-    max_probs[r:, :] = mprob[None, :]
+    prob_thresholds[r:, :] = mprob[None, :]
 
     masks = np.empty_like(fate_probs).astype(bool)
-    masks[idx, :] = max_probs < sorted_fate_probs + eps
+    masks[idx, :] = prob_thresholds - eps < sorted_fate_probs
 
     ad.obsm[masks_key] = masks
     ad.uns[masks_key + "_columns"] = fate_names
