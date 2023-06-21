@@ -8,6 +8,7 @@ import gc
 
 from scipy.sparse import csr_matrix, find, issparse, hstack
 from scipy.sparse.linalg import eigs
+import mellon
 import scanpy as sc
 
 from .core import run_palantir
@@ -77,6 +78,154 @@ def run_pca(
 
     pca_projections = pd.DataFrame(ad.obsm["X_pca"], index=ad.obs_names)
     return pca_projections, ad.uns["pca"]["variance_ratio"]
+
+
+def run_low_density_variability(
+    ad: sc.AnnData,
+    cell_mask: Union[str, np.ndarray, List[str], pd.Series, pd.Index] = "branch_masks",
+    density_key: str = "mellon_log_density",
+    localvar_key: str = "local_variability",
+    score_key: str = "low_density_gene_variability",
+) -> np.ndarray:
+    """
+    Compute the scores aggregated local gene variability in low-density cell-state transitions.
+
+    Parameters
+    ----------
+    ad : sc.AnnData
+        AnnData object containing the gene expression data and pseudotime.
+    cell_mask : str, np.ndarray, list of str, pd.Series, pd.Index, optional
+        Key to access the mask matrix in the obsm or obs attributes of the AnnData object.
+        If cell_mask is a numpy array with shape (ad.n_obs, ), it is used directly.
+        If cell_mask is a list of cell names, a pd.Series, or a pd.Index,
+        it is used to create a boolean mask of the same length as ad.n_obs.
+        Default is 'branch_masks'.
+    density_key : str, optional
+        Key to access the density values in the obs attribute of the AnnData object.
+        Default is 'mellon_log_density'.
+    localvar_key : str, optional
+        Key to access local variability matrix in the layers of the AnnData object.
+        Default is 'local_variability'.
+    score_key : str, optional
+        Prefix of the key under which the computed scores are stored in the var attribute of the
+        AnnData object. Actual keys are '{score_key}_{branch_name}' if cell_mask points to an ad.obsm.
+        Default is 'low_density_gene_variability'.
+
+    Returns
+    -------
+    low_density_scores : np.ndarray
+        A numpy array of scores for each gene.
+
+    Raises
+    ------
+    ValueError
+        If any of the provided keys are not found in the appropriate fields of the AnnData object.
+    """
+    if density_key not in ad.obs.columns:
+        raise ValueError(f"'{density_key}' not found in ad.obs.")
+    dip_weight = np.exp(-ad.obs[density_key].values)
+    if localvar_key not in ad.layers.keys():
+        raise ValueError(f"'{localvar_key}' not found in ad.layers.")
+    local_var = ad.layers[localvar_key]
+    if isinstance(cell_mask, str):
+        if cell_mask in ad.obsm.keys():
+            assert (
+                cell_mask + "_columns" in ad.uns
+            ), f"{cell_mask} in ad.obsm but {cell_mask}_columns not found in ad.uns"
+            branch_names = ["_" + b for b in ad.uns[cell_mask + "_columns"]]
+            masks = ad.obsm[cell_mask]
+        elif cell_mask in ad.obs.columns:
+            branch_names = [
+                "_" + cell_mask,
+            ]
+            masks = ad.obs[cell_mask].values[:, None]
+        else:
+            raise ValueError(f"'{cell_mask}' not found in ad.obsm or ad.obs.columns.")
+    elif isinstance(cell_mask, np.ndarray) and cell_mask.shape == (ad.n_obs,):
+        masks = cell_mask[:, None]
+        branch_names = [
+            "",
+        ]
+    elif isinstance(cell_mask, (list, pd.Series, pd.Index)):
+        masks = ad.obs_names.isin(cell_mask)[:, None]
+        branch_names = [
+            "",
+        ]
+    else:
+        raise ValueError(
+            "cell_mask must be either a string key, a numpy array with shape "
+            "(ad.n_obs, ), a list of cell names, a pd.Series, or a pd.Index."
+        )
+
+    out_columns = list()
+    for i, branch in enumerate(branch_names):
+        idx = masks[:, i]
+        colname = score_key + branch
+        ad.var[colname] = np.mean(
+            local_var[idx, :] * dip_weight[idx, None],
+            axis=0,
+        )
+        out_columns.append(colname)
+
+    return ad.var[out_columns].values
+
+
+def run_density(
+    ad: sc.AnnData,
+    repr_key: str = "DM_EigenVectors",
+    density_key: str = "mellon_log_density",
+    **kwargs,
+) -> np.ndarray:
+    """
+    Compute cell-state density with Mellon.
+
+    This function uses the Mellon algorithm to compute the density of cell states, which is stored in the obs attribute of the
+    AnnData object. The function returns the computed density. If 'DM_EigenVectors' is not found in the AnnData object,
+    an error is raised suggesting the user to run the function `palantir.utils.run_diffusion_maps(ad)`.
+
+    Parameters
+    ----------
+    ad : sc.AnnData
+        AnnData object containing the gene expression data and pseudotime.
+    repr_key : str, optional
+        Key to retrieve cell-state representation from the sc.AnnData object. Default is 'DM_EigenVectors'.
+    density_key : str, optional
+        Key under which the computed density values are stored in the obs of the AnnData object.
+        Default is 'mellon_log_density'.
+    **kwargs : dict
+        Additional keyword arguments to be passed to mellon.DensityEstimator.
+
+    Returns
+    -------
+    log_density : np.ndarray
+        A numpy array of log density values computed for each cell.
+
+    Raises
+    ------
+    ValueError
+        If `repr_key` is not found in `ad.obsm`.
+    """
+    if repr_key not in ad.obsm:
+        raise ValueError(
+            f"'{repr_key}' not found in ad.obsm. "
+            "Run `palantir.utils.run_diffusion_maps(ad)` to "
+            "compute diffusion map eigenvectors."
+        )
+    X = ad.obsm[repr_key]
+
+    # Set the default arguments for mellon.DensityEstimator
+    mellon_args = dict()
+    mellon_args.update(kwargs)
+
+    dest = mellon.DensityEstimator(**mellon_args)
+    log_density = np.asarray(dest.fit_predict(X))
+
+    ad.obs[density_key] = log_density
+    ad.obs[density_key + "_clipped"] = np.clip(
+        log_density, *np.quantile(log_density, [0.01, 1])
+    )
+
+    return log_density
 
 
 def run_diffusion_maps(
@@ -212,11 +361,74 @@ def _dot_helper_func(x, y):
     return x.dot(y)
 
 
+def _local_var_helper(expressions, distances):
+    for cell in range(expressions.shape[0]):
+        neighbors = distances.getrow(cell).indices
+        try:
+            expr_deltas = np.array(expressions[neighbors, :] - expressions[cell, :])
+        except ValueError:
+            raise ValueError(f"This cell caused the error: {cell}")
+        expr_distance = np.sqrt(np.sum(expr_deltas**2, axis=1, keepdims=True))
+        change_rate = expr_deltas / expr_distance
+        yield np.max(change_rate**2, axis=0)
+
+
+def run_local_variability(
+    ad: sc.AnnData,
+    expression_key: str = "MAGIC_imputed_data",
+    distances_key: str = "distances",
+    localvar_key: str = "local_variability",
+) -> np.ndarray:
+    """
+    Compute local gene variability scores for each cell.
+
+    This function calculates the variability in gene expression in a local neighbourhood for each cell.
+    It adds the result to the layers of the given AnnData object under the specified key.
+
+    Parameters
+    ----------
+    ad : sc.AnnData
+        AnnData object containing the gene expression data and pseudotime.
+    expression_key : str, optional
+        Key to access the gene expression data in the layers of the AnnData object.
+        If None, uses raw expression data in .X. Default is 'MAGIC_imputed_data'.
+    distances_key : str, optional
+        Key to access the distances matrix in the obsm of the AnnData object.
+        Default is 'distances'.
+    localvar_key : str, optional
+        Key under which the computed local variability matrix is stored in the layers of the AnnData object.
+        Default is 'local_variability'.
+
+    Returns
+    -------
+    local_variability : np.ndarray
+        A 2D numpy array of local variability scores for each gene in each cell.
+    """
+
+    if expression_key:
+        if expression_key not in ad.layers:
+            raise KeyError(f"'{expression_key}' not found in .layers.")
+        X = ad.layers[expression_key]
+    else:
+        X = ad.X
+
+    if distances_key not in ad.obsp:
+        raise KeyError(f"'{distances_key}' not found in .obsp.")
+    X_dists = ad.obsp[distances_key]
+
+    local_variability = np.stack(list(_local_var_helper(X, X_dists)))
+
+    ad.layers[localvar_key] = local_variability
+
+    return local_variability
+
+
 def run_magic_imputation(
     data: Union[np.ndarray, pd.DataFrame, sc.AnnData, csr_matrix],
     dm_res: Union[dict, None] = None,
     n_steps: int = 3,
     sim_key: str = "DM_Similarity",
+    expression_key: str = None,
     imputation_key: str = "MAGIC_imputed_data",
     n_jobs: int = -1,
 ) -> Union[pd.DataFrame, None, csr_matrix]:
@@ -232,6 +444,9 @@ def run_magic_imputation(
         If None and data is a sc.AnnData object, its obsp[kernel_key] is used. Default is None.
     n_steps : int, optional
         Number of steps in the diffusion operator. Default is 3.
+    expression_key : str, optional
+        Key to access the gene expression data in the layers of the AnnData object.
+        If None, uses raw expression data in .X. Default is None.
     sim_key : str, optional
         Key to access the similarity in obsp of data if it is a sc.AnnData object.
         Default is 'DM_Similarity'.
@@ -246,7 +461,14 @@ def run_magic_imputation(
         Imputed data matrix. If sc.AnnData is passed as data, the result is written to its layers[imputation_key].
     """
     if isinstance(data, sc.AnnData):
-        X = data.X
+        if expression_key is not None:
+            if expression_key not in data.layers.keys():
+                raise ValueError(
+                    f"expression_key '{expression_key}' not found in .layers."
+                )
+            x = data.layers[expression_key]
+        else:
+            X = data.X
         if dm_res is None:
             T = data.obsp[sim_key]
     elif isinstance(data, pd.DataFrame):

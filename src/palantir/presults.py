@@ -519,11 +519,11 @@ def select_branch_cells(
     max_prob = np.max(fate_probs, axis=1)[:, None]
     term_cells = np.argmax(fate_probs, axis=0)
     pt = ad.obs[pseudo_time_key].values
+
+    early_cell = np.argmin(pt)
+
     pt -= np.min(pt)
     pt = pt[:, None] / pt[None, term_cells]
-
-    # find the early cell
-    early_cell = np.argmin(pt)
 
     probability_buffers = max_prob[None, early_cell] - fate_probs[None, early_cell, :]
     ad.obsm[masks_key] = (max_prob - fate_probs) < probability_buffers * (1 - pt) + eps
