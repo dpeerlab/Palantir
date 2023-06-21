@@ -166,7 +166,7 @@ def highlight_cells_on_umap(
     s_highlighted: float = 10,
     fig: Optional[plt.Figure] = None,
     ax: Optional[plt.Axes] = None,
-    embedding_bases: str = "X_umap",
+    embedding_basis: str = "X_umap",
 ) -> Tuple[plt.Figure, plt.Axes]:
     """
     Highlights and annotates specific cells on a UMAP plot.
@@ -188,7 +188,7 @@ def highlight_cells_on_umap(
         Matplotlib Figure object. If None, a new figure is created. Default is None.
     ax : Optional[plt.Axes], optional
         Matplotlib Axes object. If None, a new Axes object is created. Default is None.
-    embedding_bases : str, optional
+    embedding_basis : str, optional
         The key to retrieve UMAP results from the AnnData object. Default is 'X_umap'.
 
     Returns
@@ -201,15 +201,15 @@ def highlight_cells_on_umap(
     Raises
     ------
     KeyError
-        If 'embedding_bases' is not found in 'data.obsm'.
+        If 'embedding_basis' is not found in 'data.obsm'.
     TypeError
         If 'cells' is neither list, dict nor pd.Series.
     """
     if isinstance(data, sc.AnnData):
-        if embedding_bases not in data.obsm:
-            raise KeyError(f"'{embedding_bases}' not found in .obsm.")
+        if embedding_basis not in data.obsm:
+            raise KeyError(f"'{embedding_basis}' not found in .obsm.")
         umap = pd.DataFrame(
-            data.obsm[embedding_bases], index=data.obs_names, columns=["x", "y"]
+            data.obsm[embedding_basis], index=data.obs_names, columns=["x", "y"]
         )
     elif isinstance(data, pd.DataFrame):
         umap = data.copy()
@@ -318,7 +318,7 @@ def plot_gene_expression(
 def plot_diffusion_components(
     data: Union[sc.AnnData, pd.DataFrame],
     dm_res: Optional[Union[pd.DataFrame, str]] = "DM_EigenVectors",
-    embedding_bases: str = "X_umap",
+    embedding_basis: str = "X_umap",
 ) -> Tuple[plt.Figure, plt.Axes]:
     """
     Visualize diffusion components on tSNE or UMAP plots.
@@ -330,7 +330,7 @@ def plot_diffusion_components(
     dm_res : pd.DataFrame or str, optional
         DataFrame containing diffusion map results or a string key to access diffusion map
         results from the AnnData object's obsm. Default is 'DM_Eigenvectors'.
-    embedding_bases : str, optional
+    embedding_basis : str, optional
         The key to retrieve UMAP results from the AnnData object. Defaults to 'X_umap'.
 
     Returns
@@ -341,13 +341,13 @@ def plot_diffusion_components(
     Raises
     ------
     KeyError
-        If `embedding_bases` or `dm_res` is not found when `data` is an AnnData object.
+        If `embedding_basis` or `dm_res` is not found when `data` is an AnnData object.
     """
     # Retrieve the embedding data
     if isinstance(data, sc.AnnData):
-        if embedding_bases not in data.obsm:
-            raise KeyError(f"'{embedding_bases}' not found in .obsm.")
-        embedding_data = pd.DataFrame(data.obsm[embedding_bases], index=data.obs_names)
+        if embedding_basis not in data.obsm:
+            raise KeyError(f"'{embedding_basis}' not found in .obsm.")
+        embedding_data = pd.DataFrame(data.obsm[embedding_basis], index=data.obs_names)
         if isinstance(dm_res, str):
             if dm_res not in data.obsm:
                 raise KeyError(f"'{dm_res}' not found in .obsm.")
@@ -380,7 +380,7 @@ def plot_diffusion_components(
 def plot_palantir_results(
     data: Union[sc.AnnData, pd.DataFrame],
     pr_res: Optional[PResults] = None,
-    embedding_bases: str = "X_umap",
+    embedding_basis: str = "X_umap",
     pseudo_time_key: str = "palantir_pseudotime",
     entropy_key: str = "palantir_entropy",
     fate_prob_key: str = "palantir_fate_probabilities",
@@ -395,7 +395,7 @@ def plot_palantir_results(
         Either a Scanpy AnnData object or a DataFrame of tSNE or UMAP results.
     pr_res : Optional[PResults]
         Optional PResults object containing Palantir results. If None, results are expected to be found in the provided AnnData object.
-    embedding_bases : str, optional
+    embedding_basis : str, optional
         The key to retrieve UMAP results from the AnnData object. Defaults to 'X_umap'.
     pseudo_time_key : str, optional
         Key to access the pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
@@ -412,9 +412,9 @@ def plot_palantir_results(
         A matplotlib Figure object representing the plot of the Palantir results.
     """
     if isinstance(data, sc.AnnData):
-        if embedding_bases not in data.obsm:
-            raise KeyError(f"'{embedding_bases}' not found in .obsm.")
-        embedding_data = pd.DataFrame(data.obsm[embedding_bases], index=data.obs_names)
+        if embedding_basis not in data.obsm:
+            raise KeyError(f"'{embedding_basis}' not found in .obsm.")
+        embedding_data = pd.DataFrame(data.obsm[embedding_basis], index=data.obs_names)
         if pr_res is None:
             if (
                 pseudo_time_key not in data.obs
