@@ -1022,6 +1022,209 @@ def _add_categorical_legend(
     )
 
 
+def plot_branch(
+    ad: sc.AnnData,
+    branch_name: str,
+    position: str,
+    color: str = None,
+    masks_key: str = "branch_masks",
+    ax: Optional[plt.Axes] = None,
+    pseudo_time_key: str = "palantir_pseudotime",
+    na_color: str = "lightgray",
+    color_layer: Optional[str] = None,
+    position_layer: Optional[str] = None,
+    legend_fontsize: Union[int, float, _FontSize, None] = None,
+    legend_fontweight: Union[int, _FontWeight] = "bold",
+    legend_fontoutline: Optional[int] = None,
+    legend_anchor: Tuple[float, float] = (1.1, 0.5),
+    color_bar_bounds: list = [1.1, 0.3, 0.02, 0.4],
+    cmap: Union[Colormap, str, None] = None,
+    palette: Union[str, Sequence[str], Cycler, None] = None,
+    vmax: Union[VBound, Sequence[VBound], None] = None,
+    vmin: Union[VBound, Sequence[VBound], None] = None,
+    vcenter: Union[VBound, Sequence[VBound], None] = None,
+    norm: Union[Normalize, Sequence[Normalize], None] = None,
+    **kwargs,
+):
+
+    """
+    This function visualizes a scatter plot of cells over pseudotime.
+    The y-position indicates either a gene expression
+    or any column from .obs or use a different position_layer, like
+    "MAGIC_imputed_data". The color follows similar rules and behaves like the color
+    parameter in scanpy.pl.embedding, but only accepts a single value instead of a list.
+
+    Parameters
+    ----------
+    ad : AnnData
+        Annotated data matrix of shape n_obs x n_vars. Rows correspond
+        to cells and columns to genes.
+    branch_name : str
+        Specifies the branch to plot the trend for.
+    position : str, optional
+        Similar to color but used for y-position. If None, the default is gene.
+    color : str, optional
+        Defines the color to be used for the plot, similar to the color in
+        scanpy.pl.embedding. If not provided, the default is None.
+    masks_key : str, optional
+        Key for accessing the branch cell selection masks from obsm of the AnnData object.
+        Default is 'branch_masks'.
+    ax : Axes, optional
+        A matplotlib axes object.
+    pseudo_time_key : str, optional
+        Specifies the pseudotime key to be used for the plot.
+        The default is "palantir_pseudotime".
+    na_color : str, optional
+        The color to be used for 'NA' values. Default is "lightgray".
+    color_layer : str, optional
+        Specifies the data layer to use for color in the plot.
+        If not provided, the .X layer is used.
+    position_layer : str, optional
+        Specifies the data layer to use for y-position in the plot.
+        If not provided, the .X layer is used.
+    legend_fontsize : Union[int, float, _FontSize, None], optional
+        Specifies the font size for the legend. Default is None.
+    legend_fontweight : Union[int, _FontWeight], optional
+        Specifies the font weight for the legend. Default is 'bold'.
+    legend_fontoutline : int, optional
+        Specifies the font outline for the legend. Default is None.
+    legend_anchor: Tuple[float, float] = (1.1, 0.5),
+        Defines the position of the legend. The argument will be passed to the
+        bbox_to_anchor parameter of ax.legend() method. The default is (1.1, 0.5).
+    color_bar_bounds : list, optional
+        Specifies the bounds for the color bar. Defaults to [1, 0.4, 0.01, 0.2].
+    cmap : Union[Colormap, str, None]
+        A colormap instance or registered colormap name to color the scatter plot.
+    palette : Union[str, Sequence[str], Cycler, None], optional
+        Colors to use for plotting categorical annotation groups.
+        The palette can be a valid matplotlib.colors.ListedColormap name
+        ('viridis', 'Set2', etc), a cycler.Cycler object, or a sequence of
+        matplotlib colors like ['red', 'blue', 'green'].
+    vmax : float or array-like or None
+        Defines the lower limit of the color scale with values smaller than
+        vmin sharing the same color. It can be a number, percentile string ('pN'),
+        function returning a desired value from the plot values, or None for
+        automatic selection. For multiple plots, a list of vmin can be specified.
+    vmin : float or array-like or None
+        Sets the upper limit of the color scale, with the same format and behavior as vmin.
+    vcenter : float or array-like or None
+        Sets the center of the color scale, useful for diverging colormaps.
+        It follows the same format and rules as vmin and vmax. Example:
+        sc.pl.umap(adata, color='TREM2', vcenter='p50', cmap='RdBu_r').
+    norm : matplotlib.colors.Normalize or None
+        The normalizing object which scales data, typically into the interval [0, 1].
+        If provided, vmax, vmin, and vcenter are ignored.
+
+    Returns
+    -------
+    fig, ax : figure and axis elements of the plot.
+
+    Raises
+    ------
+    TypeError
+        If input parameters are not of the expected type.
+    ValueError
+        If input parameters do not have the expected values.
+    """
+
+    if not isinstance(ad, sc.AnnData):
+        raise TypeError("Expected ad to be an instance of sc.AnnData")
+    if not isinstance(branch_name, str):
+        raise TypeError("Expected branch_name to be a str")
+    if color is not None and not isinstance(color, str):
+        raise TypeError("Expected color to be a str")
+    if ax is not None and not isinstance(ax, plt.Axes):
+        raise TypeError("Expected ax to be a matplotlib Axes instance")
+    if not isinstance(pseudo_time_key, str):
+        raise TypeError("Expected pseudo_time_key to be a str")
+
+    mask = (
+        _process_mask(ad, masks_key, branch_name)
+        if isinstance(masks_key, str)
+        else masks_key
+    )
+
+    pseduotimes = ad.obs_vector(pseudo_time_key)
+    pseduotimes = pseduotimes[mask]
+
+    y_pos = _get_color_source_vector(ad, position, layer=position_layer)
+    y_pos = y_pos[mask]
+
+    color_source_vector, color_vector, categorical = prepare_color_vector(
+        ad, color, mask, layer=color_layer, palette=palette, na_color=na_color
+    )
+
+    scatter_kwargs = {
+        "edgecolor": "none",
+        "plotnonfinite": True,
+    }
+    scatter_kwargs.update(kwargs)
+
+    cmap = copy(get_cmap(cmap))
+    cmap.set_bad(na_color)
+
+    na_color = matplotlib.colors.to_hex(na_color, keep_alpha=True)
+
+    if isinstance(vmax, str) or not isinstance(vmax, cabc.Sequence):
+        vmax = [vmax]
+    if isinstance(vmin, str) or not isinstance(vmin, cabc.Sequence):
+        vmin = [vmin]
+    if isinstance(vcenter, str) or not isinstance(vcenter, cabc.Sequence):
+        vcenter = [vcenter]
+    if isinstance(norm, Normalize) or not isinstance(norm, cabc.Sequence):
+        norm = [norm]
+
+    if not categorical and color is not None:
+        vmin_float, vmax_float, vcenter_float, norm_obj = _get_vboundnorm(
+            vmin, vmax, vcenter, norm, 0, color_vector
+        )
+        normalize = check_colornorm(
+            vmin_float,
+            vmax_float,
+            vcenter_float,
+            norm_obj,
+        )
+        scatter_kwargs["norm"] = normalize
+        scatter_kwargs["cmap"] = cmap
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(12, 4))
+    else:
+        fig = ax.figure
+    points = ax.scatter(
+        pseduotimes,
+        y_pos,
+        marker=".",
+        c=color_vector,
+        **scatter_kwargs,
+    )
+    ax.set_xlabel("Pseudotime")
+    ax.set_ylabel(position)
+    ax.set_zorder(0)
+
+    plt.locator_params(axis="x", nbins=3)
+    plt.locator_params(axis="y", nbins=3)
+
+    if categorical or color_vector.dtype == bool:
+        _add_categorical_legend(
+            ax,
+            color_source_vector,
+            palette=_get_palette(ad, color),
+            legend_anchor=legend_anchor,
+            legend_fontweight=legend_fontweight,
+            legend_fontsize=legend_fontsize,
+            legend_fontoutline=None,
+            na_color=na_color,
+            na_in_legend=True,
+        )
+    elif color_bar_bounds is not None and color is not None:
+        cax = ax.inset_axes(color_bar_bounds)
+        cb = plt.colorbar(points, cax=cax)
+        cb.set_label(color)
+
+    return fig, ax
+
+
 def plot_trend(
     ad: sc.AnnData,
     branch_name: str,
@@ -1140,68 +1343,15 @@ def plot_trend(
         raise TypeError("Expected gene to be a str")
     if not isinstance(branch_name, str):
         raise TypeError("Expected branch_name to be a str")
-    if color is not None and not isinstance(color, str):
-        raise TypeError("Expected color to be a str")
     if ax is not None and not isinstance(ax, plt.Axes):
         raise TypeError("Expected ax to be a matplotlib Axes instance")
-    if not isinstance(pseudo_time_key, str):
-        raise TypeError("Expected pseudo_time_key to be a str")
 
-    mask = (
-        _process_mask(ad, masks_key, branch_name)
-        if isinstance(masks_key, str)
-        else masks_key
-    )
     gene_trends = _validate_gene_trend_input(ad, gene_trend_key, [branch_name])
+    if position is None:
+        position = gene
 
     trends = gene_trends[branch_name]["trends"]
     pseudotime_grid = trends.columns
-
-    pseduotimes = ad.obs_vector(pseudo_time_key)
-    pseduotimes = pseduotimes[mask]
-
-    if position is None:
-        position = gene
-    y_pos = _get_color_source_vector(ad, position, layer=position_layer)
-    y_pos = y_pos[mask]
-
-    color_source_vector, color_vector, categorical = prepare_color_vector(
-        ad, color, mask, layer=color_layer, palette=palette, na_color=na_color
-    )
-
-    scatter_kwargs = {
-        "edgecolor": "none",
-        "plotnonfinite": True,
-    }
-    scatter_kwargs.update(kwargs)
-
-    cmap = copy(get_cmap(cmap))
-    cmap.set_bad(na_color)
-    print(cmap)
-    scatter_kwargs["cmap"] = cmap
-
-    na_color = matplotlib.colors.to_hex(na_color, keep_alpha=True)
-
-    if isinstance(vmax, str) or not isinstance(vmax, cabc.Sequence):
-        vmax = [vmax]
-    if isinstance(vmin, str) or not isinstance(vmin, cabc.Sequence):
-        vmin = [vmin]
-    if isinstance(vcenter, str) or not isinstance(vcenter, cabc.Sequence):
-        vcenter = [vcenter]
-    if isinstance(norm, Normalize) or not isinstance(norm, cabc.Sequence):
-        norm = [norm]
-
-    if not categorical:
-        vmin_float, vmax_float, vcenter_float, norm_obj = _get_vboundnorm(
-            vmin, vmax, vcenter, norm, 0, color_vector
-        )
-        normalize = check_colornorm(
-            vmin_float,
-            vmax_float,
-            vcenter_float,
-            norm_obj,
-        )
-        scatter_kwargs["norm"] = normalize
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(12, 4))
@@ -1220,35 +1370,30 @@ def plot_trend(
     ax.set_facecolor("none")
 
     ax2 = ax.twinx()
-    points = ax2.scatter(
-        pseduotimes,
-        y_pos,
-        marker=".",
-        c=color_vector,
-        **scatter_kwargs,
+    plot_branch(
+        ad,
+        branch_name=branch_name,
+        position=position,
+        color=color,
+        masks_key=masks_key,
+        ax=ax2,
+        pseudo_time_key=pseudo_time_key,
+        na_color=na_color,
+        color_layer=color_layer,
+        position_layer=position_layer,
+        legend_fontsize=legend_fontsize,
+        legend_fontweight=legend_fontweight,
+        legend_fontoutline=legend_fontoutline,
+        legend_anchor=legend_anchor,
+        color_bar_bounds=color_bar_bounds,
+        cmap=cmap,
+        palette=palette,
+        vmax=vmax,
+        vmin=vmin,
+        vcenter=vcenter,
+        norm=norm,
+        **kwargs,
     )
-    ax2.set_ylabel(position)
-    ax2.set_zorder(0)
-
-    plt.locator_params(axis="x", nbins=3)
-    plt.locator_params(axis="y", nbins=3)
-
-    if categorical or color_vector.dtype == bool:
-        _add_categorical_legend(
-            ax,
-            color_source_vector,
-            palette=_get_palette(ad, color),
-            legend_anchor=legend_anchor,
-            legend_fontweight=legend_fontweight,
-            legend_fontsize=legend_fontsize,
-            legend_fontoutline=None,
-            na_color=na_color,
-            na_in_legend=True,
-        )
-    elif color_bar_bounds is not None and color is not None:
-        cax = ax.inset_axes(color_bar_bounds)
-        cb = plt.colorbar(points, cax=cax)
-        cb.set_label(color)
 
     return fig, ax
 
