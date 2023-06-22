@@ -1,4 +1,5 @@
 from typing import Union, Optional, List, Tuple, Dict, Literal, Sequence
+import collections.abc as cabc
 import warnings
 from copy import copy
 from cycler import Cycler
@@ -1019,7 +1020,7 @@ def plot_trend(
     legend_fontweight: Union[int, _FontWeight] = "bold",
     legend_fontoutline: Optional[int] = None,
     legend_loc: str = "right margin",
-    colorbar_loc: Optional[str] = "right",
+    color_bar_bounds: list = [1.1, 0.3, 0.02, 0.4],
     cmap=None,
     palette: Union[str, Sequence[str], Cycler, None] = None,
     vmax: Union[VBound, Sequence[VBound], None] = None,
@@ -1067,8 +1068,8 @@ def plot_trend(
         The font outline for the legend, by default None
     legend_loc : str, optional
         The location of the legend, by default 'right margin'
-    colorbar_loc : str, optional
-        The location of the colorbar, by default "right"
+        color_bar_bounds (list, optional):
+            The bounds for the color bar. Defaults to [1, 0.4, 0.01, 0.2].
     cmap : Colormap, optional
         A colormap instance or registered colormap name. cmap is only
         used if c is an array of floats.
@@ -1149,6 +1150,15 @@ def plot_trend(
     scatter_kwargs["cmap"] = cmap
 
     na_color = matplotlib.colors.to_hex(na_color, keep_alpha=True)
+    
+    if isinstance(vmax, str) or not isinstance(vmax, cabc.Sequence):
+        vmax = [vmax]
+    if isinstance(vmin, str) or not isinstance(vmin, cabc.Sequence):
+        vmin = [vmin]
+    if isinstance(vcenter, str) or not isinstance(vcenter, cabc.Sequence):
+        vcenter = [vcenter]
+    if isinstance(norm, Normalize) or not isinstance(norm, cabc.Sequence):
+        norm = [norm]
 
     if not categorical:
         vmin_float, vmax_float, vcenter_float, norm_obj = _get_vboundnorm(
@@ -1187,7 +1197,7 @@ def plot_trend(
         ],
         axis=1,
     )
-    cax = ax2.scatter(
+    points = ax2.scatter(
         coords[:, 0],
         coords[:, 1],
         marker=".",
@@ -1215,10 +1225,11 @@ def plot_trend(
             na_in_legend=True,
             multi_panel=False,
         )
-    elif colorbar_loc is not None:
-        plt.colorbar(
-            cax, ax=ax, pad=0.01, fraction=0.08, aspect=30, location=colorbar_loc
-        )
+    elif color_bar_bounds is not None:
+        cax = ax.inset_axes(color_bar_bounds)
+        cb = plt.colorbar(points, cax=cax)
+        cb.set_label(color)
+    
     return fig, ax
 
 
