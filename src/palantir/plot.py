@@ -77,13 +77,13 @@ class FigureGrid:
             yield self[i]
 
 
-def get_fig(fig=None, ax=None, figsize=[4, 4]):
+def get_fig(fig=None, ax=None):
     """fills in any missing axis or figure with the currently active one
     :param ax: matplotlib Axis object
     :param fig: matplotlib Figure object
     """
     if not fig:
-        fig = plt.figure(figsize=figsize)
+        fig = plt.figure()
     if not ax:
         ax = plt.gca()
     return fig, ax
@@ -181,7 +181,7 @@ def highlight_cells_on_umap(
     annotation_offset : float, optional
         Offset for the annotations in proportion to the data range. Default is 0.03.
     s : float, optional
-        Size of the points in the scatter plot. Default is 0.1.
+        Size of the points in the scatter plot. Default is 1.
     s_highlighted : float, optional
         Size of the points in the highlighted cells. Default is 10.
     fig : Optional[plt.Figure], optional
