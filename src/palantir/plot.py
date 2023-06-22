@@ -1,6 +1,7 @@
-from typing import Union, Optional, List, Tuple, Dict, Literal
+from typing import Union, Optional, List, Tuple, Dict, Literal, Sequence
 import warnings
-import os
+from copy import copy
+from cycler import Cycler
 import numpy as np
 import pandas as pd
 from itertools import chain
@@ -10,12 +11,26 @@ import scanpy as sc
 
 import matplotlib
 from matplotlib import font_manager
+import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
+from matplotlib.cm import get_cmap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from scanpy.plotting._tools.scatterplots import (
+    _get_color_source_vector,
+    _color_vector,
+    _get_vboundnorm,
+    _get_palette,
+    _FontSize,
+    _FontWeight,
+    VBound,
+    Normalize,
+)
+from scanpy.plotting._utils import check_colornorm
+
 
 from .presults import PResults
 
-import matplotlib.pyplot as plt
 
 # set plotting defaults
 with warnings.catch_warnings():
@@ -839,6 +854,373 @@ def plot_gene_trends(
     sns.despine()
 
     return fig
+
+
+def _process_mask(ad: sc.AnnData, masks_key: str, branch_name: str):
+    """
+    Processes the mask string to obtain mask indices.
+
+    Parameters
+    ----------
+    ad : sc.AnnData
+        The annotated data matrix
+    masks_key : str
+        The mask string
+
+    Returns
+    -------
+    np.ndarray
+        Boolean array for masking
+    """
+
+    if masks_key in ad.obs:
+        return ad.obs_vector(masks_key).astype(bool)
+
+    if masks_key not in ad.obsm:
+        raise KeyError(f"{masks_key} not found in ad.obsm")
+    if masks_key + "_columns" not in ad.uns:
+        raise KeyError(f"{masks_key}_columns not found in ad.uns")
+
+    fate_mask = ad.obsm[masks_key]
+    fate_mask_names = ad.uns[masks_key + "_columns"]
+
+    for i, m in enumerate(fate_mask_names):
+        if m == branch_name:
+            break
+    else:
+        raise ValueError(
+            f"Fate '{branch_name}' not found in {branch_name}_columns in ad.uns"
+        )
+
+    return fate_mask[:, i].astype(bool)
+
+
+def prepare_color_vector(
+    ad: sc.AnnData,
+    color: str,
+    mask: np.ndarray,
+    layer: Optional[str] = None,
+    palette: Optional[Union[str, Sequence[str]]] = None,
+    na_color: str = "lightgray",
+):
+    """
+    Prepare the color vector for plotting.
+
+    Parameters
+    ----------
+    ad : sc.AnnData
+        The annotated data matrix
+    color : str
+        The color parameter
+    mask : np.ndarray
+        Boolean mask array
+    layer : str, optional
+        The data layer to use
+    palette : str or Sequence[str], optional
+        The color palette to use
+    na_color : str, optional
+        The color for NA values
+
+    Returns
+    -------
+    Tuple
+        Color vector and a flag indicating whether it's categorical
+    """
+
+    color_source_vector = _get_color_source_vector(ad, color, layer=layer)
+    color_vector, categorical = _color_vector(
+        ad, color, color_source_vector, palette=palette, na_color=na_color
+    )
+    color_vector = color_vector[mask]
+
+    return color_source_vector, color_vector, categorical
+
+def _add_categorical_legend(
+    ax,
+    color_source_vector,
+    palette: dict,
+    legend_loc: str,
+    legend_fontweight,
+    legend_fontsize,
+    legend_fontoutline,
+    multi_panel,
+    na_color,
+    na_in_legend: bool,
+    scatter_array=None,
+):
+    """Add a legend to the passed Axes."""
+    if na_in_legend and pd.isnull(color_source_vector).any():
+        if "NA" in color_source_vector:
+            raise NotImplementedError(
+                "No fallback for null labels has been defined if NA already in categories."
+            )
+        color_source_vector = color_source_vector.add_categories("NA").fillna("NA")
+        palette = palette.copy()
+        palette["NA"] = na_color
+    if color_source_vector.dtype == bool:
+        cats = pd.Categorical(color_source_vector.astype(str)).categories
+    else:
+        cats = color_source_vector.categories
+
+    if multi_panel is True:
+        # Shrink current axis by 10% to fit legend and match
+        # size of plots that are not categorical
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.91, box.height])
+
+    if legend_loc == 'right margin':
+        for label in cats:
+            ax.scatter([], [], c=palette[label], label=label)
+        ax.legend(
+            frameon=False,
+            loc='center left',
+            bbox_to_anchor=(1.07, 0.5),
+            ncol=(1 if len(cats) <= 14 else 2 if len(cats) <= 30 else 3),
+            fontsize=legend_fontsize,
+        )
+    elif legend_loc == 'on data':
+        # identify centroids to put labels
+
+        all_pos = (
+            pd.DataFrame(scatter_array, columns=["x", "y"])
+            .groupby(color_source_vector, observed=True)
+            .median()
+            # Have to sort_index since if observed=True and categorical is unordered
+            # the order of values in .index is undefined. Related issue:
+            # https://github.com/pandas-dev/pandas/issues/25167
+            .sort_index()
+        )
+
+        for label, x_pos, y_pos in all_pos.itertuples():
+            ax.text(
+                x_pos,
+                y_pos,
+                label,
+                weight=legend_fontweight,
+                verticalalignment='center',
+                horizontalalignment='center',
+                fontsize=legend_fontsize,
+                path_effects=legend_fontoutline,
+            )
+
+def plot_trend(
+    ad: sc.AnnData,
+    branch_name: str,
+    gene: str,
+    color: str = None,
+    masks_key: str = "branch_masks",
+    gene_trend_key: str = "gene_trends",
+    ax: Optional[plt.Axes] = None,
+    pseudo_time_key: str = "palantir_pseudotime",
+    na_color: str = "lightgray",
+    color_layer: Optional[str] = None,
+    gene_layer: Optional[str] = None,
+    legend_fontsize: Union[int, float, _FontSize, None] = None,
+    legend_fontweight: Union[int, _FontWeight] = "bold",
+    legend_fontoutline: Optional[int] = None,
+    legend_loc: str = "right margin",
+    colorbar_loc: Optional[str] = "right",
+    cmap=None,
+    palette: Union[str, Sequence[str], Cycler, None] = None,
+    vmax: Union[VBound, Sequence[VBound], None] = None,
+    vmin: Union[VBound, Sequence[VBound], None] = None,
+    vcenter: Union[VBound, Sequence[VBound], None] = None,
+    norm: Union[Normalize, Sequence[Normalize], None] = None,
+    add_outline: Optional[bool] = False,
+    **kwargs,
+):
+
+    """
+    Plots a trend graph for a gene expression over pseudotime.
+
+    Parameters
+    ----------
+    ad : AnnData
+        The annotated data matrix of shape n_obs x n_vars. Rows correspond
+        to cells and columns to genes.
+    gene : str
+        The gene to be plotted.
+    branch_name : str, optional
+        The branch to plot the trend for.
+    color : str, optional
+        The color to be used for the plot, similar to color in scanpy.pl.embedding. By default None
+    masks_key : str, optional
+        Key to access the branch cell selection masks from obsm of the AnnData object.
+        Default is 'branch_masks'.
+    gene_trend_key : str, optional
+        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
+    ax : Axes, optional
+        A matplotlib axes object.
+    pseudo_time_key : str, optional
+        The pseudotime key to be used for the plot, by default "palantir_pseudotime"
+    na_color : str, optional
+        The color to be used for 'NA' values, by default "lightgray"
+    color_layer : str, optional
+        The data layer to use for color in the plot. If None, the .X layer is used.
+    gene_layer : str, optional
+        The data layer to use for y-position the plot. If None, the .X layer is used.
+    legend_fontsize : Union[int, float, _FontSize, None], optional
+        The font size for the legend, by default None
+    legend_fontweight : Union[int, _FontWeight], optional
+        The font weight for the legend, by default 'bold'
+    legend_fontoutline : int, optional
+        The font outline for the legend, by default None
+    legend_loc : str, optional
+        The location of the legend, by default 'right margin'
+    colorbar_loc : str, optional
+        The location of the colorbar, by default "right"
+    cmap : Colormap, optional
+        A colormap instance or registered colormap name. cmap is only
+        used if c is an array of floats.
+    palette : Union[str, Sequence[str], Cycler, None], optional
+        Colors to use for plotting categorical annotation groups.
+        The palette can be a valid :class:`~matplotlib.colors.ListedColormap`
+        name ('viridis', 'Set2', etc), a :class:`~cycler.Cycler` object, or
+        a sequence of matplotlib colors like ['red', 'blue', 'green'] (see
+        :func:`~matplotlib.colors.is_color_like`).
+    vmax : float or array-like or None
+        If not None, either a maximum intensities for all points,
+        or an array that determines per-point maximum intensities.
+    vmin : float or array-like or None
+        If not None, either a minimum intensities for all points,
+        or an array that determines per-point minimum intensities.
+    vcenter : float or array-like or None
+        If not None, either a center intensities for all points,
+        or an array that determines per-point center intensities.
+    norm : Normalize or None
+        The normalizing object which scales data, typically into the
+        interval [0, 1]. If not None, vmax, vmin, and vcenter are ignored.
+    add_outline : bool, optional
+        Whether to add an outline to the points, by default False
+
+    Returns
+    -------
+    fig, ax : figure and axis elements of the plot.
+
+    Raises
+    ------
+    TypeError
+        If input parameters are not of the expected type.
+    ValueError
+        If input parameters do not have the expected values.
+    """
+
+    if not isinstance(ad, sc.AnnData):
+        raise TypeError("Expected ad to be an instance of sc.AnnData")
+    if not isinstance(gene, str):
+        raise TypeError("Expected gene to be a str")
+    if not isinstance(branch_name, str):
+        raise TypeError("Expected branch_name to be a str")
+    if color is not None and not isinstance(color, str):
+        raise TypeError("Expected color to be a str")
+    if ax is not None and not isinstance(ax, plt.Axes):
+        raise TypeError("Expected ax to be a matplotlib Axes instance")
+    if not isinstance(pseudo_time_key, str):
+        raise TypeError("Expected pseudo_time_key to be a str")
+
+    mask = (
+        _process_mask(ad, masks_key, branch_name)
+        if isinstance(masks_key, str)
+        else masks_key
+    )
+    gene_trends = _validate_gene_trend_input(ad, gene_trend_key, [branch_name])
+
+    trends = gene_trends[branch_name]["trends"]
+    pseudotime_grid = trends.columns
+
+    pseduotimes = ad.obs_vector(pseudo_time_key)
+    pseduotimes = pseduotimes[mask]
+
+    y_pos = _get_color_source_vector(ad, gene, layer=gene_layer)
+    y_pos = y_pos[mask]
+
+    color_source_vector, color_vector, categorical = prepare_color_vector(
+        ad, color, mask, layer=color_layer, palette=palette, na_color=na_color
+    )
+
+    scatter_kwargs = {
+        "edgecolor": "none",
+        "plotnonfinite": True,
+    }
+    scatter_kwargs.update(kwargs)
+
+    cmap = copy(get_cmap(cmap))
+    cmap.set_bad(na_color)
+    scatter_kwargs["cmap"] = cmap
+
+    na_color = matplotlib.colors.to_hex(na_color, keep_alpha=True)
+
+    if not categorical:
+        vmin_float, vmax_float, vcenter_float, norm_obj = _get_vboundnorm(
+            vmin, vmax, vcenter, norm, 0, color_vector
+        )
+        normalize = check_colornorm(
+            vmin_float,
+            vmax_float,
+            vcenter_float,
+            norm_obj,
+        )
+    else:
+        normalize = None
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(12, 4))
+    else:
+        fig = ax.figure
+    ax.plot(
+        pseudotime_grid,
+        trends.loc[gene, :],
+        color=SELECTED_COLOR,
+    )
+    ax.set_xlabel("Pseudotime")
+    ax.set_ylabel(f"{gene} trend")
+    ax.set_title(branch_name)
+    plt.locator_params(axis="y", nbins=3)
+    ax.set_zorder(1)
+    ax.set_facecolor("none")
+
+    ax2 = ax.twinx()
+    coords = np.stack(
+        [
+            pseduotimes,
+            y_pos,
+        ],
+        axis=1,
+    )
+    cax = ax2.scatter(
+        coords[:, 0],
+        coords[:, 1],
+        marker=".",
+        c=color_vector,
+        norm=normalize,
+        **kwargs,
+    )
+    ax2.set_ylabel(f"{gene} log-expression")
+    ax2.set_zorder(0)
+
+    plt.locator_params(axis="x", nbins=3)
+    plt.locator_params(axis="y", nbins=3)
+
+    if categorical or color_vector.dtype == bool:
+        _add_categorical_legend(
+            ax,
+            color_source_vector,
+            palette=_get_palette(ad, color),
+            scatter_array=coords,
+            legend_loc=legend_loc,
+            legend_fontweight=legend_fontweight,
+            legend_fontsize=legend_fontsize,
+            legend_fontoutline=None,
+            na_color=na_color,
+            na_in_legend=True,
+            multi_panel=False,
+        )
+    elif colorbar_loc is not None:
+        plt.colorbar(
+            cax, ax=ax, pad=0.01, fraction=0.08, aspect=30, location=colorbar_loc
+        )
+    return fig, ax
+
 
 def _scale(
     mat: pd.DataFrame,
