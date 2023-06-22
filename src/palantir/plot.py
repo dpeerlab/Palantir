@@ -15,7 +15,7 @@ from matplotlib import font_manager
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
 from matplotlib.cm import get_cmap
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize, Colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from scanpy.plotting._tools.scatterplots import (
@@ -1040,7 +1040,7 @@ def plot_trend(
     legend_fontoutline: Optional[int] = None,
     legend_anchor: Tuple[float, float] = (1.1, 0.5),
     color_bar_bounds: list = [1.1, 0.3, 0.02, 0.4],
-    cmap=None,
+    cmap: Union[Colormap, str, None] = None,
     palette: Union[str, Sequence[str], Cycler, None] = None,
     vmax: Union[VBound, Sequence[VBound], None] = None,
     vmin: Union[VBound, Sequence[VBound], None] = None,
@@ -1100,9 +1100,8 @@ def plot_trend(
         bbox_to_anchor parameter of ax.legend() method. The default is (1.1, 0.5).
     color_bar_bounds : list, optional
         Specifies the bounds for the color bar. Defaults to [1, 0.4, 0.01, 0.2].
-    cmap : Colormap, optional
-        A colormap instance or registered colormap name. cmap is only
-        used if c is an array of floats.
+    cmap : Union[Colormap, str, None]
+        A colormap instance or registered colormap name to color the scatter plot.
     palette : Union[str, Sequence[str], Cycler, None], optional
         Colors to use for plotting categorical annotation groups.
         The palette can be a valid matplotlib.colors.ListedColormap name
@@ -1178,6 +1177,7 @@ def plot_trend(
 
     cmap = copy(get_cmap(cmap))
     cmap.set_bad(na_color)
+    print(cmap)
     scatter_kwargs["cmap"] = cmap
 
     na_color = matplotlib.colors.to_hex(na_color, keep_alpha=True)
@@ -1225,7 +1225,7 @@ def plot_trend(
         y_pos,
         marker=".",
         c=color_vector,
-        **kwargs,
+        **scatter_kwargs,
     )
     ax2.set_ylabel(position)
     ax2.set_zorder(0)
