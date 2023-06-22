@@ -43,6 +43,7 @@ def run_palantir(
     pseudo_time_key: str = "palantir_pseudotime",
     entropy_key: str = "palantir_entropy",
     fate_prob_key: str = "palantir_fate_probabilities",
+    save_as_df: bool = True,
     waypoints_key: str = "palantir_waypoints",
     seed: int = 20,
 ) -> Optional[PResults]:
@@ -78,7 +79,12 @@ def run_palantir(
         Key to store the entropy in obs of the AnnData object. Default is 'palantir_entropy'.
     fate_prob_key : str, optional
         Key to store the fate probabilities in obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
-        Column names of the probability matrix are stored in the AnnData's uns[fate_prob_key + "_columns"].
+        If save_as_df is True, the fate probabilities are stored as pandas DataFrame with terminal state names as columns.
+        If False, the fate probabilities are stored as numpy array and the terminal state names are stored in uns[fate_prob_key + "_columns"].
+    save_as_df : bool, optional
+        If True, the fate probabilities are saved as pandas DataFrame. If False, the data is saved as numpy array.
+        The option to save as DataFrame is there due to some versions of AnnData not being able to
+        write h5ad files with DataFrames in ad.obsm. Default is True.
     waypoints_key : str, optional
         Key to store the waypoints in uns of the AnnData object. Default is 'palantir_waypoints'.
     seed : int, optional
@@ -168,11 +174,14 @@ def run_palantir(
     if isinstance(data, sc.AnnData):
         data.obs[pseudo_time_key] = pseudotime
         data.obs[entropy_key] = ent
-        data.obsm[fate_prob_key] = branch_probs.values
         data.uns[waypoints_key] = waypoints.values
-        if isinstance(terminal_states, pd.Series):
-            branch_probs.columns = terminal_states[branch_probs.columns]
-        data.uns[fate_prob_key + "_columns"] = branch_probs.columns.values
+        if save_as_df:
+            data.obsm[fate_prob_key] = branch_probs
+        else:
+            data.obsm[fate_prob_key] = branch_probs.values
+            if isinstance(terminal_states, pd.Series):
+                branch_probs.columns = terminal_states[branch_probs.columns]
+            data.uns[fate_prob_key + "_columns"] = branch_probs.columns.values
 
     return pr_res
 

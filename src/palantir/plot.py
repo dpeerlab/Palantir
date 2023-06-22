@@ -31,6 +31,7 @@ from scanpy.plotting._utils import check_colornorm
 
 
 from .presults import PResults
+from .utils import _validate_obsm_key, _validate_varm_key
 
 
 # set plotting defaults
@@ -473,14 +474,12 @@ def plot_palantir_results(
                 or fate_prob_key not in data.obsm
             ):
                 raise KeyError("Required Palantir results not found in .obs or .obsm.")
+            obsm_pobs, _ = _validate_obsm_key(data, fate_prob_key)
+            obsm_pobs = data.obsm[fate_prob_key]
             pr_res = PResults(
                 data.obs[pseudo_time_key],
                 data.obs[entropy_key],
-                pd.DataFrame(
-                    data.obsm[fate_prob_key],
-                    index=data.obs_names,
-                    columns=data.uns[fate_prob_key + "_columns"],
-                ),
+                obsm_pobs,
                 None,
             )
     else:
@@ -568,13 +567,7 @@ def plot_terminal_state_probs(
     """
     if isinstance(data, sc.AnnData):
         if pr_res is None:
-            if fate_prob_key not in data.obsm:
-                raise KeyError(f"'{fate_prob_key}' not found in .obsm.")
-            branch_probs = pd.DataFrame(
-                data.obsm[fate_prob_key],
-                index=data.obs_names,
-                columns=data.uns[fate_prob_key + "_columns"],
-            )
+            branch_probs, _ = _validate_obsm_key(data, fate_prob_key)
     else:
         if pr_res is None:
             raise ValueError("pr_res must be provided when data is a DataFrame.")
@@ -653,36 +646,26 @@ def plot_branch_selection(
     """
     if pseudo_time_key not in ad.obs:
         raise KeyError(f"{pseudo_time_key} not found in ad.obs")
-    if fate_prob_key not in ad.obsm:
-        raise KeyError(f"{fate_prob_key} not found in ad.obsm")
-    if fate_prob_key + "_columns" not in ad.uns:
-        raise KeyError(f"{fate_prob_key}_columns not found in ad.uns")
-    if masks_key not in ad.obsm:
-        raise KeyError(f"{masks_key} not found in ad.obsm")
-    if masks_key + "_columns" not in ad.uns:
-        raise KeyError(f"{masks_key}_columns not found in ad.uns")
+
+    fate_probs, fate_probs_names = _validate_obsm_key(ad, fate_prob_key)
+    fate_mask, fate_mask_names = _validate_obsm_key(ad, fate_prob_key)
+
     if embedding_basis not in ad.obsm:
         raise KeyError(f"{embedding_basis} not found in ad.obsm")
 
-    fate_probs = ad.obsm[fate_prob_key]
-    fate_probs_names = list(ad.uns[fate_prob_key + "_columns"])
-    fate_mask = ad.obsm[masks_key]
-    fate_mask_names = list(ad.uns[masks_key + "_columns"])
     fate_names = set(fate_probs_names).intersection(fate_mask_names)
     if len(fate_names) == 0:
         raise ValueError(
-            f"No agreeing fate names found in .uns['{fate_prob_key}_columns'] and .uns['{masks_key}_columns']."
+            f"No agreeing fate names found for .obsm['{fate_prob_key}'] and .obsm['{masks_key}']."
         )
     n_fates = len(fate_names)
     if n_fates < len(fate_probs_names) or n_fates < len(fate_probs_names):
         warnings.warn(
             f"Found only {n_fates} fates in the intersection of "
-            f".uns['{fate_prob_key}_columns'] ({len(fate_probs_names)} fates) "
-            f"and .uns['{masks_key}_columns'] ({len(fate_mask_names)} fates)."
+            f"{len(fate_probs_names)} fate-probability fates in .obsm['{fate_prob_key}'] fates) "
+            f"and {len(fate_mask_names)} fate-mask fates in .obsm['{masks_key}']."
         )
 
-    fate_mask = pd.DataFrame(fate_mask, columns=fate_mask_names, index=ad.obs_names)
-    fate_probs = pd.DataFrame(fate_probs, columns=fate_probs_names, index=ad.obs_names)
     pt = ad.obs[pseudo_time_key]
     umap = ad.obsm[embedding_basis]
 
@@ -815,23 +798,9 @@ def _validate_gene_trend_input(
 
         gene_trends = dict()
         for branch in branch_names:
-            gene_names = data.var_names
-            varm_name = gene_trend_key + "_" + branch
-            if varm_name not in data.varm:
-                raise KeyError(
-                    f"'gene_trend_key + \"_\" + branch_name' = '{varm_name}' not found in .varm. "
-                )
-            pt_grid_name = gene_trend_key + "_" + branch + "_pseudotime"
-            if pt_grid_name not in data.uns.keys():
-                raise KeyError(
-                    '\'gene_trend_key + "_" + branch_name + "_pseudotime"\' '
-                    f"= '{pt_grid_name}' not found in .uns. "
-                )
-            pt_grid = data.uns[pt_grid_name]
-            trends = data.varm[varm_name]
-            gene_trends[branch] = {
-                "trends": pd.DataFrame(trends, columns=pt_grid, index=gene_names)
-            }
+            gene_trends[branch], pt_grid = _validate_varm_key(
+                data, gene_trend_key + "_" + branch
+            )
     elif isinstance(data, Dict):
         gene_trends = data
     else:
@@ -926,23 +895,17 @@ def _process_mask(ad: sc.AnnData, masks_key: str, branch_name: str):
     if masks_key in ad.obs:
         return ad.obs_vector(masks_key).astype(bool)
 
-    if masks_key not in ad.obsm:
-        raise KeyError(f"{masks_key} not found in ad.obsm")
-    if masks_key + "_columns" not in ad.uns:
-        raise KeyError(f"{masks_key}_columns not found in ad.uns")
+    fate_mask, fate_mask_names = _validate_obsm_key(ad, masks_key)
 
-    fate_mask = ad.obsm[masks_key]
-    fate_mask_names = ad.uns[masks_key + "_columns"]
-
-    for i, m in enumerate(fate_mask_names):
-        if m == branch_name:
-            break
-    else:
+    try:
+        mask = fate_mask[branch_name]
+    except KeyError:
         raise ValueError(
-            f"Fate '{branch_name}' not found in {branch_name}_columns in ad.uns"
+            f"Fate '{branch_name}' not found in {branch_name} "
+            f"in ad.osbm or {branch_name}_columns in ad.uns"
         )
 
-    return fate_mask[:, i].astype(bool)
+    return mask.astype(bool).values
 
 
 def prepare_color_vector(
@@ -1465,7 +1428,7 @@ def plot_gene_trend_heatmaps(
         it is assumed to be a key in AnnData.uns. Default is 'branch_masks_columns'.
     scaling : Optional[Literal["none", "z-score", "quantile", "percent"]], optional
         Scaling method to apply on the gene trends. Options are:
-        - "none" : returns the original data.
+        - "none" : no scaling is applied.
         - "z-score" : standardizes the data to have 0 mean and 1 variance.
         - "quantile" : scales the data to have values between 0 and 1.
         - "percent" : scales the data to represent percentages of the max value in the row.
@@ -1548,23 +1511,7 @@ def plot_gene_trend_clusters(
                 "Must provide a gene_trend_key when data is an AnnData object."
             )
 
-        varm_name = gene_trend_key + "_" + branch_name
-        if varm_name not in data.varm:
-            raise KeyError(
-                f"'gene_trend_key + \"_\" + branch_name' = '{varm_name}' not found in .varm."
-            )
-
-        pt_grid_name = gene_trend_key + "_" + branch_name + "_pseudotime"
-        if pt_grid_name not in data.uns.keys():
-            raise KeyError(
-                '\'gene_trend_key + "_" + branch_name + "_pseudotime"\' '
-                f"= '{pt_grid_name}' not found in .uns."
-            )
-
-        pseudotimes = data.uns[pt_grid_name]
-        trends = pd.DataFrame(
-            data.varm[varm_name], index=data.var_names, columns=pseudotimes
-        )
+        trends, pseudotimes = _validate_varm_key(data, gene_trend_key + "_" + branch_name)
 
         if clusters is None:
             clusters = gene_trend_key + "_clusters"
