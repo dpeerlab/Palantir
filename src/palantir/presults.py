@@ -543,6 +543,7 @@ def select_branch_cells(
         prob_thresholds[l:r, :] = mprob[None, :]
     mprob = np.quantile(sorted_fate_probs, 1 - q, axis=0)
     prob_thresholds[r:, :] = mprob[None, :]
+    prob_thresholds = np.maximum.accumulate(prob_thresholds, axis=0)
 
     masks = np.empty_like(fate_probs).astype(bool)
     masks[idx, :] = prob_thresholds - eps < sorted_fate_probs
