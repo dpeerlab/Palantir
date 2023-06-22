@@ -184,7 +184,7 @@ def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
 
 def highlight_cells_on_umap(
     data: Union[sc.AnnData, pd.DataFrame],
-    cells: Union[List[str], Dict[str, str], pd.Series],
+    cells: Union[List[str], Dict[str, str], pd.Series, pd.Index, np.ndarray, str],
     annotation_offset: float = 0.03,
     s: float = 1,
     s_highlighted: float = 10,
@@ -193,41 +193,44 @@ def highlight_cells_on_umap(
     embedding_basis: str = "X_umap",
 ) -> Tuple[plt.Figure, plt.Axes]:
     """
-    Highlights and annotates specific cells on a UMAP plot.
+     Highlights and annotates specific cells on a UMAP plot.
 
-    Parameters
-    ----------
-    data : Union[sc.AnnData, pd.DataFrame]
-        Either a Scanpy AnnData object or a DataFrame of UMAP coordinates.
-    cells : Union[List[str], Dict[str, str], pd.Series]
-        List of cells to highlight on the UMAP. If provided as a dictionary or pd.Series,
-        keys are used as cell names and values are used as annotations.
+     Parameters
+     ----------
+     data : Union[sc.AnnData, pd.DataFrame]
+         Either a Scanpy AnnData object or a DataFrame of UMAP coordinates.
+     cells : Union[List[str], Dict[str, str], pd.Series, pd.Index, np.ndarray, str]
+         Cells to highlight on the UMAP. Can be provided as:
+             - a list, dict, or pd.Series: used as cell names (values in dict/Series used as annotations).
+             - a pd.Index: cell identifiers matching those in the data's index will be highlighted.
+             - a boolean array-like: used as a mask to select cells from the data's index.
+             - a string: used to retrieve a boolean mask from the AnnData's .obs attribute.
     annotation_offset : float, optional
-        Offset for the annotations in proportion to the data range. Default is 0.03.
-    s : float, optional
-        Size of the points in the scatter plot. Default is 1.
-    s_highlighted : float, optional
-        Size of the points in the highlighted cells. Default is 10.
-    fig : Optional[plt.Figure], optional
-        Matplotlib Figure object. If None, a new figure is created. Default is None.
-    ax : Optional[plt.Axes], optional
-        Matplotlib Axes object. If None, a new Axes object is created. Default is None.
-    embedding_basis : str, optional
-        The key to retrieve UMAP results from the AnnData object. Default is 'X_umap'.
+         Offset for the annotations in proportion to the data range. Default is 0.03.
+     s : float, optional
+         Size of the points in the scatter plot. Default is 1.
+     s_highlighted : float, optional
+         Size of the points in the highlighted cells. Default is 10.
+     fig : Optional[plt.Figure], optional
+         Matplotlib Figure object. If None, a new figure is created. Default is None.
+     ax : Optional[plt.Axes], optional
+         Matplotlib Axes object. If None, a new Axes object is created. Default is None.
+     embedding_basis : str, optional
+         The key to retrieve UMAP results from the AnnData object. Default is 'X_umap'.
 
-    Returns
-    -------
-    fig : plt.Figure
-        A matplotlib Figure object containing the UMAP plot.
-    ax : plt.Axes
-        The corresponding Axes object.
+     Returns
+     -------
+     fig : plt.Figure
+         A matplotlib Figure object containing the UMAP plot.
+     ax : plt.Axes
+         The corresponding Axes object.
 
-    Raises
-    ------
-    KeyError
-        If 'embedding_basis' is not found in 'data.obsm'.
-    TypeError
-        If 'cells' is neither list, dict nor pd.Series.
+     Raises
+     ------
+     KeyError
+         If 'embedding_basis' is not found in 'data.obsm'.
+     TypeError
+         If 'cells' is neither list, dict nor pd.Series.
     """
     if isinstance(data, sc.AnnData):
         if embedding_basis not in data.obsm:
@@ -240,12 +243,36 @@ def highlight_cells_on_umap(
     else:
         raise TypeError("'data' should be either sc.AnnData or pd.DataFrame.")
 
-    if isinstance(cells, list):
+    if not isinstance(cells, (pd.Series, np.ndarray, pd.Index, list)):
+        if isinstance(cells, str):
+            if cells not in data.obs.columns:
+                raise KeyError(f"'{cells}' not found in .obs.")
+            mask = data.obs[cells].astype(bool).values
+            cells = {cell: "" for cell in data.obs[mask].index}
+        elif not isinstance(cells, dict):
+            raise TypeError(
+                "'cells' should be either list, dict, pd.Series, pd.Index, string "
+                "(as column in .obs), or a boolean array-like."
+            )
+    elif len(cells) == data.n_obs:
+        try:
+            cells = data.obs_names[cells]
+        except IndexError:
+            raise ValueError(
+                "Using 'cells' as boolean index since len(cells) == ad.n_obs but failed."
+            )
         cells = {cell: "" for cell in cells}
-    elif isinstance(cells, (dict, pd.Series)):
+    elif isinstance(cells, (list, np.ndarray, pd.Index)):
+        cells = {cell: "" for cell in cells}
+    elif isinstance(cells, pd.Series):
         cells = dict(cells)
+    elif isinstance(cells, pd.Index):
+        cells = {cell: "" for cell in cells}
     else:
-        raise TypeError("'cells' should be either list, dict or pd.Series.")
+        raise TypeError(
+            "'cells' should be either list, dict, pd.Series, pd.Index, string "
+            "(as column in .obs), or a boolean array-like."
+        )
 
     xpad, ypad = (umap.max() - umap.min()) * annotation_offset
 
@@ -638,13 +665,24 @@ def plot_branch_selection(
         raise KeyError(f"{embedding_basis} not found in ad.obsm")
 
     fate_probs = ad.obsm[fate_prob_key]
-    fate_names = ad.uns[fate_prob_key + "_columns"]
+    fate_probs_names = list(ad.uns[fate_prob_key + "_columns"])
     fate_mask = ad.obsm[masks_key]
-    fate_mask_names = ad.uns[masks_key + "_columns"]
-    assert set(fate_names) == set(
-        fate_mask_names
-    ), f"Fates in .uns['{fate_prob_key}_columns'] and .uns['{masks_key}_columns'] must be the same."
+    fate_mask_names = list(ad.uns[masks_key + "_columns"])
+    fate_names = set(fate_probs_names).intersection(fate_mask_names)
+    if len(fate_names) == 0:
+        raise ValueError(
+            f"No agreeing fate names found in .uns['{fate_prob_key}_columns'] and .uns['{masks_key}_columns']."
+        )
+    n_fates = len(fate_names)
+    if n_fates < len(fate_probs_names) or n_fates < len(fate_probs_names):
+        warnings.warn(
+            f"Found only {n_fates} fates in the intersection of "
+            f".uns['{fate_prob_key}_columns'] ({len(fate_probs_names)} fates) "
+            f"and .uns['{masks_key}_columns'] ({len(fate_mask_names)} fates)."
+        )
+
     fate_mask = pd.DataFrame(fate_mask, columns=fate_mask_names, index=ad.obs_names)
+    fate_probs = pd.DataFrame(fate_probs, columns=fate_probs_names, index=ad.obs_names)
     pt = ad.obs[pseudo_time_key]
     umap = ad.obsm[embedding_basis]
 
@@ -653,21 +691,24 @@ def plot_branch_selection(
     )
 
     for i, fate in enumerate(fate_names):
-        ax1 = axes[i, 0]
-        ax2 = axes[i, 1]
+        if n_fates == 1:
+            ax1, ax2 = axes
+        else:
+            ax1 = axes[i, 0]
+            ax2 = axes[i, 1]
         mask = fate_mask[fate].astype(bool)
 
         # plot cells along pseudotime
         ax1.scatter(
             pt[~mask],
-            fate_probs[~mask, i],
+            fate_probs.loc[~mask, fate],
             c=DESELECTED_COLOR,
             label="Other Cells",
             **kwargs,
         )
         ax1.scatter(
             pt[mask],
-            fate_probs[mask, i],
+            fate_probs.loc[mask, fate],
             c=SELECTED_COLOR,
             label="Selected Cells",
             **kwargs,
