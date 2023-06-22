@@ -134,6 +134,8 @@ def run_low_density_variability(
             ), f"{cell_mask} in ad.obsm but {cell_mask}_columns not found in ad.uns"
             branch_names = ["_" + b for b in ad.uns[cell_mask + "_columns"]]
             masks = ad.obsm[cell_mask]
+            if masks.ndim == 1:
+                masks = masks[:, None]
         elif cell_mask in ad.obs.columns:
             branch_names = [
                 "_" + cell_mask,
