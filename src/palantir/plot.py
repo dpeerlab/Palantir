@@ -1,4 +1,4 @@
-from typing import Union, Optional, List, Tuple, Dict
+from typing import Union, Optional, List, Tuple, Dict, Literal
 import warnings
 import os
 import numpy as np
@@ -840,12 +840,54 @@ def plot_gene_trends(
 
     return fig
 
+def _scale(
+    mat: pd.DataFrame,
+    scaling: Optional[Literal["none", "z-score", "quantile", "percent"]] = None,
+) -> pd.DataFrame:
+    """
+    Scale the given matrix based on the scaling method provided.
+
+    Parameters
+    ----------
+    mat : pd.DataFrame
+        A pandas DataFrame to be scaled.
+    scaling : Optional[Literal["none", "z-score", "quantile", "percent"]], optional
+        The scaling method. Options are:
+        - "none" : returns the original matrix.
+        - "z-score" : standardizes the matrix to have 0 mean and 1 variance.
+        - "quantile" : scales the matrix to have values between 0 and 1.
+        - "percent" : scales the matrix to represent percentages of the max value in the row.
+        If None or "none", the original matrix will be returned. Default is None.
+
+    Returns
+    -------
+    pd.DataFrame
+        The scaled pandas DataFrame.
+    """
+    if scaling in [None, "none", "None"]:
+        return mat
+    elif scaling == "z-score":
+        return pd.DataFrame(
+            StandardScaler().fit_transform(mat.T).T,
+            index=mat.index,
+            columns=mat.columns,
+        )
+    elif scaling == "quantile":
+        return mat.rank(axis=1) / mat.shape[1]
+    elif scaling == "percent":
+        return mat.div(mat.max(axis=1), axis=0)
+    else:
+        raise ValueError("Invalid scaling method.")
+
 
 def plot_gene_trend_heatmaps(
     data: Union[sc.AnnData, Dict],
     genes: Optional[List[str]] = None,
     gene_trend_key: str = "gene_trends",
-    branch_names: Union[str, List] = "branch_masks_columns",
+    branch_names: Union[str, List[str]] = "branch_masks_columns",
+    scaling: Optional[Literal["none", "z-score", "quantile", "percent"]] = "z-score",
+    basefigsize: Tuple[int, int] = (7, 0.7),
+    **kwargs,
 ) -> plt.Figure:
     """
     Plot the gene trends on heatmaps: a heatmap is generated for each branch.
@@ -859,39 +901,44 @@ def plot_gene_trend_heatmaps(
         Default is None.
     gene_trend_key : str, optional
         Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
-    branch_names : Union[str, List], optional
+    branch_names : Union[str, List[str]], optional
         Key to access branch names from AnnData object or list of branch names. If a string is provided,
         it is assumed to be a key in AnnData.uns. Default is 'branch_masks_columns'.
+    scaling : Optional[Literal["none", "z-score", "quantile", "percent"]], optional
+        Scaling method to apply on the gene trends. Options are:
+        - "none" : returns the original data.
+        - "z-score" : standardizes the data to have 0 mean and 1 variance.
+        - "quantile" : scales the data to have values between 0 and 1.
+        - "percent" : scales the data to represent percentages of the max value in the row.
+        Default is 'z-score'.
+    basefigsize : Tuple[int, int], optional
+        Base width and height in inches of the figure. The actual height of the figure is calculated
+        based on the number of genes and branches. Default base size is (7, 0.7).
+    kwargs : dict
+        Additional keyword arguments for seaborn.heatmap.
 
     Returns
     -------
     fig : matplotlib.figure.Figure
         Matplotlib figure object of the plot.
     """
-
     gene_trends = _validate_gene_trend_input(data, gene_trend_key, branch_names)
 
-    # Plot height
+    # Get the branch names
     branches = list(gene_trends.keys())
     if genes is None:
         genes = gene_trends[branches[0]]["trends"].index
-    height = 0.7 * len(genes) * len(branches)
 
-    if genes is None:
-        genes = gene_trends[branches[0]]["trends"].index
+    height = basefigsize[1] * len(genes) * len(branches)
+    figsize = (basefigsize[0], height)
 
-    fig = plt.figure(figsize=[7, height])
+    fig = plt.figure(figsize=figsize)
     for i, branch in enumerate(branches):
         ax = fig.add_subplot(len(branches), 1, i + 1)
 
-        # Standardize the matrix
         mat = gene_trends[branch]["trends"].loc[genes, :]
-        mat = pd.DataFrame(
-            StandardScaler().fit_transform(mat.T).T,
-            index=mat.index,
-            columns=mat.columns,
-        )
-        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=plt.cm.Spectral_r)
+        mat = _scale(mat, scaling)
+        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=plt.cm.Spectral_r, **kwargs)
         ax.set_title(branch, fontsize=12)
 
     return fig
