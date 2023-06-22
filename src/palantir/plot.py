@@ -1200,7 +1200,9 @@ def plot_branch(
     )
     ax.set_xlabel("Pseudotime")
     ax.set_ylabel(position)
+    ax.set_title(branch_name)
     ax.set_zorder(0)
+    ax.set_facecolor("none")
 
     plt.locator_params(axis="x", nbins=3)
     plt.locator_params(axis="y", nbins=3)
@@ -1364,7 +1366,6 @@ def plot_trend(
     )
     ax.set_xlabel("Pseudotime")
     ax.set_ylabel(f"{gene} trend")
-    ax.set_title(branch_name)
     plt.locator_params(axis="y", nbins=3)
     ax.set_zorder(1)
     ax.set_facecolor("none")
