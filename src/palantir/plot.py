@@ -15,6 +15,7 @@ from matplotlib import font_manager
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
 from matplotlib.cm import get_cmap
+from matplotlib.colors import Normalize
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from scanpy.plotting._tools.scatterplots import (
@@ -25,7 +26,6 @@ from scanpy.plotting._tools.scatterplots import (
     _FontSize,
     _FontWeight,
     VBound,
-    Normalize,
 )
 from scanpy.plotting._utils import check_colornorm
 
@@ -43,6 +43,14 @@ with warnings.catch_warnings():
     fm = font_manager.fontManager
     fm.findfont("Raleway")
     fm.findfont("Lato")
+
+matplotlib.rcParams["figure.dpi"] = 100
+matplotlib.rcParams["image.cmap"] = "viridis"
+matplotlib.rcParams["axes.spines.bottom"] = "on"
+matplotlib.rcParams["axes.spines.top"] = "off"
+matplotlib.rcParams["axes.spines.left"] = "on"
+matplotlib.rcParams["axes.spines.right"] = "off"
+matplotlib.rcParams["figure.figsize"] = [4, 4]
 
 SELECTED_COLOR = "#377eb8"
 DESELECTED_COLOR = "#CFD5E2"
@@ -936,18 +944,17 @@ def prepare_color_vector(
 
     return color_source_vector, color_vector, categorical
 
+
 def _add_categorical_legend(
     ax,
     color_source_vector,
     palette: dict,
-    legend_loc: str,
+    legend_anchor: Tuple[float, float],
     legend_fontweight,
     legend_fontsize,
     legend_fontoutline,
-    multi_panel,
     na_color,
     na_in_legend: bool,
-    scatter_array=None,
 ):
     """Add a legend to the passed Axes."""
     if na_in_legend and pd.isnull(color_source_vector).any():
@@ -963,46 +970,16 @@ def _add_categorical_legend(
     else:
         cats = color_source_vector.categories
 
-    if multi_panel is True:
-        # Shrink current axis by 10% to fit legend and match
-        # size of plots that are not categorical
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.91, box.height])
+    for label in cats:
+        ax.scatter([], [], c=palette[label], label=label)
+    ax.legend(
+        frameon=False,
+        loc="center left",
+        bbox_to_anchor=legend_anchor,
+        ncol=(1 if len(cats) <= 14 else 2 if len(cats) <= 30 else 3),
+        fontsize=legend_fontsize,
+    )
 
-    if legend_loc == 'right margin':
-        for label in cats:
-            ax.scatter([], [], c=palette[label], label=label)
-        ax.legend(
-            frameon=False,
-            loc='center left',
-            bbox_to_anchor=(1.07, 0.5),
-            ncol=(1 if len(cats) <= 14 else 2 if len(cats) <= 30 else 3),
-            fontsize=legend_fontsize,
-        )
-    elif legend_loc == 'on data':
-        # identify centroids to put labels
-
-        all_pos = (
-            pd.DataFrame(scatter_array, columns=["x", "y"])
-            .groupby(color_source_vector, observed=True)
-            .median()
-            # Have to sort_index since if observed=True and categorical is unordered
-            # the order of values in .index is undefined. Related issue:
-            # https://github.com/pandas-dev/pandas/issues/25167
-            .sort_index()
-        )
-
-        for label, x_pos, y_pos in all_pos.itertuples():
-            ax.text(
-                x_pos,
-                y_pos,
-                label,
-                weight=legend_fontweight,
-                verticalalignment='center',
-                horizontalalignment='center',
-                fontsize=legend_fontsize,
-                path_effects=legend_fontoutline,
-            )
 
 def plot_trend(
     ad: sc.AnnData,
@@ -1014,12 +991,13 @@ def plot_trend(
     ax: Optional[plt.Axes] = None,
     pseudo_time_key: str = "palantir_pseudotime",
     na_color: str = "lightgray",
+    position: str = None,
     color_layer: Optional[str] = None,
-    gene_layer: Optional[str] = None,
+    position_layer: Optional[str] = None,
     legend_fontsize: Union[int, float, _FontSize, None] = None,
     legend_fontweight: Union[int, _FontWeight] = "bold",
     legend_fontoutline: Optional[int] = None,
-    legend_loc: str = "right margin",
+    legend_anchor: Tuple[float, float] = (1.1, 0.5),
     color_bar_bounds: list = [1.1, 0.3, 0.02, 0.4],
     cmap=None,
     palette: Union[str, Sequence[str], Cycler, None] = None,
@@ -1027,72 +1005,82 @@ def plot_trend(
     vmin: Union[VBound, Sequence[VBound], None] = None,
     vcenter: Union[VBound, Sequence[VBound], None] = None,
     norm: Union[Normalize, Sequence[Normalize], None] = None,
-    add_outline: Optional[bool] = False,
     **kwargs,
 ):
 
     """
-    Plots a trend graph for a gene expression over pseudotime.
+    This function visualizes a trend graph for a specific gene's expression over pseudotime.
+    It plots the trend of a single gene for a chosen branch and additionally overlays a
+    scatter plot of cells from the same branch. The y-position indicates the gene expression
+    and can be configured to take any column from .obs or use a different layer, like
+    "MAGIC_imputed_data". The color follows similar rules and behaves like the color
+    parameter in scanpy.pl.embedding, but only accepts a single value instead of a list.
 
     Parameters
     ----------
     ad : AnnData
-        The annotated data matrix of shape n_obs x n_vars. Rows correspond
+        Annotated data matrix of shape n_obs x n_vars. Rows correspond
         to cells and columns to genes.
     gene : str
-        The gene to be plotted.
-    branch_name : str, optional
-        The branch to plot the trend for.
+        Specifies the gene to be plotted.
+    branch_name : str
+        Specifies the branch to plot the trend for.
     color : str, optional
-        The color to be used for the plot, similar to color in scanpy.pl.embedding. By default None
+        Defines the color to be used for the plot, similar to the color in
+        scanpy.pl.embedding. If not provided, the default is None.
     masks_key : str, optional
-        Key to access the branch cell selection masks from obsm of the AnnData object.
+        Key for accessing the branch cell selection masks from obsm of the AnnData object.
         Default is 'branch_masks'.
     gene_trend_key : str, optional
-        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
+        Key for accessing gene trends in the AnnData object's varm. Default is 'gene_trends'.
     ax : Axes, optional
         A matplotlib axes object.
     pseudo_time_key : str, optional
-        The pseudotime key to be used for the plot, by default "palantir_pseudotime"
+        Specifies the pseudotime key to be used for the plot.
+        The default is "palantir_pseudotime".
     na_color : str, optional
-        The color to be used for 'NA' values, by default "lightgray"
+        The color to be used for 'NA' values. Default is "lightgray".
+    position : str, optional
+        Similar to color but used for y-position. If None, the default is gene.
     color_layer : str, optional
-        The data layer to use for color in the plot. If None, the .X layer is used.
-    gene_layer : str, optional
-        The data layer to use for y-position the plot. If None, the .X layer is used.
+        Specifies the data layer to use for color in the plot.
+        If not provided, the .X layer is used.
+    position_layer : str, optional
+        Specifies the data layer to use for y-position in the plot.
+        If not provided, the .X layer is used.
     legend_fontsize : Union[int, float, _FontSize, None], optional
-        The font size for the legend, by default None
+        Specifies the font size for the legend. Default is None.
     legend_fontweight : Union[int, _FontWeight], optional
-        The font weight for the legend, by default 'bold'
+        Specifies the font weight for the legend. Default is 'bold'.
     legend_fontoutline : int, optional
-        The font outline for the legend, by default None
-    legend_loc : str, optional
-        The location of the legend, by default 'right margin'
-        color_bar_bounds (list, optional):
-            The bounds for the color bar. Defaults to [1, 0.4, 0.01, 0.2].
+        Specifies the font outline for the legend. Default is None.
+    legend_anchor: Tuple[float, float] = (1.1, 0.5),
+        Defines the position of the legend. The argument will be passed to the
+        bbox_to_anchor parameter of ax.legend() method. The default is (1.1, 0.5).
+    color_bar_bounds : list, optional
+        Specifies the bounds for the color bar. Defaults to [1, 0.4, 0.01, 0.2].
     cmap : Colormap, optional
         A colormap instance or registered colormap name. cmap is only
         used if c is an array of floats.
     palette : Union[str, Sequence[str], Cycler, None], optional
         Colors to use for plotting categorical annotation groups.
-        The palette can be a valid :class:`~matplotlib.colors.ListedColormap`
-        name ('viridis', 'Set2', etc), a :class:`~cycler.Cycler` object, or
-        a sequence of matplotlib colors like ['red', 'blue', 'green'] (see
-        :func:`~matplotlib.colors.is_color_like`).
+        The palette can be a valid matplotlib.colors.ListedColormap name
+        ('viridis', 'Set2', etc), a cycler.Cycler object, or a sequence of
+        matplotlib colors like ['red', 'blue', 'green'].
     vmax : float or array-like or None
-        If not None, either a maximum intensities for all points,
-        or an array that determines per-point maximum intensities.
+        Defines the lower limit of the color scale with values smaller than
+        vmin sharing the same color. It can be a number, percentile string ('pN'),
+        function returning a desired value from the plot values, or None for
+        automatic selection. For multiple plots, a list of vmin can be specified.
     vmin : float or array-like or None
-        If not None, either a minimum intensities for all points,
-        or an array that determines per-point minimum intensities.
+        Sets the upper limit of the color scale, with the same format and behavior as vmin.
     vcenter : float or array-like or None
-        If not None, either a center intensities for all points,
-        or an array that determines per-point center intensities.
-    norm : Normalize or None
-        The normalizing object which scales data, typically into the
-        interval [0, 1]. If not None, vmax, vmin, and vcenter are ignored.
-    add_outline : bool, optional
-        Whether to add an outline to the points, by default False
+        Sets the center of the color scale, useful for diverging colormaps.
+        It follows the same format and rules as vmin and vmax. Example:
+        sc.pl.umap(adata, color='TREM2', vcenter='p50', cmap='RdBu_r').
+    norm : matplotlib.colors.Normalize or None
+        The normalizing object which scales data, typically into the interval [0, 1].
+        If provided, vmax, vmin, and vcenter are ignored.
 
     Returns
     -------
@@ -1132,7 +1120,9 @@ def plot_trend(
     pseduotimes = ad.obs_vector(pseudo_time_key)
     pseduotimes = pseduotimes[mask]
 
-    y_pos = _get_color_source_vector(ad, gene, layer=gene_layer)
+    if position is None:
+        position = gene
+    y_pos = _get_color_source_vector(ad, position, layer=position_layer)
     y_pos = y_pos[mask]
 
     color_source_vector, color_vector, categorical = prepare_color_vector(
@@ -1150,7 +1140,7 @@ def plot_trend(
     scatter_kwargs["cmap"] = cmap
 
     na_color = matplotlib.colors.to_hex(na_color, keep_alpha=True)
-    
+
     if isinstance(vmax, str) or not isinstance(vmax, cabc.Sequence):
         vmax = [vmax]
     if isinstance(vmin, str) or not isinstance(vmin, cabc.Sequence):
@@ -1170,8 +1160,7 @@ def plot_trend(
             vcenter_float,
             norm_obj,
         )
-    else:
-        normalize = None
+        scatter_kwargs["norm"] = normalize
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(12, 4))
@@ -1190,22 +1179,14 @@ def plot_trend(
     ax.set_facecolor("none")
 
     ax2 = ax.twinx()
-    coords = np.stack(
-        [
-            pseduotimes,
-            y_pos,
-        ],
-        axis=1,
-    )
     points = ax2.scatter(
-        coords[:, 0],
-        coords[:, 1],
+        pseduotimes,
+        y_pos,
         marker=".",
         c=color_vector,
-        norm=normalize,
         **kwargs,
     )
-    ax2.set_ylabel(f"{gene} log-expression")
+    ax2.set_ylabel(position)
     ax2.set_zorder(0)
 
     plt.locator_params(axis="x", nbins=3)
@@ -1216,20 +1197,18 @@ def plot_trend(
             ax,
             color_source_vector,
             palette=_get_palette(ad, color),
-            scatter_array=coords,
-            legend_loc=legend_loc,
+            legend_anchor=legend_anchor,
             legend_fontweight=legend_fontweight,
             legend_fontsize=legend_fontsize,
             legend_fontoutline=None,
             na_color=na_color,
             na_in_legend=True,
-            multi_panel=False,
         )
-    elif color_bar_bounds is not None:
+    elif color_bar_bounds is not None and color is not None:
         cax = ax.inset_axes(color_bar_bounds)
         cb = plt.colorbar(points, cax=cax)
         cb.set_label(color)
-    
+
     return fig, ax
 
 
