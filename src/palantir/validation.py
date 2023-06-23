@@ -1,4 +1,5 @@
 from typing import Union, List, Dict
+import numpy as np
 import pandas as pd
 import scanpy as sc
 
@@ -67,8 +68,8 @@ def _validate_varm_key(ad, key, as_df=True):
     -------
     data : Union[pd.DataFrame, np.ndarray]
         A DataFrame or numpy array containing the data associated with the specified key.
-    data_names : List[str]
-        A list of column names for the DataFrame.
+    data_names : np.ndarray
+        A an array of pseudotimes.
 
     Raises
     ------
@@ -83,11 +84,11 @@ def _validate_varm_key(ad, key, as_df=True):
             raise KeyError(
                 f"{key}_pseudotime not found in ad.uns and ad.varm[key] is not a DataFrame."
             )
-        data_names = list(ad.uns[key + "_pseudotime"])
+        data_names = np.array(ad.uns[key + "_pseudotime"])
         if as_df:
             data = pd.DataFrame(data, columns=data_names, index=ad.var_names)
     else:
-        data_names = list(data.columns)
+        data_names = np.array(data.columns.astype(float))
         if not as_df:
             data = data.values
     return data, data_names
@@ -127,9 +128,10 @@ def _validate_gene_trend_input(
 
         gene_trends = dict()
         for branch in branch_names:
-            gene_trends[branch], pt_grid = _validate_varm_key(
+            trends, pt_grid = _validate_varm_key(
                 data, gene_trend_key + "_" + branch
             )
+            gene_trends[branch] = {"trends": trends}
     elif isinstance(data, Dict):
         gene_trends = data
     else:

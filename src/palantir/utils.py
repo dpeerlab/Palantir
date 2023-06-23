@@ -160,7 +160,7 @@ def run_low_density_variability(
     out_columns = list()
     for i, branch in enumerate(branch_names):
         idx = masks[:, i]
-        colname = score_key + branch
+        colname = score_key + "_" + branch
         ad.var[colname] = np.mean(
             local_var[idx, :] * dip_weight[idx, None],
             axis=0,

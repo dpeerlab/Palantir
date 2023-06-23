@@ -630,7 +630,7 @@ def plot_branch_selection(
         raise KeyError(f"{pseudo_time_key} not found in ad.obs")
 
     fate_probs, fate_probs_names = _validate_obsm_key(ad, fate_prob_key)
-    fate_mask, fate_mask_names = _validate_obsm_key(ad, fate_prob_key)
+    fate_mask, fate_mask_names = _validate_obsm_key(ad, masks_key)
 
     if embedding_basis not in ad.obsm:
         raise KeyError(f"{embedding_basis} not found in ad.obsm")
@@ -1253,7 +1253,7 @@ def plot_trend(
         position = gene
 
     trends = gene_trends[branch_name]["trends"]
-    pseudotime_grid = trends.columns
+    pseudotime_grid = trends.columns.astype(float)
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(12, 4))

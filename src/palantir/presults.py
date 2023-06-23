@@ -197,7 +197,9 @@ def compute_gene_trends_legacy(
             results[branch]["std"].loc[gene, :] = res[i][1]
         if isinstance(data, sc.AnnData):
             if save_as_df:
-                data.varm[gene_trend_key + "_" + branch] = results[branch]["trends"]
+                df = results[branch]["trends"]
+                df.columns = df.columns.astype(str)
+                data.varm[gene_trend_key + "_" + branch] = df
             else:
                 data.varm[gene_trend_key + "_" + branch] = results[branch][
                     "trends"
@@ -315,7 +317,7 @@ def compute_gene_trends(
         if save_as_df:
             ad.varm[gene_trend_key + "_" + branch] = pd.DataFrame(
                 result,
-                columns=pt_grid,
+                columns=pt_grid.astype(str),
                 index=ad.var_names,
             )
         else:
@@ -544,7 +546,7 @@ def select_branch_cells(
     if pseudo_time_key not in ad.obs:
         raise KeyError(f"{pseudo_time_key} not found in ad.obs")
 
-    fate_probs, fate_names = _validate_obsm_key(ad, fate_prob_key)
+    fate_probs, fate_names = _validate_obsm_key(ad, fate_prob_key, as_df=False)
     pseudotime = ad.obs[pseudo_time_key].values
 
     idx = np.argsort(pseudotime)
@@ -556,7 +558,7 @@ def select_branch_cells(
     nsteps = n // step
     for i in range(nsteps):
         l, r = i * step, (i + 1) * step
-        mprob = np.quantile(sorted_fate_probs[:r, :], 1 - eps, axis=0)
+        mprob = np.quantile(sorted_fate_probs[:r, :], 1 - q, axis=0)
         prob_thresholds[l:r, :] = mprob[None, :]
     mprob = np.quantile(sorted_fate_probs, 1 - q, axis=0)
     prob_thresholds[r:, :] = mprob[None, :]
