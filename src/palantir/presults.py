@@ -293,7 +293,7 @@ def compute_gene_trends(
         lineages = branches
 
     # Set the default arguments for mellon.FunctionEstimator
-    mellon_args = dict(sigma=1, ls=5, n_landmarks=0)
+    mellon_args = dict(sigma=1, ls=10, n_landmarks=0)
     mellon_args.update(kwargs)
 
     lagacy_results = dict()
@@ -479,7 +479,7 @@ def cluster_gene_trends(
         columns=trends.columns,
     )
 
-    gt_ad = sc.AnnData(trends.values)
+    gt_ad = sc.AnnData(trends.values, dtype=np.float32)
     sc.pp.neighbors(gt_ad, n_neighbors=n_neighbors, use_rep="X")
     sc.tl.leiden(gt_ad, **kwargs)
 
