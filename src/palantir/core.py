@@ -23,6 +23,8 @@ import scanpy as sc
 
 import warnings
 
+from . import config
+
 warnings.filterwarnings(action="ignore", message="scipy.cluster")
 warnings.filterwarnings(
     action="ignore", module="scipy", message="Changing the sparsity"
@@ -43,7 +45,7 @@ def run_palantir(
     pseudo_time_key: str = "palantir_pseudotime",
     entropy_key: str = "palantir_entropy",
     fate_prob_key: str = "palantir_fate_probabilities",
-    save_as_df: bool = True,
+    save_as_df: bool = None,
     waypoints_key: str = "palantir_waypoints",
     seed: int = 20,
 ) -> Optional[PResults]:
@@ -84,7 +86,7 @@ def run_palantir(
     save_as_df : bool, optional
         If True, the fate probabilities are saved as pandas DataFrame. If False, the data is saved as numpy array.
         The option to save as DataFrame is there due to some versions of AnnData not being able to
-        write h5ad files with DataFrames in ad.obsm. Default is True.
+        write h5ad files with DataFrames in ad.obsm. Default is palantir.SAVE_AS_DF = True.
     waypoints_key : str, optional
         Key to store the waypoints in uns of the AnnData object. Default is 'palantir_waypoints'.
     seed : int, optional
@@ -97,6 +99,8 @@ def run_palantir(
         If an AnnData object is passed as data, the result is written to its obs, obsm, and uns attributes
         using the provided keys and None is returned.
     """
+    if save_as_df is None:
+        save_as_df = config.SAVE_AS_DF
 
     if isinstance(terminal_states, dict):
         terminal_states = pd.Series(terminal_states)
@@ -175,12 +179,12 @@ def run_palantir(
         data.obs[pseudo_time_key] = pseudotime
         data.obs[entropy_key] = ent
         data.uns[waypoints_key] = waypoints.values
+        if isinstance(terminal_states, pd.Series):
+            branch_probs.columns = terminal_states[branch_probs.columns]
         if save_as_df:
             data.obsm[fate_prob_key] = branch_probs
         else:
             data.obsm[fate_prob_key] = branch_probs.values
-            if isinstance(terminal_states, pd.Series):
-                branch_probs.columns = terminal_states[branch_probs.columns]
             data.uns[fate_prob_key + "_columns"] = branch_probs.columns.values
 
     return pr_res

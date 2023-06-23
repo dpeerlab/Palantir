@@ -11,7 +11,8 @@ from pygam import LinearGAM, s
 import scanpy as sc
 import mellon
 
-from .utils import _validate_obsm_key, _validate_varm_key
+from . import config
+from .validation import _validate_obsm_key, _validate_varm_key
 
 
 # Used for trend computation and branch selection
@@ -88,7 +89,7 @@ def compute_gene_trends_legacy(
     pseudo_time_key: str = "palantir_pseudotime",
     fate_prob_key: str = "palantir_fate_probabilities",
     gene_trend_key: str = "palantir_gene_trends",
-    save_as_df: bool = True,
+    save_as_df: bool = None,
 ) -> Dict[str, Dict[str, pd.DataFrame]]:
     """
     Computes gene expression trends along pseudotemporal trajectories.
@@ -127,7 +128,7 @@ def compute_gene_trends_legacy(
         If True, the trends will be saved in the varm of the AnnData object as pandas DataFrame with pseudotime as column names.
         If False, the trends will be saved as numpy array and the pseudotime in uns[gene_trend_key + "_" + lineage_name + "_pseudotime"].
         The option to save as DataFrame is there due to some versions of AnnData not being able to
-        write h5ad files with DataFrames in ad.varm. Default is True.
+        write h5ad files with DataFrames in ad.varm. Default is palantir.SAVE_AS_DF=True.
 
     Returns
 
@@ -137,6 +138,9 @@ def compute_gene_trends_legacy(
     Dict[str, Dict[str, pd.DataFrame]]
         Dictionary of gene expression trends and standard deviations for each branch.
     """
+    if save_as_df is None:
+        save_as_df = config.SAVE_AS_DF
+
     # Extract palantir results from AnnData if necessary
     if isinstance(data, sc.AnnData):
         gene_exprs = data.to_df(expression_key)
@@ -214,7 +218,7 @@ def compute_gene_trends(
     expression_key: str = None,
     pseudo_time_key: str = "palantir_pseudotime",
     gene_trend_key: str = "gene_trends",
-    save_as_df: bool = True,
+    save_as_df: bool = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -248,6 +252,11 @@ def compute_gene_trends(
     gene_trend_key : str, optional
         Key base to store the gene expression trends in varm of the AnnData object.
         Default is 'palantir_gene_trends'.
+    save_as_df : bool, optional
+        If True, the trends will be saved in the varm of the AnnData object as pandas DataFrame with pseudotime as column names.
+        If False, the trends will be saved as numpy array and the pseudotime in uns[gene_trend_key + "_" + lineage_name + "_pseudotime"].
+        The option to save as DataFrame is there due to some versions of AnnData not being able to
+        write h5ad files with DataFrames in ad.varm. Default is palantir.SAVE_AS_DF=True.
     **kwargs
         Additional arguments to be passed to mellon.FunctionEstimator.
 
@@ -259,6 +268,8 @@ def compute_gene_trends(
         maps to a DataFrame. The DataFrame contains the gene expression trends, indexed by gene names
         and columns representing pseudotime points.
     """
+    if save_as_df is None:
+        save_as_df = config.SAVE_AS_DF
     # Check the AnnData object for the necessary keys
     if pseudo_time_key not in ad.obs_keys():
         raise ValueError(
@@ -490,7 +501,7 @@ def select_branch_cells(
     q: float = 1e-2,
     eps: float = 1e-2,
     masks_key: str = "branch_masks",
-    save_as_df: bool = True,
+    save_as_df: bool = None,
 ):
     """
     Selects cells along specific branches of pseudotime ordering.
@@ -518,13 +529,16 @@ def select_branch_cells(
     save_as_df : bool, optional
         If True, the masks will be saved in obsm of the AnnData object as pandas DataFrame. If False, the masks will be
         saved as numpy array. The option to save as numpy array is there due to some versions of AnnData not being able to
-        write h5ad files with DataFrames in ad.obsm. Default is True.
+        write h5ad files with DataFrames in ad.obsm. Default is palantir.SAVE_AS_DF.
 
     Returns
     -------
     masks : np.ndarray
         An array of boolean masks that indicates whether each cell is on the path to each fate.
     """
+
+    if save_as_df is None:
+        save_as_df = config.SAVE_AS_DF
 
     # make sure that the necessary keys are in the AnnData object
     if pseudo_time_key not in ad.obs:

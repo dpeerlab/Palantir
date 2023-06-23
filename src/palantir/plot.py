@@ -11,12 +11,12 @@ from scipy.stats import gaussian_kde
 import scanpy as sc
 
 import matplotlib
-from matplotlib import font_manager
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
 from matplotlib.cm import get_cmap
 from matplotlib.colors import Normalize, Colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import seaborn as sns
 
 from scanpy.plotting._tools.scatterplots import (
     _get_color_source_vector,
@@ -31,30 +31,12 @@ from scanpy.plotting._utils import check_colornorm
 
 
 from .presults import PResults
-from .utils import _validate_obsm_key, _validate_varm_key
-
-
-# set plotting defaults
-with warnings.catch_warnings():
-    # catch warnings that system can't find fonts
-    warnings.simplefilter("ignore")
-    import seaborn as sns
-
-    sns.set(context="paper", style="ticks", font_scale=1.5, font="Bitstream Vera Sans")
-    fm = font_manager.fontManager
-    fm.findfont("Raleway")
-    fm.findfont("Lato")
-
-matplotlib.rcParams["figure.dpi"] = 100
-matplotlib.rcParams["image.cmap"] = "viridis"
-matplotlib.rcParams["axes.spines.bottom"] = "on"
-matplotlib.rcParams["axes.spines.top"] = "off"
-matplotlib.rcParams["axes.spines.left"] = "on"
-matplotlib.rcParams["axes.spines.right"] = "off"
-matplotlib.rcParams["figure.figsize"] = [4, 4]
-
-SELECTED_COLOR = "#377eb8"
-DESELECTED_COLOR = "#CFD5E2"
+from .validation import (
+    _validate_obsm_key,
+    _validate_varm_key,
+    _validate_gene_trend_input,
+)
+from . import config
 
 
 class FigureGrid:
@@ -278,12 +260,12 @@ def highlight_cells_on_umap(
     xpad, ypad = (umap.max() - umap.min()) * annotation_offset
 
     fig, ax = get_fig(fig=fig, ax=ax)
-    ax.scatter(umap["x"], umap["y"], s=s, color=DESELECTED_COLOR)
+    ax.scatter(umap["x"], umap["y"], s=s, color=config.DESELECTED_COLOR)
 
     for cell, annotation in cells.items():
         if cell in umap.index:
             x, y = umap.loc[cell, ["x", "y"]]
-            ax.scatter(x, y, c=SELECTED_COLOR, s=s_highlighted)
+            ax.scatter(x, y, c=config.SELECTED_COLOR, s=s_highlighted)
             if annotation:
                 ax.annotate(annotation, (x, y), (x + xpad, y + ypad), "data")
     ax.set_axis_off()
@@ -685,14 +667,14 @@ def plot_branch_selection(
         ax1.scatter(
             pt[~mask],
             fate_probs.loc[~mask, fate],
-            c=DESELECTED_COLOR,
+            c=config.DESELECTED_COLOR,
             label="Other Cells",
             **kwargs,
         )
         ax1.scatter(
             pt[mask],
             fate_probs.loc[mask, fate],
-            c=SELECTED_COLOR,
+            c=config.SELECTED_COLOR,
             label="Selected Cells",
             **kwargs,
         )
@@ -705,14 +687,14 @@ def plot_branch_selection(
         ax2.scatter(
             umap[~mask, 0],
             umap[~mask, 1],
-            c=DESELECTED_COLOR,
+            c=config.DESELECTED_COLOR,
             label="Other Cells",
             **kwargs,
         )
         ax2.scatter(
             umap[mask, 0],
             umap[mask, 1],
-            c=SELECTED_COLOR,
+            c=config.SELECTED_COLOR,
             label="Selected Cells",
             **kwargs,
         )
@@ -762,51 +744,6 @@ def plot_gene_trends_legacy(gene_trends, genes=None):
             ax.legend()
 
     sns.despine()
-
-
-def _validate_gene_trend_input(
-    data: Union[sc.AnnData, Dict],
-    gene_trend_key: str = "gene_trends",
-    branch_names: Union[str, List] = "branch_masks_columns",
-) -> Dict:
-    """
-    Validates the input for gene trend plots, and converts it into a dictionary of gene trends.
-
-    Parameters
-    ----------
-    data : Union[sc.AnnData, Dict]
-        AnnData object or dictionary of gene trends.
-    gene_trend_key : str, optional
-        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
-    branch_names : Union[str, List], optional
-        Key to access branch names from AnnData object or list of branch names. If a string is provided,
-        it is assumed to be a key in AnnData.uns. Default is 'branch_masks_columns'.
-
-    Returns
-    -------
-    gene_trends : Dict
-        Dictionary of gene trends.
-    """
-    if isinstance(data, sc.AnnData):
-        if isinstance(branch_names, str):
-            if branch_names not in data.uns.keys():
-                raise KeyError(
-                    f"'{branch_names}' not found in .uns. "
-                    "'branch_names' must either be in .uns or a list of branch names."
-                )
-            branch_names = data.uns[branch_names]
-
-        gene_trends = dict()
-        for branch in branch_names:
-            gene_trends[branch], pt_grid = _validate_varm_key(
-                data, gene_trend_key + "_" + branch
-            )
-    elif isinstance(data, Dict):
-        gene_trends = data
-    else:
-        raise ValueError("Input should be an AnnData object or a dictionary.")
-
-    return gene_trends
 
 
 def plot_gene_trends(
@@ -1325,7 +1262,7 @@ def plot_trend(
     ax.plot(
         pseudotime_grid,
         trends.loc[gene, :],
-        color=SELECTED_COLOR,
+        color=config.SELECTED_COLOR,
     )
     ax.set_xlabel("Pseudotime")
     ax.set_ylabel(f"{gene} trend")
@@ -1511,7 +1448,9 @@ def plot_gene_trend_clusters(
                 "Must provide a gene_trend_key when data is an AnnData object."
             )
 
-        trends, pseudotimes = _validate_varm_key(data, gene_trend_key + "_" + branch_name)
+        trends, pseudotimes = _validate_varm_key(
+            data, gene_trend_key + "_" + branch_name
+        )
 
         if clusters is None:
             clusters = gene_trend_key + "_clusters"
@@ -1546,21 +1485,21 @@ def plot_gene_trend_clusters(
             cluster_trends.columns,
             cluster_trends.T,
             linewidth=0.5,
-            color=DESELECTED_COLOR,
+            color=config.DESELECTED_COLOR,
         )
-        ax.plot(means.index, means, color=SELECTED_COLOR)
+        ax.plot(means.index, means, color=config.SELECTED_COLOR)
         ax.plot(
             means.index,
             means - std,
             linestyle="--",
-            color=SELECTED_COLOR,
+            color=config.SELECTED_COLOR,
             linewidth=0.75,
         )
         ax.plot(
             means.index,
             means + std,
             linestyle="--",
-            color=SELECTED_COLOR,
+            color=config.SELECTED_COLOR,
             linewidth=0.75,
         )
 
