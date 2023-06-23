@@ -637,11 +637,12 @@ def plot_branch_selection(
     pseudo_time_key: str = "palantir_pseudotime",
     fate_prob_key: str = "palantir_fate_probabilities",
     masks_key: str = "branch_masks",
+    fates: Optional[Union[List[str], str]] = None,
     embedding_basis: str = "X_umap",
     **kwargs,
 ):
     """
-    Plot cells along specific branches of pseudotime ordering and the UMAP embedding.
+    Plot cells along specific fates of pseudotime ordering and the UMAP embedding.
 
     Parameters
     ----------
@@ -655,6 +656,8 @@ def plot_branch_selection(
     masks_key : str, optional
         Key to access the branch cell selection masks from obsm of the AnnData object.
         Default is 'branch_masks'.
+    fates : Union[List[str], str]
+        The fates to be plotted. If not specified, all fates will be plotted.
     embedding_basis : str, optional
         Key to access the UMAP embedding from obsm of the AnnData object. Default is 'X_umap'.
     **kwargs
@@ -687,16 +690,27 @@ def plot_branch_selection(
             f"{len(fate_probs_names)} fate-probability fates in .obsm['{fate_prob_key}'] fates) "
             f"and {len(fate_mask_names)} fate-mask fates in .obsm['{masks_key}']."
         )
+    if isinstance(fates, str):
+        fates = [fates]
+    elif fates is None:
+        fates = fate_names
+    else:
+        for b in fates:
+            if b not in fate_names:
+                raise (
+                    f"Specified fate name '{b}' is not in the available set of "
+                    + ", ".join(fate_names)
+                )
 
     pt = ad.obs[pseudo_time_key]
     umap = ad.obsm[embedding_basis]
 
     fig, axes = plt.subplots(
-        len(fate_names), 2, figsize=(15, 5 * len(fate_names)), width_ratios=[2, 1]
+        len(fates), 2, figsize=(15, 5 * len(fates)), width_ratios=[2, 1]
     )
 
-    for i, fate in enumerate(fate_names):
-        if n_fates == 1:
+    for i, fate in enumerate(fates):
+        if axes.ndim == 1:
             ax1, ax2 = axes
         else:
             ax1 = axes[i, 0]
