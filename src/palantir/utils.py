@@ -427,10 +427,22 @@ def _dot_helper_func(x, y):
 
 
 def _local_var_helper(expressions, distances):
+    if hasattr(expressions, "todense"):
+
+        def cast(x):
+            return x.todense()
+
+    else:
+
+        def cast(x):
+            return x
+
     for cell in range(expressions.shape[0]):
         neighbors = distances.getrow(cell).indices
         try:
-            expr_deltas = np.array(expressions[neighbors, :] - expressions[cell, :])
+            neighbor_expression = cast(expressions[neighbors, :])
+            cell_expression = cast(expressions[cell, :])
+            expr_deltas = np.array(neighbor_expression - cell_expression)
         except ValueError:
             raise ValueError(f"This cell caused the error: {cell}")
         expr_distance = np.sqrt(np.sum(expr_deltas**2, axis=1, keepdims=True))
