@@ -284,23 +284,51 @@ def plot_tsne_by_cell_sizes(data, tsne, fig=None, ax=None, vmin=None, vmax=None)
 
     sizes = data.sum(axis=1)
     fig, ax = get_fig(fig, ax)
-    plt.scatter(tsne["x"], tsne["y"], s=3, c=sizes, cmap=matplotlib.cm.Spectral_r)
+    plt.scatter(tsne["x"], tsne["y"], s=3, c=sizes)
     ax.set_axis_off()
     plt.colorbar()
     return fig, ax
 
 
 def plot_gene_expression(
-    data,
-    tsne,
-    genes,
-    plot_scale=False,
-    n_cols=5,
-    percentile=0,
-    cmap=matplotlib.cm.Spectral_r,
-):
-    """Plot gene expression on tSNE maps
-    :param genes: Iterable of strings to plot on tSNE
+    data: pd.DataFrame,
+    tsne: pd.DataFrame,
+    genes: List[str],
+    plot_scale: bool = False,
+    n_cols: int = 5,
+    percentile: int = 0,
+    **kwargs,
+) -> plt.Figure:
+    """
+    Plot gene expression overlaid on tSNE maps.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        A DataFrame where each column represents a gene and each row a cell.
+    tsne : pd.DataFrame
+        A DataFrame containing tSNE coordinates for each cell.
+    genes : List[str]
+        List of gene symbols to plot on tSNE.
+    plot_scale : bool, optional
+        If True, include a color scale bar in the plot. Defaults to False.
+    n_cols : int, optional
+        Number of columns in the subplot grid. Defaults to 5.
+    percentile : int, optional
+        Percentile to cut off extreme values in gene expression for plotting.
+        Defaults to 0, meaning no cutoff.
+    kwargs : dict, optional
+        Additional keyword arguments to pass to the scatter plot function.
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        A matplotlib Figure object representing the plot of the gene expression.
+
+    Raises
+    ------
+    ValueError
+        If none of the genes in the list are found in the data.
     """
 
     not_in_dataframe = set(genes).difference(data.columns)
@@ -329,16 +357,18 @@ def plot_gene_expression(
         c = data.loc[cells, g]
         vmin = np.percentile(c[~np.isnan(c)], percentile)
         vmax = np.percentile(c[~np.isnan(c)], 100 - percentile)
-
+        default_args = {
+            "vmin": vmin,
+            "vmax": vmax,
+            "s": 3,
+        }
+        default_args.update(kwargs)
         ax.scatter(tsne["x"], tsne["y"], s=3, color="lightgrey")
         ax.scatter(
             tsne.loc[cells, "x"],
             tsne.loc[cells, "y"],
-            s=3,
             c=c,
-            cmap=cmap,
-            vmin=vmin,
-            vmax=vmax,
+            **default_args,
         )
         ax.set_axis_off()
         ax.set_title(g)
@@ -346,13 +376,17 @@ def plot_gene_expression(
         if plot_scale:
             normalize = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
             cax, _ = matplotlib.colorbar.make_axes(ax)
-            matplotlib.colorbar.ColorbarBase(cax, norm=normalize, cmap=cmap)
+            kaw = dict()
+            if "cmap" in kwargs.keys():
+                kaw["cmap"] = kwargs["cmap"]
+            matplotlib.colorbar.ColorbarBase(cax, norm=normalize, **kaw)
 
 
 def plot_diffusion_components(
     data: Union[sc.AnnData, pd.DataFrame],
     dm_res: Optional[Union[pd.DataFrame, str]] = "DM_EigenVectors",
     embedding_basis: str = "X_umap",
+    **kwargs,
 ) -> Tuple[plt.Figure, plt.Axes]:
     """
     Visualize diffusion components on tSNE or UMAP plots.
@@ -360,23 +394,26 @@ def plot_diffusion_components(
     Parameters
     ----------
     data : Union[sc.AnnData, pd.DataFrame]
-        Either a Scanpy AnnData object or a DataFrame of tSNE or UMAP results.
-    dm_res : pd.DataFrame or str, optional
-        DataFrame containing diffusion map results or a string key to access diffusion map
-        results from the AnnData object's obsm. Default is 'DM_Eigenvectors'.
+        An AnnData object from Scanpy or a DataFrame that contains tSNE or UMAP results.
+    dm_res : Optional[Union[pd.DataFrame, str]], optional
+        A DataFrame that contains the diffusion map results or a string key to access diffusion map
+        results from the obsm of the AnnData object. Default is 'DM_Eigenvectors'.
     embedding_basis : str, optional
-        The key to retrieve UMAP results from the AnnData object. Defaults to 'X_umap'.
+        Key to access UMAP results from the obsm of the AnnData object. Defaults to 'X_umap'.
+    kwargs : dict, optional
+        Additional keyword arguments to pass to the scatter plot function.
 
     Returns
     -------
-    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
-        A matplotlib Figure and Axes objects representing the plot of the diffusion components.
+    Tuple[matplotlib.pyplot.Figure, matplotlib.pyplot.Axes]
+        A tuple containing the matplotlib Figure and Axes objects representing the diffusion component plot.
 
     Raises
     ------
     KeyError
-        If `embedding_basis` or `dm_res` is not found when `data` is an AnnData object.
+        If `embedding_basis` or `dm_res` is not found in .obsm when `data` is an AnnData object.
     """
+
     # Retrieve the embedding data
     if isinstance(data, sc.AnnData):
         if embedding_basis not in data.obsm:
@@ -391,6 +428,12 @@ def plot_diffusion_components(
     else:
         embedding_data = data
 
+    default_args = {
+        "edgecolors": "none",
+        "s": 3,
+    }
+    default_args.update(kwargs)
+
     fig = FigureGrid(dm_res["EigenVectors"].shape[1], 5)
 
     for i, ax in enumerate(fig):
@@ -398,9 +441,7 @@ def plot_diffusion_components(
             embedding_data.iloc[:, 0],
             embedding_data.iloc[:, 1],
             c=dm_res["EigenVectors"].loc[embedding_data.index, i],
-            cmap=matplotlib.cm.Spectral_r,
-            edgecolors="none",
-            s=3,
+            **default_args,
         )
         ax.xaxis.set_major_locator(plt.NullLocator())
         ax.yaxis.set_major_locator(plt.NullLocator())
@@ -474,10 +515,9 @@ def plot_palantir_results(
     gs = plt.GridSpec(
         n_rows + 2, n_cols, height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows))
     )
-    cmap = matplotlib.cm.plasma
 
-    def scatter_with_colorbar(ax, x, y, c, cmap):
-        sc = ax.scatter(x, y, c=c, cmap=cmap, **kwargs)
+    def scatter_with_colorbar(ax, x, y, c, **kwargs):
+        sc = ax.scatter(x, y, c=c, **kwargs)
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         plt.colorbar(sc, cax=cax, orientation="vertical")
@@ -489,7 +529,7 @@ def plot_palantir_results(
         embedding_data.iloc[:, 0],
         embedding_data.iloc[:, 1],
         pr_res.pseudotime[embedding_data.index],
-        cmap,
+        **kwargs,
     )
     ax.set_axis_off()
     ax.set_title("Pseudotime")
@@ -501,7 +541,7 @@ def plot_palantir_results(
         embedding_data.iloc[:, 0],
         embedding_data.iloc[:, 1],
         pr_res.entropy[embedding_data.index],
-        cmap,
+        **kwargs,
     )
     ax.set_axis_off()
     ax.set_title("Entropy")
@@ -514,7 +554,7 @@ def plot_palantir_results(
             embedding_data.iloc[:, 0],
             embedding_data.iloc[:, 1],
             pr_res.branch_probs[branch][embedding_data.index],
-            cmap,
+            **kwargs,
         )
         ax.set_axis_off()
         ax.set_title(branch, fontsize=10)
@@ -728,11 +768,14 @@ def plot_gene_trends_legacy(gene_trends, genes=None):
             trends = gene_trends[branch]["trends"]
             stds = gene_trends[branch]["std"]
             ax.plot(
-                trends.columns, trends.loc[gene, :], color=colors[branch], label=branch
+                trends.columns.astype(float),
+                trends.loc[gene, :],
+                color=colors[branch],
+                label=branch,
             )
             ax.set_xticks([0, 1])
             ax.fill_between(
-                trends.columns,
+                trends.columns.astype(float),
                 trends.loc[gene, :] - stds.loc[gene, :],
                 trends.loc[gene, :] + stds.loc[gene, :],
                 alpha=0.1,
@@ -750,34 +793,38 @@ def plot_gene_trends(
     data: Union[Dict, sc.AnnData],
     genes: Optional[List[str]] = None,
     gene_trend_key: str = "gene_trends",
-    branch_names: Union[str, List] = "branch_masks_columns",
+    branch_names: Union[str, List] = "branch_masks",
 ) -> plt.Figure:
-    """Plot the gene trends: each gene is plotted in a different panel.
+    """
+    Plot the gene trends for each gene across different panels.
 
     Parameters
     ----------
     data : Union[Dict, sc.AnnData]
-        AnnData object or dictionary of gene trends.
-    genes : Union[List, Set, Tuple], optional
-        List of genes to plot. If None, plot all genes. Default is None.
+        An AnnData object or a dictionary that contains the gene trends.
+    genes : Optional[List[str]], optional
+        A list of genes to plot. If not provided, all genes will be plotted. Default is None.
     gene_trend_key : str, optional
-        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
-    branch_names : Union[str, List], optional
-        Key to access branch names from AnnData object or list of branch names. If a string is provided,
-        it is assumed to be a key in AnnData.uns. Default is 'branch_masks_columns'.
+        The key to access gene trends in the varm of the AnnData object. Default is 'gene_trends'.
+    branch_names : Union[str, List[str]], optional
+        Key to retrieve branch names from the AnnData object, or a list of branch names. If a string is provided,
+        it will be treated as a key in either AnnData.uns or AnnData.obsm. For AnnData.obsm, the column names will
+        be treated as branch names. If it cannot be found in AnnData.obsm and AnnData.uns then branch_names + "_columns"
+        will be looked up in AnnData.uns.
+        Default is 'branch_masks'.
 
     Returns
     -------
     fig : matplotlib.figure.Figure
-        Matplotlib figure object of the plot.
+        The matplotlib figure object containing the plot.
 
     Raises
     ------
     KeyError
-        If 'branch_names' is not found in .uns when it's a string or 'gene_trend_key + "_" + branch_name'
+        If 'branch_names' as a string is not found in either .uns or .obsm, or if 'gene_trend_key + "_" + branch_name'
         is not found in .varm.
     ValueError
-        If 'data' is neither an AnnData object nor a dictionary.
+        If 'data' is not an AnnData object and not a dictionary.
     """
 
     gene_trends = _validate_gene_trend_input(data, gene_trend_key, branch_names)
@@ -798,7 +845,10 @@ def plot_gene_trends(
         for branch in branches:
             trends = gene_trends[branch]["trends"]
             ax.plot(
-                trends.columns, trends.loc[gene, :], color=colors[branch], label=branch
+                trends.columns.astype(float),
+                trends.loc[gene, :],
+                color=colors[branch],
+                label=branch,
             )
             ax.set_xticks([0, 1])
             ax.set_title(gene)
@@ -1343,7 +1393,7 @@ def plot_gene_trend_heatmaps(
     data: Union[sc.AnnData, Dict],
     genes: Optional[List[str]] = None,
     gene_trend_key: str = "gene_trends",
-    branch_names: Union[str, List[str]] = "branch_masks_columns",
+    branch_names: Union[str, List[str]] = "branch_masks",
     scaling: Optional[Literal["none", "z-score", "quantile", "percent"]] = "z-score",
     basefigsize: Tuple[int, int] = (7, 0.7),
     **kwargs,
@@ -1383,6 +1433,11 @@ def plot_gene_trend_heatmaps(
     """
     gene_trends = _validate_gene_trend_input(data, gene_trend_key, branch_names)
 
+    default_kwargs = {
+        "cmap": matplotlib.rcParams["image.cmap"],
+    }
+    default_kwargs.update(kwargs)
+
     # Get the branch names
     branches = list(gene_trends.keys())
     if genes is None:
@@ -1397,7 +1452,7 @@ def plot_gene_trend_heatmaps(
 
         mat = gene_trends[branch]["trends"].loc[genes, :]
         mat = _scale(mat, scaling)
-        sns.heatmap(mat, xticklabels=False, ax=ax, cmap=plt.cm.Spectral_r, **kwargs)
+        sns.heatmap(mat, xticklabels=False, ax=ax, **default_kwargs)
         ax.set_title(branch, fontsize=12)
 
     return fig
@@ -1462,7 +1517,7 @@ def plot_gene_trend_clusters(
     trends = pd.DataFrame(
         StandardScaler().fit_transform(trends.T).T,
         index=trends.index,
-        columns=trends.columns,
+        columns=trends.columns.astype(float),
     )
 
     # Obtain unique clusters and prepare figure

@@ -14,14 +14,14 @@ with warnings.catch_warnings():
     fm.findfont("Lato")
 
 matplotlib.rcParams["figure.dpi"] = 100
-matplotlib.rcParams["image.cmap"] = "viridis"
+matplotlib.rcParams["image.cmap"] = "Spectral_r"
 matplotlib.rcParams["axes.spines.bottom"] = "on"
 matplotlib.rcParams["axes.spines.top"] = "off"
 matplotlib.rcParams["axes.spines.left"] = "on"
 matplotlib.rcParams["axes.spines.right"] = "off"
 matplotlib.rcParams["figure.figsize"] = [4, 4]
 
-SELECTED_COLOR = "#377eb8"
+SELECTED_COLOR = "#377EB8"
 DESELECTED_COLOR = "#CFD5E2"
 
 # This global variable sets the default behaviour for saving pandas.DataFrames

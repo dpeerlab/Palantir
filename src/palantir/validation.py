@@ -97,7 +97,7 @@ def _validate_varm_key(ad, key, as_df=True):
 def _validate_gene_trend_input(
     data: Union[sc.AnnData, Dict],
     gene_trend_key: str = "gene_trends",
-    branch_names: Union[str, List] = "branch_masks_columns",
+    branch_names: Union[str, List[str]] = "branch_masks",
 ) -> Dict:
     """
     Validates the input for gene trend plots, and converts it into a dictionary of gene trends.
@@ -105,36 +105,51 @@ def _validate_gene_trend_input(
     Parameters
     ----------
     data : Union[sc.AnnData, Dict]
-        AnnData object or dictionary of gene trends.
+        An AnnData object or a dictionary containing gene trends.
     gene_trend_key : str, optional
-        Key to access gene trends in the AnnData object's varm. Default is 'gene_trends'.
-    branch_names : Union[str, List], optional
-        Key to access branch names from AnnData object or list of branch names. If a string is provided,
-        it is assumed to be a key in AnnData.uns. Default is 'branch_masks_columns'.
+        Key to access gene trends in the varm of the AnnData object. Default is 'gene_trends'.
+    branch_names : Union[str, List[str]], optional
+        Key to retrieve branch names from the AnnData object or a list of branch names. If a string is provided,
+        it is assumed to be a key in AnnData.uns. Default is 'branch_masks'.
 
     Returns
     -------
     gene_trends : Dict
-        Dictionary of gene trends.
+        A dictionary containing gene trends.
+
+    Raises
+    ------
+    KeyError
+        If 'branch_names' is a string that is not found in .uns, or if 'gene_trend_key + "_" + branch_name'
+        is not found in .varm.
+    ValueError
+        If 'data' is neither an AnnData object nor a dictionary.
     """
     if isinstance(data, sc.AnnData):
         if isinstance(branch_names, str):
-            if branch_names not in data.uns.keys():
+            if branch_names in data.uns.keys():
+                branch_names = data.uns[branch_names]
+            elif branch_names in data.obsm.keys() and isinstance(
+                data.obsm[branch_names], pd.DataFrame
+            ):
+                branch_names = list(data.obsm[branch_names].columns)
+            elif branch_names + "_columns" in data.uns.keys():
+                branch_names = data.uns[branch_names + "_columns"]
+            else:
                 raise KeyError(
-                    f"'{branch_names}' not found in .uns. "
-                    "'branch_names' must either be in .uns or a list of branch names."
+                    f"The provided key '{branch_names}' is not found in AnnData.uns or as a DataFrame in AnnData.obsm. "
+                    "Please ensure the 'branch_names' either exists in AnnData.uns or is a list of branch names."
                 )
-            branch_names = data.uns[branch_names]
 
         gene_trends = dict()
         for branch in branch_names:
-            trends, pt_grid = _validate_varm_key(
-                data, gene_trend_key + "_" + branch
-            )
+            trends, pt_grid = _validate_varm_key(data, gene_trend_key + "_" + branch)
             gene_trends[branch] = {"trends": trends}
     elif isinstance(data, Dict):
         gene_trends = data
     else:
-        raise ValueError("Input should be an AnnData object or a dictionary.")
+        raise ValueError(
+            "The input 'data' must be an instance of either AnnData object or dictionary."
+        )
 
     return gene_trends
