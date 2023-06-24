@@ -732,13 +732,13 @@ def early_cell(
         eigenvectors = eigenvectors.values
 
     if not isinstance(celltype_column, str):
-        raise ValueError("'celltype_column' should be a string")
+        raise ValueError(f"celltype_column='{celltype_column}' should be a string")
 
     if celltype_column not in ad.obs.columns:
-        raise ValueError("'celltype_column' should be a column of ad.obs.")
+        raise ValueError(f"celltype_column='{celltype_column}' should be a column of ad.obs.")
 
     if not isinstance(celltype, str):
-        raise ValueError("'celltype' should be a string")
+        raise ValueError(f"celltype should be a string")
 
     if celltype not in ad.obs[celltype_column].values:
         raise ValueError(
@@ -818,7 +818,7 @@ def fallback_terminal_cell(
     early_cell = ad.obs_names[ec]
     print(
         f"Using {early_cell} for cell type {celltype} which is latest cell in "
-        "{celltype} when starting from {fake_early_cell}."
+        f"{celltype} when starting from {fake_early_cell}."
     )
     return early_cell
 
