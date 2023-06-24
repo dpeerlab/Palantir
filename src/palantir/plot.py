@@ -1013,6 +1013,7 @@ def plot_branch(
     vmin: Union[VBound, Sequence[VBound], None] = None,
     vcenter: Union[VBound, Sequence[VBound], None] = None,
     norm: Union[Normalize, Sequence[Normalize], None] = None,
+    nticks: int = 3,
     figsize: Tuple[float, float] = (12, 4),
     **kwargs,
 ):
@@ -1084,6 +1085,9 @@ def plot_branch(
     norm : matplotlib.colors.Normalize or None
         The normalizing object which scales data, typically into the interval [0, 1].
         If provided, vmax, vmin, and vcenter are ignored.
+    nticks: int, optional
+        The number of ticks to be displayed on both the x and y axes. The matplotlib's
+        Axes.locator_params method is used for setting this property. Default is 3.
     figsize : Tuple[float, float], optional
         Width and height of each subplot in inches. Default is (12, 4).
 
@@ -1176,10 +1180,9 @@ def plot_branch(
     ax.set_zorder(0)
     ax.set_facecolor("none")
 
-    plt.locator_params(axis="x", nbins=3)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning)
-        plt.locator_params(axis="y", nbins=3)
+        ax.locator_params(axis="both", nbins=nticks)
 
     if categorical or color_vector.dtype == bool:
         _add_categorical_legend(
@@ -1225,6 +1228,7 @@ def plot_trend(
     vmin: Union[VBound, Sequence[VBound], None] = None,
     vcenter: Union[VBound, Sequence[VBound], None] = None,
     norm: Union[Normalize, Sequence[Normalize], None] = None,
+    nticks: int = 3,
     figsize: Tuple[float, float] = (12, 4),
     **kwargs,
 ):
@@ -1302,6 +1306,9 @@ def plot_trend(
     norm : matplotlib.colors.Normalize or None
         The normalizing object which scales data, typically into the interval [0, 1].
         If provided, vmax, vmin, and vcenter are ignored.
+    nticks: int, optional
+        The number of ticks to be displayed on both the x and y axes. The matplotlib's
+        Axes.locator_params method is used for setting this property. Default is 3.
     figsize : Tuple[float, float], optional
         Width and height of each subplot in inches. Default is (12, 4).
 
@@ -1344,7 +1351,7 @@ def plot_trend(
     )
     ax.set_xlabel("Pseudotime")
     ax.set_ylabel(f"{gene} trend")
-    plt.locator_params(axis="y", nbins=3)
+    ax.locator_params(axis="both", nbins=nticks)
     ax.set_zorder(1)
     ax.set_facecolor("none")
 
@@ -1372,6 +1379,7 @@ def plot_trend(
             vmin=vmin,
             vcenter=vcenter,
             norm=norm,
+            nticks=nticks,
             **kwargs,
         )
     else:
