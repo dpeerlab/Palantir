@@ -1169,7 +1169,9 @@ def plot_branch(
     ax.set_facecolor("none")
 
     plt.locator_params(axis="x", nbins=3)
-    plt.locator_params(axis="y", nbins=3)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
+        plt.locator_params(axis="y", nbins=3)
 
     if categorical or color_vector.dtype == bool:
         _add_categorical_legend(
