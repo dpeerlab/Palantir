@@ -1242,6 +1242,7 @@ def plot_trend(
         scanpy.pl.embedding. If not provided, the default is None.
     masks_key : str, optional
         Key for accessing the branch cell selection masks from obsm of the AnnData object.
+        Set to None to disable the scatter plot.
         Default is 'branch_masks'.
     gene_trend_key : str, optional
         Key for accessing gene trends in the AnnData object's varm. Default is 'gene_trends'.
@@ -1336,31 +1337,34 @@ def plot_trend(
     ax.set_zorder(1)
     ax.set_facecolor("none")
 
-    ax2 = ax.twinx()
-    plot_branch(
-        ad,
-        branch_name=branch_name,
-        position=position,
-        color=color,
-        masks_key=masks_key,
-        ax=ax2,
-        pseudo_time_key=pseudo_time_key,
-        na_color=na_color,
-        color_layer=color_layer,
-        position_layer=position_layer,
-        legend_fontsize=legend_fontsize,
-        legend_fontweight=legend_fontweight,
-        legend_fontoutline=legend_fontoutline,
-        legend_anchor=legend_anchor,
-        color_bar_bounds=color_bar_bounds,
-        cmap=cmap,
-        palette=palette,
-        vmax=vmax,
-        vmin=vmin,
-        vcenter=vcenter,
-        norm=norm,
-        **kwargs,
-    )
+    if masks_key is not None:
+        ax2 = ax.twinx()
+        plot_branch(
+            ad,
+            branch_name=branch_name,
+            position=position,
+            color=color,
+            masks_key=masks_key,
+            ax=ax2,
+            pseudo_time_key=pseudo_time_key,
+            na_color=na_color,
+            color_layer=color_layer,
+            position_layer=position_layer,
+            legend_fontsize=legend_fontsize,
+            legend_fontweight=legend_fontweight,
+            legend_fontoutline=legend_fontoutline,
+            legend_anchor=legend_anchor,
+            color_bar_bounds=color_bar_bounds,
+            cmap=cmap,
+            palette=palette,
+            vmax=vmax,
+            vmin=vmin,
+            vcenter=vcenter,
+            norm=norm,
+            **kwargs,
+        )
+    else:
+        ax.set_title(branch_name)
 
     return fig, ax
 
