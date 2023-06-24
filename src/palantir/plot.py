@@ -639,6 +639,7 @@ def plot_branch_selection(
     masks_key: str = "branch_masks",
     fates: Optional[Union[List[str], str]] = None,
     embedding_basis: str = "X_umap",
+    figsize: Tuple[float, float] = (15, 5),
     **kwargs,
 ):
     """
@@ -660,6 +661,9 @@ def plot_branch_selection(
         The fates to be plotted. If not specified, all fates will be plotted.
     embedding_basis : str, optional
         Key to access the UMAP embedding from obsm of the AnnData object. Default is 'X_umap'.
+    figsize : Tuple[float, float], optional
+        Width and height of each subplot in inches. The total height of the figure is determined by
+        multiplying the height by the number of fates. Default is (15, 5).
     **kwargs
         Additional arguments passed to `matplotlib.pyplot.scatter`.
 
@@ -705,8 +709,9 @@ def plot_branch_selection(
     pt = ad.obs[pseudo_time_key]
     umap = ad.obsm[embedding_basis]
 
+    figsize = figsize[0], figsize[1] * len(fates)
     fig, axes = plt.subplots(
-        len(fates), 2, figsize=(15, 5 * len(fates)), width_ratios=[2, 1]
+        len(fates), 2, figsize=figsize, width_ratios=[2, 1]
     )
 
     for i, fate in enumerate(fates):
@@ -1008,6 +1013,7 @@ def plot_branch(
     vmin: Union[VBound, Sequence[VBound], None] = None,
     vcenter: Union[VBound, Sequence[VBound], None] = None,
     norm: Union[Normalize, Sequence[Normalize], None] = None,
+    figsize: Tuple[float, float] = (12, 4),
     **kwargs,
 ):
 
@@ -1078,6 +1084,8 @@ def plot_branch(
     norm : matplotlib.colors.Normalize or None
         The normalizing object which scales data, typically into the interval [0, 1].
         If provided, vmax, vmin, and vcenter are ignored.
+    figsize : Tuple[float, float], optional
+        Width and height of each subplot in inches. Default is (12, 4).
 
     Returns
     -------
@@ -1152,7 +1160,7 @@ def plot_branch(
         scatter_kwargs["cmap"] = cmap
 
     if ax is None:
-        fig, ax = plt.subplots(figsize=(12, 4))
+        fig, ax = plt.subplots(figsize=figsize)
     else:
         fig = ax.figure
     points = ax.scatter(
@@ -1217,6 +1225,7 @@ def plot_trend(
     vmin: Union[VBound, Sequence[VBound], None] = None,
     vcenter: Union[VBound, Sequence[VBound], None] = None,
     norm: Union[Normalize, Sequence[Normalize], None] = None,
+    figsize: Tuple[float, float] = (12, 4),
     **kwargs,
 ):
 
@@ -1293,6 +1302,8 @@ def plot_trend(
     norm : matplotlib.colors.Normalize or None
         The normalizing object which scales data, typically into the interval [0, 1].
         If provided, vmax, vmin, and vcenter are ignored.
+    figsize : Tuple[float, float], optional
+        Width and height of each subplot in inches. Default is (12, 4).
 
     Returns
     -------
@@ -1323,7 +1334,7 @@ def plot_trend(
     pseudotime_grid = trends.columns.astype(float)
 
     if ax is None:
-        fig, ax = plt.subplots(figsize=(12, 4))
+        fig, ax = plt.subplots(figsize=figsize)
     else:
         fig = ax.figure
     ax.plot(
