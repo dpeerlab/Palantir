@@ -11,6 +11,13 @@ from pygam import LinearGAM, s
 import scanpy as sc
 import mellon
 
+from . import config
+from .validation import _validate_obsm_key, _validate_varm_key
+
+
+# Used for trend computation and branch selection
+PSEUDOTIME_RES = 500
+
 
 class PResults(object):
     """
@@ -82,40 +89,48 @@ def compute_gene_trends_legacy(
     pseudo_time_key: str = "palantir_pseudotime",
     fate_prob_key: str = "palantir_fate_probabilities",
     gene_trend_key: str = "palantir_gene_trends",
+    save_as_df: bool = None,
 ) -> Dict[str, Dict[str, pd.DataFrame]]:
-    """Compute gene expression trends along pseudotemporal trajectory.
+    """
+    Computes gene expression trends along pseudotemporal trajectories.
 
     This function calculates gene expression trends and their standard deviations
-    along the pseudotemporal trajectory computed by Palantir.
+    along pseudotemporal trajectories computed by Palantir.
 
     Parameters
     ----------
     data : Union[sc.AnnData, palantir.presults.PResults]
         Either a Scanpy AnnData object or a Palantir results object.
     gene_exprs : pd.DataFrame, optional
-        DataFrame of gene expressions, shape (cells, genes).
+        DataFrame of gene expressions with cells as rows and genes as columns. If not provided, gene expressions
+        will be fetched from `data` using `expression_key`.
     lineages : List[str], optional
-        Subset of lineages for which to compute the trends.
-        If None uses all columns of the fate probability matrix.
-        Default is None.
+        List of lineages for which to compute the trends. If None, all columns of the fate probability matrix are used. Default is None.
     n_splines : int, optional
         Number of splines to use. Must be non-negative. Default is 4.
     spline_order : int, optional
         Order of the splines to use. Must be non-negative. Default is 2.
     n_jobs : int, optional
-        Number of cores to use. Default is -1.
+        Number of cores to use. If -1, all available cores will be used. Default is -1.
     expression_key : str, optional
         Key to access gene expression matrix from a layer of the AnnData object. Default is 'MAGIC_imputed_data'.
-        If `gene_exprs` is None, this key is used to fetch the gene expressions from `data.X`.
+        Ignored if `gene_exprs` is provided.
     pseudo_time_key : str, optional
-        Key to access pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
+        Key to access pseudotime from the obs attribute of the AnnData object. Default is 'palantir_pseudotime'.
     fate_prob_key : str, optional
-        Key to access fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+        Key to access fate probabilities from the obsm attribute of the AnnData object. Default is 'palantir_fate_probabilities'.
     gene_trend_key : str, optional
-        Starting key to store the gene trends in the varm attribute of the AnnData object. The default is 'palantir_gene_trends'.
-        The gene trend matrices for each fate will be stored under 'varm[gene_trend_key + "_" + lineage_name]'.
-        The pseudotime points at which the gene trends are computed, corresponding to the columns of the gene trend matrices,
-        are stored in the uns attribute under 'uns[gene_trend_key + "_" + lineage_name + "_pseudotime"]'.
+        Key to store the computed gene trends in the varm attribute of the AnnData object. Default is 'palantir_gene_trends'.
+        The trends for each lineage are stored under 'varm[gene_trend_key + "_" + lineage_name]'.
+        The pseudotime points at which the trends are computed are stored in the uns attribute
+        under 'uns[gene_trend_key + "_" + lineage_name + "_pseudotime"]'.
+    save_as_df : bool, optional
+        If True, the trends will be saved in the varm of the AnnData object as pandas DataFrame with pseudotime as column names.
+        If False, the trends will be saved as numpy array and the pseudotime in uns[gene_trend_key + "_" + lineage_name + "_pseudotime"].
+        The option to save as DataFrame is there due to some versions of AnnData not being able to
+        write h5ad files with DataFrames in ad.varm. Default is palantir.SAVE_AS_DF=True.
+
+    Returns
 
 
     Returns
@@ -123,15 +138,14 @@ def compute_gene_trends_legacy(
     Dict[str, Dict[str, pd.DataFrame]]
         Dictionary of gene expression trends and standard deviations for each branch.
     """
+    if save_as_df is None:
+        save_as_df = config.SAVE_AS_DF
+
     # Extract palantir results from AnnData if necessary
     if isinstance(data, sc.AnnData):
         gene_exprs = data.to_df(expression_key)
         pseudo_time = pd.Series(data.obs[pseudo_time_key], index=data.obs_names)
-        fate_probs = pd.DataFrame(
-            data.obsm[fate_prob_key],
-            index=data.obs_names,
-            columns=data.uns[fate_prob_key + "_columns"],
-        )
+        fate_probs, _ = _validate_obsm_key(data, fate_prob_key)
 
         pr_res = PResults(pseudo_time, None, fate_probs, None)
     else:
@@ -147,7 +161,7 @@ def compute_gene_trends_legacy(
         results[branch] = OrderedDict()
         # Bins along the pseudotime
         br_cells = pr_res.branch_probs.index[pr_res.branch_probs.loc[:, branch] > 0.7]
-        bins = np.linspace(0, pr_res.pseudotime[br_cells].max(), 500)
+        bins = np.linspace(0, pr_res.pseudotime[br_cells].max(), PSEUDOTIME_RES)
 
         # Branch results container
         results[branch]["trends"] = pd.DataFrame(
@@ -182,10 +196,17 @@ def compute_gene_trends_legacy(
             results[branch]["trends"].loc[gene, :] = res[i][0]
             results[branch]["std"].loc[gene, :] = res[i][1]
         if isinstance(data, sc.AnnData):
-            data.varm[gene_trend_key + "_" + branch] = results[branch]["trends"].values
-            data.uns[gene_trend_key + "_" + branch + "_pseudotime"] = results[branch][
-                "trends"
-            ].columns.values
+            if save_as_df:
+                df = results[branch]["trends"]
+                df.columns = df.columns.astype(str)
+                data.varm[gene_trend_key + "_" + branch] = df
+            else:
+                data.varm[gene_trend_key + "_" + branch] = results[branch][
+                    "trends"
+                ].values
+                data.uns[gene_trend_key + "_" + branch + "_pseudotime"] = results[
+                    branch
+                ]["trends"].columns.values
         end = time.time()
         print("Time for processing {}: {} minutes".format(branch, (end - start) / 60))
 
@@ -199,6 +220,7 @@ def compute_gene_trends(
     expression_key: str = None,
     pseudo_time_key: str = "palantir_pseudotime",
     gene_trend_key: str = "gene_trends",
+    save_as_df: bool = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -232,6 +254,11 @@ def compute_gene_trends(
     gene_trend_key : str, optional
         Key base to store the gene expression trends in varm of the AnnData object.
         Default is 'palantir_gene_trends'.
+    save_as_df : bool, optional
+        If True, the trends will be saved in the varm of the AnnData object as pandas DataFrame with pseudotime as column names.
+        If False, the trends will be saved as numpy array and the pseudotime in uns[gene_trend_key + "_" + lineage_name + "_pseudotime"].
+        The option to save as DataFrame is there due to some versions of AnnData not being able to
+        write h5ad files with DataFrames in ad.varm. Default is palantir.SAVE_AS_DF=True.
     **kwargs
         Additional arguments to be passed to mellon.FunctionEstimator.
 
@@ -243,19 +270,18 @@ def compute_gene_trends(
         maps to a DataFrame. The DataFrame contains the gene expression trends, indexed by gene names
         and columns representing pseudotime points.
     """
+    if save_as_df is None:
+        save_as_df = config.SAVE_AS_DF
     # Check the AnnData object for the necessary keys
     if pseudo_time_key not in ad.obs_keys():
         raise ValueError(
             f"'{pseudo_time_key}' is not found in the AnnData object's obs."
         )
 
-    assert masks_key in ad.obsm, f"{masks_key} not found in ad.obsm"
-    assert masks_key + "_columns" in ad.uns, f"{masks_key}_columns not found in ad.uns"
+    masks, branches = _validate_obsm_key(ad, masks_key, as_df=False)
 
     gene_exprs = ad.to_df(expression_key)
     pseudo_time = ad.obs[pseudo_time_key].values
-    masks = ad.obsm[masks_key]
-    branches = ad.uns[masks_key + "_columns"]
 
     if lineages is not None:
         for lin in lineages:
@@ -267,7 +293,7 @@ def compute_gene_trends(
         lineages = branches
 
     # Set the default arguments for mellon.FunctionEstimator
-    mellon_args = dict(sigma=1, ls=5, n_landmarks=0)
+    mellon_args = dict(sigma=1, ls=10, n_landmarks=0)
     mellon_args.update(kwargs)
 
     lagacy_results = dict()
@@ -278,7 +304,7 @@ def compute_gene_trends(
         print(branch)
         mask = masks[:, i]
         pt = pseudo_time[mask]
-        pt_grid = np.linspace(pt.min(), pt.max(), 500)
+        pt_grid = np.linspace(pt.min(), pt.max(), PSEUDOTIME_RES)
         expr = gene_exprs.loc[mask, :]
         func_est = mellon.FunctionEstimator(**mellon_args)
         result = func_est.fit_predict(pt, expr, pt_grid).T
@@ -287,9 +313,16 @@ def compute_gene_trends(
         lagacy_results[branch] = {
             "trends": pd.DataFrame(result, columns=pt_grid, index=ad.var_names)
         }
-        # Store the trends in the AnnData object and return as a DataFrame
-        ad.varm[gene_trend_key + "_" + branch] = result
-        ad.uns[gene_trend_key + "_" + branch + "_pseudotime"] = pt_grid
+
+        if save_as_df:
+            ad.varm[gene_trend_key + "_" + branch] = pd.DataFrame(
+                result,
+                columns=pt_grid.astype(str),
+                index=ad.var_names,
+            )
+        else:
+            ad.varm[gene_trend_key + "_" + branch] = result
+            ad.uns[gene_trend_key + "_" + branch + "_pseudotime"] = pt_grid
 
     return lagacy_results
 
@@ -430,20 +463,8 @@ def cluster_gene_trends(
             raise KeyError(
                 "Must provide a gene_trend_key when data is an AnnData object."
             )
-        varm_name = gene_trend_key + "_" + branch_name
-        if varm_name not in data.varm:
-            raise ValueError(
-                f"'gene_trend_key + \"_\" + branch_name' = '{varm_name}' not found in .varm. "
-            )
-        pt_grid_name = gene_trend_key + "_" + branch_name + "_pseudotime"
-        if pt_grid_name not in data.uns.keys():
-            raise ValueError(
-                '\'gene_trend_key + "_" + branch_name + "_pseudotime"\' '
-                f"= '{pt_grid_name}' not found in .uns. "
-            )
-        pseudotimes = data.uns[pt_grid_name]
-        trends = pd.DataFrame(
-            data.varm[varm_name], index=data.var_names, columns=pseudotimes
+        trends, pseudotimes = _validate_varm_key(
+            data, gene_trend_key + "_" + branch_name
         )
     else:
         trends = data
@@ -458,7 +479,7 @@ def cluster_gene_trends(
         columns=trends.columns,
     )
 
-    gt_ad = sc.AnnData(trends.values)
+    gt_ad = sc.AnnData(trends.values, dtype=np.float32)
     sc.pp.neighbors(gt_ad, n_neighbors=n_neighbors, use_rep="X")
     sc.tl.leiden(gt_ad, **kwargs)
 
@@ -479,11 +500,17 @@ def select_branch_cells(
     ad: sc.AnnData,
     pseudo_time_key: str = "palantir_pseudotime",
     fate_prob_key: str = "palantir_fate_probabilities",
+    q: float = 1e-2,
     eps: float = 1e-2,
     masks_key: str = "branch_masks",
+    save_as_df: bool = None,
 ):
     """
     Selects cells along specific branches of pseudotime ordering.
+
+    This function identifies cells that are most likely to follow a certain lineage or "fate" by looking at
+    their pseudotime order and fate probabilities. These cells are expected to be along the path of differentiation
+    towards that specific fate.
 
     Parameters
     ----------
@@ -493,40 +520,57 @@ def select_branch_cells(
         Key to access the pseudotime from obs of the AnnData object. Default is 'palantir_pseudotime'.
     fate_prob_key : str, optional
         Key to access the fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+    q : float, optional
+        Quantile used to determine the threshold for the fate probability.
+        This parameter should be between 0 and 1. Default is 1e-2.
     eps : float, optional
-        Epsilon value used to create a buffer around the fate probabilities. Default is 1e-2.
+        A small constant substracted from the fate probability threshold. Default is 1e-2.
     masks_key : str, optional
-        Key under which the resulting branch cell selection masks are stored in
-        the obsm of the AnnData object. Default is 'branch_masks'.
+        Key under which the resulting branch cell selection masks are stored in the obsm of the AnnData object.
+        Default is 'branch_masks'.
+    save_as_df : bool, optional
+        If True, the masks will be saved in obsm of the AnnData object as pandas DataFrame. If False, the masks will be
+        saved as numpy array. The option to save as numpy array is there due to some versions of AnnData not being able to
+        write h5ad files with DataFrames in ad.obsm. Default is palantir.SAVE_AS_DF.
 
     Returns
     -------
-    None
-        The resulting selection mask is written to the obs of the AnnData object.
+    masks : np.ndarray
+        An array of boolean masks that indicates whether each cell is on the path to each fate.
     """
+
+    if save_as_df is None:
+        save_as_df = config.SAVE_AS_DF
+
     # make sure that the necessary keys are in the AnnData object
-    assert pseudo_time_key in ad.obs, f"{pseudo_time_key} not found in ad.obs"
-    assert fate_prob_key in ad.obsm, f"{fate_prob_key} not found in ad.obsm"
-    assert (
-        fate_prob_key + "_columns" in ad.uns
-    ), f"{fate_prob_key}_columns not found in ad.uns"
+    if pseudo_time_key not in ad.obs:
+        raise KeyError(f"{pseudo_time_key} not found in ad.obs")
 
-    # retrieve fate probabilities and names
-    fate_probs = ad.obsm[fate_prob_key]
-    fate_names = ad.uns[fate_prob_key + "_columns"]
+    fate_probs, fate_names = _validate_obsm_key(ad, fate_prob_key, as_df=False)
+    pseudotime = ad.obs[pseudo_time_key].values
 
-    # calculate the max probability along the pseudotime
-    max_prob = np.max(fate_probs, axis=1)[:, None]
-    term_cells = np.argmax(fate_probs, axis=0)
-    pt = ad.obs[pseudo_time_key].values
+    idx = np.argsort(pseudotime)
+    sorted_fate_probs = fate_probs[idx, :]
+    prob_thresholds = np.empty_like(fate_probs)
+    n = fate_probs.shape[0]
 
-    early_cell = np.argmin(pt)
+    step = n // PSEUDOTIME_RES
+    nsteps = n // step
+    for i in range(nsteps):
+        l, r = i * step, (i + 1) * step
+        mprob = np.quantile(sorted_fate_probs[:r, :], 1 - q, axis=0)
+        prob_thresholds[l:r, :] = mprob[None, :]
+    mprob = np.quantile(sorted_fate_probs, 1 - q, axis=0)
+    prob_thresholds[r:, :] = mprob[None, :]
+    prob_thresholds = np.maximum.accumulate(prob_thresholds, axis=0)
 
-    pt -= np.min(pt)
-    pt = pt[:, None] / pt[None, term_cells]
+    masks = np.empty_like(fate_probs).astype(bool)
+    masks[idx, :] = prob_thresholds - eps < sorted_fate_probs
 
-    probability_buffers = max_prob[None, early_cell] - fate_probs[None, early_cell, :]
-    ad.obsm[masks_key] = (max_prob - fate_probs) < probability_buffers * (1 - pt) + eps
-    ad.uns[masks_key + "_columns"] = fate_names
+    if save_as_df:
+        ad.obsm[masks_key] = pd.DataFrame(masks, columns=fate_names, index=ad.obs_names)
+    else:
+        ad.obsm[masks_key] = masks
+        ad.uns[masks_key + "_columns"] = fate_names
 
-    return None
+    return masks

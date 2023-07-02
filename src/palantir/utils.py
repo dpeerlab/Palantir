@@ -13,6 +13,8 @@ import scanpy as sc
 
 from .core import run_palantir
 
+from .validation import _validate_obsm_key
+
 
 class CellNotFoundException(Exception):
     """Exception raised when no valid component is found for the provided cell type."""
@@ -129,11 +131,9 @@ def run_low_density_variability(
     local_var = ad.layers[localvar_key]
     if isinstance(cell_mask, str):
         if cell_mask in ad.obsm.keys():
-            assert (
-                cell_mask + "_columns" in ad.uns
-            ), f"{cell_mask} in ad.obsm but {cell_mask}_columns not found in ad.uns"
-            branch_names = ["_" + b for b in ad.uns[cell_mask + "_columns"]]
-            masks = ad.obsm[cell_mask]
+            masks, branch_names = _validate_obsm_key(ad, cell_mask, as_df=False)
+            if masks.ndim == 1:
+                masks = masks[:, None]
         elif cell_mask in ad.obs.columns:
             branch_names = [
                 "_" + cell_mask,
@@ -160,7 +160,7 @@ def run_low_density_variability(
     out_columns = list()
     for i, branch in enumerate(branch_names):
         idx = masks[:, i]
-        colname = score_key + branch
+        colname = score_key + "_" + branch
         ad.var[colname] = np.mean(
             local_var[idx, :] * dip_weight[idx, None],
             axis=0,
@@ -427,10 +427,22 @@ def _dot_helper_func(x, y):
 
 
 def _local_var_helper(expressions, distances):
+    if hasattr(expressions, "todense"):
+
+        def cast(x):
+            return x.todense()
+
+    else:
+
+        def cast(x):
+            return x
+
     for cell in range(expressions.shape[0]):
         neighbors = distances.getrow(cell).indices
         try:
-            expr_deltas = np.array(expressions[neighbors, :] - expressions[cell, :])
+            neighbor_expression = cast(expressions[neighbors, :])
+            cell_expression = cast(expressions[cell, :])
+            expr_deltas = np.array(neighbor_expression - cell_expression)
         except ValueError:
             raise ValueError(f"This cell caused the error: {cell}")
         expr_distance = np.sqrt(np.sum(expr_deltas**2, axis=1, keepdims=True))
@@ -531,7 +543,7 @@ def run_magic_imputation(
                 raise ValueError(
                     f"expression_key '{expression_key}' not found in .layers."
                 )
-            x = data.layers[expression_key]
+            X = data.layers[expression_key]
         else:
             X = data.X
         if dm_res is None:
@@ -575,7 +587,7 @@ def run_magic_imputation(
     gc.collect()
 
     if isinstance(data, sc.AnnData):
-        data.layers[imputation_key] = imputed_data
+        data.layers[imputation_key] = np.asarray(imputed_data)
 
     if isinstance(data, pd.DataFrame):
         imputed_data = pd.DataFrame(
@@ -720,13 +732,13 @@ def early_cell(
         eigenvectors = eigenvectors.values
 
     if not isinstance(celltype_column, str):
-        raise ValueError("'celltype_column' should be a string")
+        raise ValueError(f"celltype_column='{celltype_column}' should be a string")
 
     if celltype_column not in ad.obs.columns:
-        raise ValueError("'celltype_column' should be a column of ad.obs.")
+        raise ValueError(f"celltype_column='{celltype_column}' should be a column of ad.obs.")
 
     if not isinstance(celltype, str):
-        raise ValueError("'celltype' should be a string")
+        raise ValueError(f"celltype should be a string")
 
     if celltype not in ad.obs[celltype_column].values:
         raise ValueError(
@@ -806,7 +818,7 @@ def fallback_terminal_cell(
     early_cell = ad.obs_names[ec]
     print(
         f"Using {early_cell} for cell type {celltype} which is latest cell in "
-        "{celltype} when starting from {fake_early_cell}."
+        f"{celltype} when starting from {fake_early_cell}."
     )
     return early_cell
 
