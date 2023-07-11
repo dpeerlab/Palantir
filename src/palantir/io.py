@@ -20,7 +20,6 @@ def from_csv(counts_csv_file, delimiter=","):
 
 
 def from_mtx(mtx_file, gene_name_file):
-
     # Read in mtx file
     count_matrix = mmread(mtx_file)
 
@@ -72,7 +71,6 @@ def from_10x(data_dir, use_ensemble_id=True):
 
 
 def from_10x_HDF5(filename, genome=None):
-
     ad = sc.read_10x_h5(filename, genome, True)
 
     dataMatrix = pd.DataFrame(ad.X.todense(), columns=ad.var_names, index=ad.obs_names)
@@ -94,7 +92,6 @@ def from_fcs(
         "bead1",
     ],
 ):
-
     # Parse the fcs file
     text, data = fcsparser.parse(fcs_file)
     data = data.astype(np.float64)

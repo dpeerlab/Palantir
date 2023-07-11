@@ -333,7 +333,6 @@ def identify_terminal_states(
     max_iterations=25,
     seed=20,
 ):
-
     # Scale components
     data = pd.DataFrame(
         preprocessing.minmax_scale(ms_data),
@@ -378,7 +377,6 @@ def identify_terminal_states(
 
 
 def _construct_markov_chain(wp_data, knn, pseudotime, n_jobs):
-
     # Markov chain construction
     print("Markov chain construction...")
     waypoints = wp_data.index
@@ -546,7 +544,6 @@ def _shortest_path_helper(cell, adj):
 
 
 def _connect_graph(adj, data, start_cell):
-
     # Create graph and compute distances
     graph = nx.Graph(adj)
     dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell))

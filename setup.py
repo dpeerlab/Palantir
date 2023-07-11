@@ -37,7 +37,6 @@ setup(
         "Cython",
         "cmake",
         "matplotlib>=2.2.2",
-        "seaborn>=0.8.1",
         "tzlocal",
         "anndata>=0.8.0",
         "scanpy>=1.6.0",

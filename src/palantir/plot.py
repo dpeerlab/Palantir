@@ -16,7 +16,6 @@ import matplotlib.patheffects as PathEffects
 from matplotlib.cm import get_cmap
 from matplotlib.colors import Normalize, Colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import seaborn as sns
 
 from scanpy.plotting._tools.scatterplots import (
     _get_color_source_vector,
@@ -109,7 +108,6 @@ def density_2d(x, y):
 
 
 def plot_molecules_per_cell_and_gene(data, fig=None, ax=None):
-
     height = 4
     width = 12
     fig = plt.figure(figsize=[width, height])
@@ -132,7 +130,6 @@ def plot_molecules_per_cell_and_gene(data, fig=None, ax=None):
         plt.ylabel("Frequency")
         plt.tight_layout()
         ax.tick_params(axis="x", labelsize=8)
-    sns.despine()
 
     return fig, ax
 
@@ -145,8 +142,10 @@ def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
 
     # Cluster colors
     if cluster_colors is None:
+        set2_colors = matplotlib.colormaps["hls"](range(len(clusters)))
         cluster_colors = pd.Series(
-            sns.color_palette("hls", len(set(clusters))), index=set(clusters)
+            [matplotlib.colors.rgb2hex(rgba) for rgba in set2_colors],
+            index=set(clusters),
         )
     n_clusters = len(cluster_colors)
 
@@ -381,6 +380,8 @@ def plot_gene_expression(
                 kaw["cmap"] = kwargs["cmap"]
             matplotlib.colorbar.ColorbarBase(cax, norm=normalize, **kaw)
 
+    return fig
+
 
 def plot_diffusion_components(
     data: Union[sc.AnnData, pd.DataFrame],
@@ -568,6 +569,7 @@ def plot_terminal_state_probs(
     cells: List[str],
     pr_res: Optional[PResults] = None,
     fate_prob_key: str = "palantir_fate_probabilities",
+    **kwargs,
 ):
     """Function to plot barplot for probabilities for each cell in the list
 
@@ -581,6 +583,8 @@ def plot_terminal_state_probs(
         Optional PResults object containing Palantir results. If None, results are expected to be found in the provided AnnData object.
     fate_prob_key : str, optional
         Key to access the fate probabilities from obsm of the AnnData object. Default is 'palantir_fate_probabilities'.
+    kwargs : dict, optional
+        Additional keyword arguments to pass to the matplotlib.pyplot.bar function.
 
     Returns
     -------
@@ -602,11 +606,10 @@ def plot_terminal_state_probs(
     fig = plt.figure(figsize=[3 * n_cols, 3 * n_rows])
 
     # Branch colors
-    set1_colors = sns.color_palette("Set1", 8).as_hex()
-    set2_colors = sns.color_palette("Set2", 8).as_hex()
-    cluster_colors = np.array(list(chain(*[set1_colors, set2_colors])))
+    set1_colors = matplotlib.colormaps["Set1"](range(branch_probs.shape[1]))
+    cluster_colors = [matplotlib.colors.rgb2hex(rgba) for rgba in set1_colors]
     branch_colors = pd.Series(
-        cluster_colors[range(branch_probs.shape[1])],
+        cluster_colors,
         index=branch_probs.columns,
     )
 
@@ -614,20 +617,17 @@ def plot_terminal_state_probs(
         ax = fig.add_subplot(n_rows, n_cols, i + 1)
 
         # Probs
-        df = pd.DataFrame(branch_probs.loc[cell, :])
-        df.loc[:, "x"] = branch_probs.columns
-        df.columns = ["y", "x"]
+        x = branch_probs.columns.values
+        height = branch_probs.loc[cell, :].values
 
         # Plot
-        sns.barplot(x="x", y="y", data=df, ax=ax, palette=branch_colors)
+        ax.bar(x, height, color=branch_colors, **kwargs)
         ax.set_xlabel("")
         ax.set_ylabel("")
         ax.set_ylim([0, 1])
         ax.set_yticks([0, 1])
-        ax.set_yticklabels([0, 1])
-        ax.set_xticklabels(ax.get_xticklabels(), fontsize=8)
+        ax.set_yticklabels([0, 1], fontsize=8)
         ax.set_title(cell, fontsize=10)
-    sns.despine()
 
     return fig
 
@@ -710,9 +710,7 @@ def plot_branch_selection(
     umap = ad.obsm[embedding_basis]
 
     figsize = figsize[0], figsize[1] * len(fates)
-    fig, axes = plt.subplots(
-        len(fates), 2, figsize=figsize, width_ratios=[2, 1]
-    )
+    fig, axes = plt.subplots(len(fates), 2, figsize=figsize, width_ratios=[2, 1])
 
     for i, fate in enumerate(fates):
         if axes.ndim == 1:
@@ -761,7 +759,6 @@ def plot_branch_selection(
         ax2.axis("off")
 
     plt.tight_layout()
-    sns.despine()
 
     return fig
 
@@ -773,8 +770,10 @@ def plot_gene_trends_legacy(gene_trends, genes=None):
 
     # Branches and genes
     branches = list(gene_trends.keys())
+    set2_colors = matplotlib.colormaps["Set2"](range(len(branches)))
     colors = pd.Series(
-        sns.color_palette("Set2", len(branches)).as_hex(), index=branches
+        [matplotlib.colors.rgb2hex(rgba) for rgba in set2_colors],
+        index=branches,
     )
     if genes is None:
         genes = gene_trends[branches[0]]["trends"].index
@@ -785,7 +784,8 @@ def plot_gene_trends_legacy(gene_trends, genes=None):
         ax = fig.add_subplot(len(genes), 1, i + 1)
         for branch in branches:
             trends = gene_trends[branch]["trends"]
-            stds = gene_trends[branch]["std"]
+            def_stds = pd.DataFrame(0, index=trends.index, columns=trends.columns)
+            stds = gene_trends[branch].get("std", def_stds)
             ax.plot(
                 trends.columns.astype(float),
                 trends.loc[gene, :],
@@ -805,7 +805,7 @@ def plot_gene_trends_legacy(gene_trends, genes=None):
         if i == 0:
             ax.legend()
 
-    sns.despine()
+    return fig
 
 
 def plot_gene_trends(
@@ -850,8 +850,10 @@ def plot_gene_trends(
 
     # Branches and genes
     branches = list(gene_trends.keys())
+    set2_colors = matplotlib.colormaps["Set2"](range(len(branches)))
     colors = pd.Series(
-        sns.color_palette("Set2", len(branches)).as_hex(), index=branches
+        [matplotlib.colors.rgb2hex(rgba) for rgba in set2_colors],
+        index=branches,
     )
 
     if genes is None:
@@ -875,8 +877,6 @@ def plot_gene_trends(
         # Add legend
         if i == 0:
             ax.legend()
-
-    sns.despine()
 
     return fig
 
@@ -1017,7 +1017,6 @@ def plot_branch(
     figsize: Tuple[float, float] = (12, 4),
     **kwargs,
 ):
-
     """
     This function visualizes a scatter plot of cells over pseudotime.
     The y-position indicates either a gene expression
@@ -1232,7 +1231,6 @@ def plot_trend(
     figsize: Tuple[float, float] = (12, 4),
     **kwargs,
 ):
-
     """
     This function visualizes a trend graph for a specific gene's expression over pseudotime.
     It plots the trend of a single gene for a chosen branch and additionally overlays a
@@ -1435,6 +1433,7 @@ def plot_gene_trend_heatmaps(
     branch_names: Union[str, List[str]] = "branch_masks",
     scaling: Optional[Literal["none", "z-score", "quantile", "percent"]] = "z-score",
     basefigsize: Tuple[int, int] = (7, 0.7),
+    cbkwargs: Dict = dict(),
     **kwargs,
 ) -> plt.Figure:
     """
@@ -1462,8 +1461,10 @@ def plot_gene_trend_heatmaps(
     basefigsize : Tuple[int, int], optional
         Base width and height in inches of the figure. The actual height of the figure is calculated
         based on the number of genes and branches. Default base size is (7, 0.7).
-    kwargs : dict
-        Additional keyword arguments for seaborn.heatmap.
+    cbkwargs : dict
+        Additional keyword arguments for matplotlib.pyplot.colorbar.
+    **kwargs : dict
+        Additional keyword arguments for matplotlib.pyplot.matshow.
 
     Returns
     -------
@@ -1474,8 +1475,14 @@ def plot_gene_trend_heatmaps(
 
     default_kwargs = {
         "cmap": matplotlib.rcParams["image.cmap"],
+        "aspect": 50,
     }
     default_kwargs.update(kwargs)
+    default_cbkwargs = {
+        "shrink": 0.9,
+        "drawedges": False,
+    }
+    default_cbkwargs.update(cbkwargs)
 
     # Get the branch names
     branches = list(gene_trends.keys())
@@ -1491,8 +1498,13 @@ def plot_gene_trend_heatmaps(
 
         mat = gene_trends[branch]["trends"].loc[genes, :]
         mat = _scale(mat, scaling)
-        sns.heatmap(mat, xticklabels=False, ax=ax, **default_kwargs)
+        cbd = ax.matshow(mat, **default_kwargs)
+        ax.set_xticks([])
+        ax.set_yticks(range(len(genes)), genes)
+        ax.set_frame_on(False)
         ax.set_title(branch, fontsize=12)
+        cb = plt.colorbar(cbd, ax=ax, **default_cbkwargs)
+        cb.outline.set_visible(False)
 
     return fig
 
@@ -1602,7 +1614,6 @@ def plot_gene_trend_clusters(
         ax.tick_params(axis="both", which="major", labelsize=8, direction="in")
         ax.set_xticklabels([])
 
-    sns.despine()
     return fig
 
 

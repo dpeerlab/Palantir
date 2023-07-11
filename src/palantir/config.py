@@ -2,17 +2,6 @@ import warnings
 import matplotlib
 from matplotlib import font_manager
 
-# set plotting defaults
-with warnings.catch_warnings():
-    # catch warnings that system can't find fonts
-    warnings.simplefilter("ignore")
-    import seaborn as sns
-
-    sns.set(context="paper", style="ticks", font_scale=1.5, font="Bitstream Vera Sans")
-    fm = font_manager.fontManager
-    fm.findfont("Raleway")
-    fm.findfont("Lato")
-
 matplotlib.rcParams["figure.dpi"] = 100
 matplotlib.rcParams["image.cmap"] = "Spectral_r"
 matplotlib.rcParams["axes.spines.bottom"] = "on"
