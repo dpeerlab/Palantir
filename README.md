@@ -107,7 +107,7 @@ ____
 
 Release Notes
 -------------
- ### Version 1.2.0
+ ### Version 1.3.0
 
  #### New Features
  * Enable an AnnData-centric workflow for improved usability and interoperability with other single-cell analysis tools.
