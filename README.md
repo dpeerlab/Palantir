@@ -107,6 +107,9 @@ ____
 
 Release Notes
 -------------
+ ### Version 1.3.1
+ * removed seaborn dependency
+
  ### Version 1.3.0
 
  #### New Features
