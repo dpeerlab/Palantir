@@ -25,7 +25,6 @@ class PResults(object):
     """
 
     def __init__(self, pseudotime, entropy, branch_probs, waypoints):
-
         # Initialize
         self._pseudotime = (pseudotime - pseudotime.min()) / (
             pseudotime.max() - pseudotime.min()
@@ -370,7 +369,6 @@ def gam_fit_predict(x, y, weights=None, pred_x=None, n_splines=4, spline_order=2
 
 
 def _gam_fit_predict_rpy2(x, y, weights=None, pred_x=None):
-
     import rpy2.robjects as robjects
     from rpy2.robjects import pandas2ri, Formula
     from rpy2.robjects.packages import importr

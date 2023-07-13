@@ -735,7 +735,9 @@ def early_cell(
         raise ValueError(f"celltype_column='{celltype_column}' should be a string")
 
     if celltype_column not in ad.obs.columns:
-        raise ValueError(f"celltype_column='{celltype_column}' should be a column of ad.obs.")
+        raise ValueError(
+            f"celltype_column='{celltype_column}' should be a column of ad.obs."
+        )
 
     if not isinstance(celltype, str):
         raise ValueError(f"celltype should be a string")
