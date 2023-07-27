@@ -292,8 +292,7 @@ def compute_gene_trends(
         lineages = branches
 
     # Set the default arguments for mellon.FunctionEstimator
-    mellon_args = dict(sigma=1, ls=10, n_landmarks=0)
-    mellon_args.update(kwargs)
+    mellon_args = dict(sigma=1, ls=1)
 
     lagacy_results = dict()
     # Compute the gene expression trends
@@ -305,6 +304,8 @@ def compute_gene_trends(
         pt = pseudo_time[mask]
         pt_grid = np.linspace(pt.min(), pt.max(), PSEUDOTIME_RES)
         expr = gene_exprs.loc[mask, :]
+        mellon_args["landmarks"] = pt_grid
+        mellon_args.update(kwargs)
         func_est = mellon.FunctionEstimator(**mellon_args)
         result = func_est.fit_predict(pt, expr, pt_grid).T
         result = np.asarray(result)
