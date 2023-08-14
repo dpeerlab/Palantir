@@ -1,6 +1,4 @@
-import warnings
 import matplotlib
-from matplotlib import font_manager
 
 matplotlib.rcParams["figure.dpi"] = 100
 matplotlib.rcParams["image.cmap"] = "Spectral_r"
