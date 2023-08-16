@@ -107,6 +107,10 @@ ____
 
 Release Notes
 -------------
+ ### Version 1.3.2
+ * implemented `palantir.plot.plot_stats` to plot arbitray cell-wise statistics as x-/y-positions.
+ * reduce memory usgae of `palantir.presults.compute_gene_trends`
+ 
  ### Version 1.3.1
  * removed seaborn dependency
 

@@ -740,7 +740,7 @@ def early_cell(
         )
 
     if not isinstance(celltype, str):
-        raise ValueError(f"celltype should be a string")
+        raise ValueError("celltype should be a string")
 
     if celltype not in ad.obs[celltype_column].values:
         raise ValueError(
