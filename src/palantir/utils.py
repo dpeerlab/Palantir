@@ -293,6 +293,113 @@ def run_density_evaluation(
     return log_density
 
 
+def compute_kernel(
+    data: Union[pd.DataFrame, sc.AnnData],
+    knn: int = 30,
+    alpha: float = 0,
+    pca_key: str = "X_pca",
+    kernel_key: str = "DM_Kernel",
+) -> csr_matrix:
+    """
+    Compute the adaptive anisotropic diffusion kernel.
+
+    Parameters
+    ----------
+    data : Union[pd.DataFrame, sc.AnnData]
+        Data points (rows) in a feature space (columns) for pd.DataFrame.
+        For sc.AnnData, it uses the .X attribute.
+    knn : int
+        Number of nearest neighbors for adaptive kernel calculation. Default is 30.
+    alpha : float
+        Normalization parameter for the diffusion operator. Default is 0.
+    pca_key : str, optional
+        Key to retrieve PCA projections from data if it is a sc.AnnData object. Default is 'X_pca'.
+    kernel_key : str, optional
+        Key to store the kernel in obsp of data if it is a sc.AnnData object. Default is 'DM_Kernel'.
+
+    Returns
+    -------
+    csr_matrix
+        Computed kernel matrix.
+    """
+
+    # If the input is sc.AnnData, convert it to a DataFrame
+    if isinstance(data, sc.AnnData):
+        data_df = pd.DataFrame(data.obsm[pca_key], index=data.obs_names)
+    else:
+        data_df = data
+
+    N = data_df.shape[0]
+    temp = sc.AnnData(data_df.values)
+    sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
+    kNN = temp.obsp["distances"]
+
+    adaptive_k = int(np.floor(knn / 3))
+    adaptive_std = np.zeros(N)
+    for i in np.arange(N):
+        adaptive_std[i] = np.sort(kNN.data[kNN.indptr[i] : kNN.indptr[i + 1]])[
+            adaptive_k - 1
+        ]
+
+    x, y, dists = find(kNN)
+    dists /= adaptive_std[x]
+    W = csr_matrix((np.exp(-dists), (x, y)), shape=[N, N])
+
+    kernel = W + W.T
+
+    if alpha > 0:
+        D = np.ravel(kernel.sum(axis=1))
+        D[D != 0] = D[D != 0] ** (-alpha)
+        mat = csr_matrix((D, (range(N), range(N))), shape=[N, N])
+        kernel = mat.dot(kernel).dot(mat)
+
+    if isinstance(data, sc.AnnData):
+        data.obsp[kernel_key] = kernel
+
+    return kernel
+
+
+def diffusion_maps_from_kernel(
+    kernel: csr_matrix, n_components: int = 10, seed: Union[int, None] = 0
+):
+    """
+    Compute the diffusion map given a kernel matrix.
+
+    Parameters
+    ----------
+    kernel : csr_matrix
+        Precomputed kernel matrix.
+    n_components : int
+        Number of diffusion components to compute. Default is 10.
+    seed : Union[int, None]
+        Seed for random initialization. Default is 0.
+
+    Returns
+    -------
+    dict
+        T-matrix (T), Diffusion components (EigenVectors) and corresponding eigenvalues (EigenValues).
+    """
+    N = kernel.shape[0]
+    D = np.ravel(kernel.sum(axis=1))
+    D[D != 0] = 1 / D[D != 0]
+    T = csr_matrix((D, (range(N), range(N))), shape=[N, N]).dot(kernel)
+
+    np.random.seed(seed)
+    v0 = np.random.rand(min(T.shape))
+    D, V = eigs(T, n_components, tol=1e-4, maxiter=1000, v0=v0)
+
+    D = np.real(D)
+    V = np.real(V)
+    inds = np.argsort(D)[::-1]
+    D = D[inds]
+    V = V[:, inds]
+
+    for i in range(V.shape[1]):
+        V[:, i] = V[:, i] / np.linalg.norm(V[:, i])
+
+    return {"T": T, "EigenVectors": pd.DataFrame(V), "EigenValues": pd.Series(D)}
+
+
 def run_diffusion_maps(
     data: Union[pd.DataFrame, sc.AnnData],
     n_components: int = 10,
@@ -347,70 +454,21 @@ def run_diffusion_maps(
     else:
         data_df = data
 
-    if not isinstance(data_df, pd.DataFrame):
-        raise ValueError("'data_df' should be a pd.DataFrame or a sc.AnnData instance")
+    if not isinstance(data_df, pd.DataFrame) and not issparse(data_df):
+        raise ValueError("'data_df' should be a pd.DataFrame or sc.AnnData")
 
-    # Determine the kernel
-    N = data_df.shape[0]
     if not issparse(data_df):
-        print("Determing nearest neighbor graph...")
-        temp = sc.AnnData(data_df.values)
-        sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
-        kNN = temp.obsp["distances"]
-
-        # Adaptive k
-        adaptive_k = int(np.floor(knn / 3))
-        adaptive_std = np.zeros(N)
-
-        for i in np.arange(len(adaptive_std)):
-            adaptive_std[i] = np.sort(kNN.data[kNN.indptr[i] : kNN.indptr[i + 1]])[
-                adaptive_k - 1
-            ]
-
-        # Kernel
-        x, y, dists = find(kNN)
-
-        # X, y specific stds
-        dists = dists / adaptive_std[x]
-        W = csr_matrix((np.exp(-dists), (x, y)), shape=[N, N])
-
-        # Diffusion components
-        kernel = W + W.T
+        kernel = compute_kernel(data_df, knn, alpha)
     else:
+        warn(
+            "'data' is a sparse matrix and will be interpreted as kernel. "
+            "To avoid this warning compute diffusion maps from a precompued kernel using "
+            "palantir.utils.diffusion_maps_from_kernel()."
+        )
         kernel = data_df
 
-    # Markov
-    D = np.ravel(kernel.sum(axis=1))
+    res = diffusion_maps_from_kernel(kernel, n_components, seed)
 
-    if alpha > 0:
-        # L_alpha
-        D[D != 0] = D[D != 0] ** (-alpha)
-        mat = csr_matrix((D, (range(N), range(N))), shape=[N, N])
-        kernel = mat.dot(kernel).dot(mat)
-        D = np.ravel(kernel.sum(axis=1))
-
-    D[D != 0] = 1 / D[D != 0]
-    T = csr_matrix((D, (range(N), range(N))), shape=[N, N]).dot(kernel)
-    # Eigen value dcomposition
-    np.random.seed(seed)
-    v0 = np.random.rand(min(T.shape))
-    D, V = eigs(T, n_components, tol=1e-4, maxiter=1000, v0=v0)
-    D = np.real(D)
-    V = np.real(V)
-    inds = np.argsort(D)[::-1]
-    D = D[inds]
-    V = V[:, inds]
-
-    # Normalize
-    for i in range(V.shape[1]):
-        V[:, i] = V[:, i] / np.linalg.norm(V[:, i])
-
-    # Create are results dictionary
-    res = {"T": T, "EigenVectors": V, "EigenValues": D}
-    res["EigenVectors"] = pd.DataFrame(res["EigenVectors"])
-    if not issparse(data_df):
-        res["EigenVectors"].index = data_df.index
-    res["EigenValues"] = pd.Series(res["EigenValues"])
     res["kernel"] = kernel
 
     if isinstance(data, sc.AnnData):
