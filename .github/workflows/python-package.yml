@@ -37,6 +37,6 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        coverage run -m pytest tests/*.py
+        coverage run --source=src/palantir/ -m pytest tests/*.py
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3

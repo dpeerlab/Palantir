@@ -1,5 +1,4 @@
 coverage:
-  focus: "src/palantir/*"
   status:
     project:
       default:
