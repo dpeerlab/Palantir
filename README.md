@@ -1,3 +1,6 @@
+[![PyPI version](https://badge.fury.io/py/palantir.svg)](https://badge.fury.io/py/palantir)
+[![codecov](https://codecov.io/github/settylab/Palantir/graph/badge.svg?token=KJTEY76FTK)](https://codecov.io/github/settylab/Palantir)
+
 Palantir
 ------
 
