@@ -33,7 +33,6 @@ setup(
         "joblib",
         "fcsparser>=0.1.2",
         "leidenalg>=0.9.1",
-        "tables>=3.4.2",
         "Cython",
         "cmake",
         "matplotlib>=2.2.2",
