@@ -113,6 +113,7 @@ Release Notes
  * removed seaborn dependency
  * refactor `run_diffusion_maps` to split out `compute_kernel` and `diffusion_maps_from_kernel`
  * remove unused dependencies `tables`, `Cython`, `cmake`, and `tzlocal`.
+ * fixes in `run_pca` (return correct projections and do not use too many components)
 
  ### Version 1.3.0
 

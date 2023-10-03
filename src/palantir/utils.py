@@ -62,23 +62,25 @@ def run_pca(
     if not use_hvg:
         n_comps = n_components
     else:
-        sc.pp.pca(ad, n_comps=1000, use_highly_variable=True, zero_center=False)
+        l_n_comps = min(1000, ad.n_obs-1, ad.n_vars-1)
+        sc.pp.pca(ad, n_comps=l_n_comps, use_highly_variable=True, zero_center=False)
         try:
             n_comps = np.where(np.cumsum(ad.uns["pca"]["variance_ratio"]) > 0.85)[0][0]
         except IndexError:
             n_comps = n_components
 
     # Rerun with selection number of components
+    n_comps = min(n_comps, ad.n_obs-1, ad.n_vars-1)
     sc.pp.pca(ad, n_comps=n_comps, use_highly_variable=use_hvg, zero_center=False)
 
     if isinstance(data, sc.AnnData):
         data.obsm[pca_key] = ad.obsm["X_pca"]
-        if old_pca is None and pca_key != "X_pca":
+        if pca_key != "X_pca":
             del data.obsm["X_pca"]
-        else:
+        elif old_pca is not None:
             data.obsm["X_pca"] = old_pca
 
-    pca_projections = pd.DataFrame(ad.obsm["X_pca"], index=ad.obs_names)
+    pca_projections = pd.DataFrame(ad.obsm[pca_key], index=ad.obs_names)
     return pca_projections, ad.uns["pca"]["variance_ratio"]
 
 
