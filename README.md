@@ -112,7 +112,7 @@ Release Notes
  * reduce memory usgae of `palantir.presults.compute_gene_trends`
  * removed seaborn dependency
  * refactor `run_diffusion_maps` to split out `compute_kernel` and `diffusion_maps_from_kernel`
- * remove unused dependency `tables`
+ * remove unused dependencies `tables`, `Cython`, `cmake`, and `tzlocal`.
 
  ### Version 1.3.0
 
