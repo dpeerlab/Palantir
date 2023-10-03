@@ -62,7 +62,7 @@ def run_pca(
     if not use_hvg:
         n_comps = n_components
     else:
-        l_n_comps = min(1000, ad.n_obs-1, ad.n_vars-1)
+        l_n_comps = min(1000, ad.n_obs - 1, ad.n_vars - 1)
         sc.pp.pca(ad, n_comps=l_n_comps, use_highly_variable=True, zero_center=False)
         try:
             n_comps = np.where(np.cumsum(ad.uns["pca"]["variance_ratio"]) > 0.85)[0][0]
@@ -70,7 +70,7 @@ def run_pca(
             n_comps = n_components
 
     # Rerun with selection number of components
-    n_comps = min(n_comps, ad.n_obs-1, ad.n_vars-1)
+    n_comps = min(n_comps, ad.n_obs - 1, ad.n_vars - 1)
     sc.pp.pca(ad, n_comps=n_comps, use_highly_variable=use_hvg, zero_center=False)
 
     if isinstance(data, sc.AnnData):
@@ -492,13 +492,15 @@ def _local_var_helper(expressions, distances):
         def cast(x):
             return x.todense()
 
+        issparse = True
     else:
 
         def cast(x):
             return x
 
+        issparse = False
     for cell in range(expressions.shape[0]):
-        neighbors = distances.getrow(cell).indices
+        neighbors = distances.getrow(cell).indices if issparse else slice(None)
         try:
             neighbor_expression = cast(expressions[neighbors, :])
             cell_expression = cast(expressions[cell, :])
