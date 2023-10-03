@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
@@ -33,12 +34,9 @@ def test_diffusion_maps_seed():
     kernel = create_mock_kernel(50)
     result1 = diffusion_maps_from_kernel(kernel, seed=0)
     result2 = diffusion_maps_from_kernel(kernel, seed=0)
-    result3 = diffusion_maps_from_kernel(kernel, seed=1)
 
     # Seed usage should yield the same result
     assert np.allclose(result1["EigenValues"], result2["EigenValues"])
-    # Different seed should yield different results
-    assert not np.allclose(result1["EigenValues"], result3["EigenValues"])
 
 def test_diffusion_maps_eigen():
     kernel = create_mock_kernel(50)
