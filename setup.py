@@ -7,21 +7,22 @@ if sys.version_info.major != 3:
 if sys.version_info.minor < 6:
     warn("Analysis methods were developed using Python 3.6")
 
-# get version
+# get version and other attributes
+version_info = {}
 with open("src/palantir/version.py") as f:
-    exec(f.read())
+    exec(f.read(), version_info)
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
     name="palantir",
-    version=__version__,  # read in from the exec of version.py; ignore error
+    version=version_info['__version__'],
+    author=version_info['__author__'],
+    author_email=version_info['__author_email__'],
     description="Palantir for modeling continuous cell state and cell fate choices in single cell data",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dpeerlab/palantir",
-    author=__author__,
-    author_email=__author_email__,
     package_dir={"": "src"},
     packages=["palantir"],
     install_requires=[
