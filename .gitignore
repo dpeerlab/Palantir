@@ -4,3 +4,4 @@ __pycache__/
 *.h5ad
 build/
 palantir.egg-info/
+.coverage
