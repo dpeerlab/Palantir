@@ -452,7 +452,7 @@ def plot_diffusion_components(
         ax.set_title(f"Component {i}", fontsize=10)
         ax.set_axis_off()
 
-    return fig, ax
+    return fig.figure, fig.axes
 
 
 def plot_palantir_results(
