@@ -1117,11 +1117,14 @@ def plot_stats(
     if ax is not None and not isinstance(ax, plt.Axes):
         raise TypeError("Expected ax to be a matplotlib Axes instance")
 
-    mask = (
-        _process_mask(ad, masks_key, branch_name)
-        if isinstance(masks_key, str)
-        else masks_key
-    )
+    if branch_name is not None:
+        mask = (
+            _process_mask(ad, masks_key, branch_name)
+            if isinstance(masks_key, str)
+            else masks_key
+        )
+    else:
+        mask = None
 
     x_pos = _get_color_source_vector(ad, x, layer=x_layer)
     y_pos = _get_color_source_vector(ad, y, layer=y_layer)
