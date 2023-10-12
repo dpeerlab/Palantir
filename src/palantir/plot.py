@@ -12,7 +12,6 @@ import scanpy as sc
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
-from matplotlib.cm import get_cmap
 from matplotlib.colors import Normalize, Colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -1142,7 +1141,8 @@ def plot_stats(
     }
     scatter_kwargs.update(kwargs)
 
-    cmap = copy(get_cmap(cmap))
+    default_cmap = matplotlib.colormaps["viridis"]
+    cmap = copy(matplotlib.colormaps.get(cmap, default_cmap))
     cmap.set_bad(na_color)
 
     na_color = matplotlib.colors.to_hex(na_color, keep_alpha=True)
