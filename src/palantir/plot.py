@@ -341,11 +341,10 @@ def plot_gene_expression(
                 "or the wrong gene symbol was used: {!r}".format(not_in_dataframe)
             )
         else:
-            print(
+            raise ValueError(
                 "None of the listed genes were observed in the experiment, or the "
                 "wrong symbols were used."
             )
-            return
 
     # remove genes missing from experiment
     genes = pd.Series(genes)[pd.Series(genes).isin(data.columns)]
@@ -383,7 +382,7 @@ def plot_gene_expression(
                 kaw["cmap"] = kwargs["cmap"]
             matplotlib.colorbar.ColorbarBase(cax, norm=normalize, **kaw)
 
-    return fig
+    return fig.figure, fig.axes
 
 
 def plot_diffusion_components(
