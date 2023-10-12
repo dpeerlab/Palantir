@@ -236,7 +236,7 @@ def highlight_cells_on_umap(
                 "'cells' should be either list, dict, pd.Series, pd.Index, string "
                 "(as column in .obs), or a boolean array-like."
             )
-    elif len(cells) == data.n_obs:
+    elif isinstance(data, sc.AnnData) and len(cells) == data.n_obs:
         try:
             cells = data.obs_names[cells]
         except IndexError:
