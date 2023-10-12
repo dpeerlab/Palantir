@@ -141,7 +141,7 @@ def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
 
     # Cluster colors
     if cluster_colors is None:
-        set2_colors = matplotlib.colormaps["hls"](range(len(clusters)))
+        set2_colors = matplotlib.colormaps["hsv"](np.linspace(0, 1, len(set(clusters))))
         cluster_colors = pd.Series(
             [matplotlib.colors.rgb2hex(rgba) for rgba in set2_colors],
             index=set(clusters),
@@ -161,6 +161,8 @@ def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
         )
         ax.set_axis_off()
         ax.set_title(cluster, fontsize=10)
+
+    return fig.figure, fig.axes
 
 
 def highlight_cells_on_umap(
