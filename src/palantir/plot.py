@@ -275,19 +275,21 @@ def highlight_cells_on_umap(
 
 def plot_tsne_by_cell_sizes(data, tsne, fig=None, ax=None, vmin=None, vmax=None):
     """Plot tSNE projections of the data with cells colored by molecule counts
-    :param fig: matplotlib Figure object
-    :param ax: matplotlib Axis object
-    :param vmin: Minimum molecule count for plotting
-    :param vmax: Maximum molecule count for plotting
-    :param title: Title for the plot
+    :param data: Expression data, DataFrame-like
+    :param tsne: tSNE coordinates, DataFrame-like
+    :param fig: matplotlib Figure object, optional
+    :param ax: matplotlib Axis object, optional
+    :param vmin: Minimum molecule count for plotting, optional
+    :param vmax: Maximum molecule count for plotting, optional
     """
 
     sizes = data.sum(axis=1)
     fig, ax = get_fig(fig, ax)
-    plt.scatter(tsne["x"], tsne["y"], s=3, c=sizes)
+    scatter = ax.scatter(tsne["x"], tsne["y"], s=3, c=sizes, vmin=vmin, vmax=vmax)
     ax.set_axis_off()
-    plt.colorbar()
+    plt.colorbar(scatter, ax=ax)
     return fig, ax
+
 
 
 def plot_gene_expression(
