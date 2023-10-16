@@ -879,7 +879,7 @@ def fallback_terminal_cell(
     )
     idx = ad.obs[celltype_column] == celltype
     ec = pr_res.pseudotime[idx].argmax()
-    early_cell = ad.obs_names[ec]
+    early_cell = ad.obs_names[idx][ec]
     print(
         f"Using {early_cell} for cell type {celltype} which is latest cell in "
         f"{celltype} when starting from {fake_early_cell}."
