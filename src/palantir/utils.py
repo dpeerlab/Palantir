@@ -472,6 +472,8 @@ def run_diffusion_maps(
     res = diffusion_maps_from_kernel(kernel, n_components, seed)
 
     res["kernel"] = kernel
+    if not issparse(data_df):
+        res["EigenVectors"].index = data_df.index
 
     if isinstance(data, sc.AnnData):
         data.obsp[kernel_key] = res["kernel"]
