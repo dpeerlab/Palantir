@@ -110,6 +110,11 @@ ____
 
 Release Notes
 -------------
+ ### Version 1.3.2
+ * require `python>=3.8`
+ * implement CI for testing
+ * fixes for edge cases discoverd through extended testing
+
  ### Version 1.3.1
  * implemented `palantir.plot.plot_stats` to plot arbitray cell-wise statistics as x-/y-positions.
  * reduce memory usgae of `palantir.presults.compute_gene_trends`
