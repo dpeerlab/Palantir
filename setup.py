@@ -2,11 +2,6 @@ import sys
 from setuptools import setup
 from warnings import warn
 
-if sys.version_info.major != 3:
-    raise RuntimeError("Palantir requires Python 3")
-if sys.version_info.minor < 6:
-    warn("Analysis methods were developed using Python 3.6")
-
 # get version and other attributes
 version_info = {}
 with open("src/palantir/version.py") as f:
@@ -49,5 +44,5 @@ setup(
         "Topic :: Scientific/Engineering :: Bio-Informatics",
         "Topic :: Scientific/Engineering :: Visualization",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.8",
 )
