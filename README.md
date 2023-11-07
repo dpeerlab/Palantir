@@ -114,6 +114,7 @@ Release Notes
  * require `python>=3.8`
  * implement CI for testing
  * fixes for edge cases discoverd through extended testing
+ * implement `plot_trajectory` function to show trajectory on the umap
 
  ### Version 1.3.1
  * implemented `palantir.plot.plot_stats` to plot arbitray cell-wise statistics as x-/y-positions.
