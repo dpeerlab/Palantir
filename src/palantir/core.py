@@ -321,6 +321,9 @@ def _compute_pseudotime(data, start_cell, knn, waypoints, n_jobs, max_iterations
         pseudotime = new_traj
         iteration += 1
 
+    pseudotime -= np.min(pseudotime)
+    pseudotime /= np.max(pseudotime)
+
     return pseudotime, W
 
 

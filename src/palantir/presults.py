@@ -26,9 +26,7 @@ class PResults(object):
 
     def __init__(self, pseudotime, entropy, branch_probs, waypoints):
         # Initialize
-        self._pseudotime = (pseudotime - pseudotime.min()) / (
-            pseudotime.max() - pseudotime.min()
-        )
+        self._pseudotime = pseudotime
         self._entropy = entropy
         self._branch_probs = branch_probs
         self._branch_probs[self._branch_probs < 0.01] = 0
