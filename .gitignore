@@ -7,3 +7,4 @@ palantir.egg-info/
 .coverage
 notebooks/testing.ipynb
 dist/
+.vscode/
