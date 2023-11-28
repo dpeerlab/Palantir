@@ -17,6 +17,14 @@ Palantir has been implemented in Python3 and can be installed using:
 
 A tutorial on Palantir usage and results visualization for single cell RNA-seq data can be found in this notebook: http://nbviewer.jupyter.org/github/dpeerlab/Palantir/blob/master/notebooks/Palantir_sample_notebook.ipynb
 
+## Processed data and metadata
+
+`scanpy anndata` objects are available for download for the three replicates generated in the manuscript:
+- [Replicate 1 (Rep1)](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep1.h5ad)
+- [Replicate 2 (Rep2)](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep2.h5ad)
+- [Replicate 3 (Rep3)](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep3.h5ad)
+
+This notebook details how to use the data in `Python` and `R`: http://nbviewer.jupyter.org/github/dpeerlab/Palantir/blob/master/notebooks/manuscript_data.ipynb
 
 ## Comparison to trajectory detection algorithms
 Notebooks detailing the generation of results comparing Palantir to trajectory detection algorithms are available [here](https://github.com/dpeerlab/Palantir/blob/master/notebooks/comparisons)
