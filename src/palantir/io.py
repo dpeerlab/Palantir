@@ -7,8 +7,8 @@ from scipy.io import mmread
 
 
 def _clean_up(df):
-    df = df.loc[df.index[df.sum(axis=1) > 0], :]
-    df = df.loc[:, df.columns[df.sum() > 0]]
+    df = df.loc[df.sum(axis=1) > 0, :]
+    df = df.loc[:, df.sum(axis=0) > 0]
     return df
 
 
