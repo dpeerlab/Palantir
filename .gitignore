@@ -8,3 +8,4 @@ palantir.egg-info/
 notebooks/testing.ipynb
 dist/
 .vscode/
+data/
