@@ -54,7 +54,5 @@ def test_diffusion_maps_eigen(mock_kernel):
 
 def test_determine_multiscale_space(mock_kernel):
     result = diffusion_maps_from_kernel(mock_kernel)
-    determine_multiscale_space(result)
-    assert "EigenValues" in result.keys()
-    assert "EigenValues" in result.keys()
-    assert "T" in result.keys()
+    msresult = determine_multiscale_space(result)
+    assert msresult.shape[0] == result["EigenVectors"].shape[0]
