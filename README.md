@@ -45,14 +45,16 @@ ____
 
 Release Notes
 -------------
+ ### Version 1.3.3rc1
+ * optional progress bar with `progress=True` in `palantir.utils.run_local_variability`
+ * avoid NaN in local variablility output
+
  ### Version 1.3.2
  * require `python>=3.8`
  * implement CI for testing
  * fixes for edge cases discoverd through extended testing
  * implement `plot_trajectory` function to show trajectory on the umap
  * scale pseudotime to unit intervall in anndata
- * optional progress bar with `progress=True` in `palantir.utils.run_local_variability`
- * avoid NaN in local variablility output
 
  ### Version 1.3.1
  * implemented `palantir.plot.plot_stats` to plot arbitray cell-wise statistics as x-/y-positions.
