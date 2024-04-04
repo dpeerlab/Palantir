@@ -949,7 +949,7 @@ def prepare_color_vector(
 
     color_source_vector = _get_color_source_vector(ad, color, layer=layer)
     color_vector, categorical = _color_vector(
-        ad, color, color_source_vector, palette=palette, na_color=na_color
+        ad, color, values=color_source_vector, palette=palette, na_color=na_color
     )
     if mask is not None:
         color_vector = color_vector[mask]
