@@ -1156,9 +1156,9 @@ def plot_stats(
     if isinstance(norm, Normalize) or not isinstance(norm, cabc.Sequence):
         norm = [norm]
 
-    if not categorical and color is not None:
+    if categorical == "cont":
         vmin_float, vmax_float, vcenter_float, norm_obj = _get_vboundnorm(
-            vmin, vmax, vcenter, norm, 0, color_vector
+            vmin, vmax, vcenter, norm=norm, index=0, colors=color_vector
         )
         normalize = check_colornorm(
             vmin_float,
@@ -1191,7 +1191,10 @@ def plot_stats(
         warnings.filterwarnings("ignore", category=UserWarning)
         ax.locator_params(axis="both", nbins=nticks)
 
-    if categorical or color_vector.dtype == bool:
+    if color is None:
+        return fig, ax
+
+    if categorical == "cat" or color_vector.dtype == bool:
         _add_categorical_legend(
             ax,
             color_source_vector,
@@ -1203,7 +1206,7 @@ def plot_stats(
             na_color=na_color,
             na_in_legend=True,
         )
-    elif color_bar_bounds is not None and color is not None:
+    elif color_bar_bounds is not None:
         cax = ax.inset_axes(color_bar_bounds)
         cb = plt.colorbar(points, cax=cax)
         cb.set_label(color)
@@ -1728,7 +1731,7 @@ def plot_gene_trend_clusters(
     # Obtain unique clusters and prepare figure
     cluster_labels = (
         clusters.cat.categories
-        if pd.api.types.is_categorical_dtype(clusters)
+        if isinstance(clusters, pd.CategoricalDtype)
         else set(clusters)
     )
     n_rows = int(np.ceil(len(cluster_labels) / 3))
