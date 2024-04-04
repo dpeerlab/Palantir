@@ -83,9 +83,13 @@ class FigureGrid:
 
 
 def get_fig(fig=None, ax=None):
-    """fills in any missing axis or figure with the currently active one
-    :param ax: matplotlib Axis object
-    :param fig: matplotlib Figure object
+    """
+    Fills in any missing axis or figure with the currently active one.
+
+    Parameters
+    ----------
+    ax : matplotlib Axis object
+    fig : matplotlib Figure object
     """
     if not fig:
         fig = plt.figure()
@@ -95,10 +99,13 @@ def get_fig(fig=None, ax=None):
 
 
 def density_2d(x, y):
-    """return x and y and their density z, sorted by their density (smallest to largest)
-    :param x:
-    :param y:
-    :return:
+    """
+    Return x and y and their density z, sorted by their density (smallest to largest).
+
+    Parameters
+    ----------
+    x : array
+    y : array
     """
     xy = np.vstack([np.ravel(x), np.ravel(y)])
     z = gaussian_kde(xy)(xy)
@@ -134,9 +141,15 @@ def plot_molecules_per_cell_and_gene(data, fig=None, ax=None):
 
 
 def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
-    """Plot cell clusters on the tSNE map
-    :param tsne: tSNE map
-    :param clusters: Results of the determine_cell_clusters function
+    """
+    Plot cell clusters on the tSNE map.
+    
+    Parameters
+    ----------
+    tsne : DataFrame
+        tSNE map or UMAP
+    clusters
+        Results of the determine_cell_clusters function
     """
 
     # Cluster colors
@@ -188,7 +201,7 @@ def highlight_cells_on_umap(
              - a pd.Index: cell identifiers matching those in the data's index will be highlighted.
              - a boolean array-like: used as a mask to select cells from the data's index.
              - a string: used to retrieve a boolean mask from the AnnData's .obs attribute.
-    annotation_offset : float, optional
+     annotation_offset : float, optional
          Offset for the annotations in proportion to the data range. Default is 0.03.
      s : float, optional
          Size of the points in the scatter plot. Default is 1.
