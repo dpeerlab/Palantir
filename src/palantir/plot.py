@@ -229,7 +229,7 @@ def highlight_cells_on_umap(
     if not isinstance(cells, (pd.Series, np.ndarray, pd.Index, list)):
         if isinstance(cells, str):
             if cells not in data.obs.columns:
-                raise KeyError(f"'{cells}' not found in .obs.")
+                raise KeyError(f"The column '{cells}' was not found in .obs.")
             mask = data.obs[cells].astype(bool).values
             cells = {cell: "" for cell in data.obs[mask].index}
         elif not isinstance(cells, dict):
