@@ -30,6 +30,8 @@
    notebooks/comparisons/paga.ipynb
    notebooks/comparisons/slignshot.ipynb
 
+|
+
 .. mdinclude:: ../../README.md
 
 .. toctree::
