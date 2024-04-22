@@ -15,7 +15,12 @@ Palantir has been implemented in Python3 and can be installed using:
 
 ## Usage
 
-A tutorial on Palantir usage and results visualization for single cell RNA-seq data can be found in this notebook: http://nbviewer.jupyter.org/github/dpeerlab/Palantir/blob/master/notebooks/Palantir_sample_notebook.ipynb
+A tutorial on Palantir usage and results visualization for single cell RNA-seq
+data can be found in this notebook:
+https://github.com/dpeerlab/Palantir/blob/master/notebooks/Palantir_sample_notebook.ipynb
+
+More tutorials and a documentation of all the Palantir components can be found
+here: https://palantir.readthedocs.io
 
 ## Processed data and metadata
 
