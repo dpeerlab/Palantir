@@ -63,7 +63,7 @@ def run_pca(
         n_comps = n_components
     else:
         l_n_comps = min(1000, ad.n_obs - 1, ad.n_vars - 1)
-        sc.pp.pca(ad, n_comps=l_n_comps, use_highly_variable=True, zero_center=False)
+        sc.pp.pca(ad, n_comps=l_n_comps, mask_var="highly_variable", zero_center=False)
         try:
             n_comps = np.where(np.cumsum(ad.uns["pca"]["variance_ratio"]) > 0.85)[0][0]
         except IndexError:
@@ -71,7 +71,10 @@ def run_pca(
 
     # Rerun with selection number of components
     n_comps = min(n_comps, ad.n_obs - 1, ad.n_vars - 1)
-    sc.pp.pca(ad, n_comps=n_comps, use_highly_variable=use_hvg, zero_center=False)
+    kwargs = dict()
+    if use_hvg:
+        kwargs["mask_var"] = "highly_variable"
+    sc.pp.pca(ad, n_comps=n_comps, zero_center=False, **kwargs)
 
     if isinstance(data, sc.AnnData):
         data.obsm[pca_key] = ad.obsm["X_pca"]

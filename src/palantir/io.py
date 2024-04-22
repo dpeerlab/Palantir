@@ -71,7 +71,7 @@ def from_10x(data_dir, use_ensemble_id=True):
 
 
 def from_10x_HDF5(filename, genome=None):
-    ad = sc.read_10x_h5(filename, genome, True)
+    ad = sc.read_10x_h5(filename, genome=genome, gex_only=True)
 
     dataMatrix = pd.DataFrame(ad.X.todense(), columns=ad.var_names, index=ad.obs_names)
 
