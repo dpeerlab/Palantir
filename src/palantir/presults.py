@@ -551,7 +551,9 @@ def select_branch_cells(
     prob_thresholds = np.empty_like(fate_probs)
     n = fate_probs.shape[0]
 
-    step = n // PSEUDOTIME_RES
+    pseudotime_resolution = min(PSEUDOTIME_RES, n)
+
+    step = n // pseudotime_resolution
     nsteps = n // step
     for i in range(nsteps):
         l, r = i * step, (i + 1) * step
