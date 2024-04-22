@@ -54,6 +54,7 @@ Release Notes
  * optional progress bar with `progress=True` in `palantir.utils.run_local_variability`
  * avoid NaN in local variablility output
  * compatibility with `scanpy>=1.10.0`
+ * avoid devision by zero in `select_branch_cells` for very small datasets
 
  ### Version 1.3.2
  * require `python>=3.8`
