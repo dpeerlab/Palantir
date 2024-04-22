@@ -1106,6 +1106,8 @@ def plot_stats(
         Axes.locator_params method is used for setting this property. Default is 3.
     figsize : Tuple[float, float], optional
         Width and height of each subplot in inches. Default is (12, 4).
+    **kwargs
+        Additional keyword arguments passed to `ax.scatter`.
 
     Returns
     -------
@@ -1324,6 +1326,8 @@ def plot_branch(
         Axes.locator_params method is used for setting this property. Default is 3.
     figsize : Tuple[float, float], optional
         Width and height of each subplot in inches. Default is (12, 4).
+    **kwargs
+        Additional keyword arguments passed to `ax.scatter`.
 
     Returns
     -------
@@ -1478,6 +1482,8 @@ def plot_trend(
         Axes.locator_params method is used for setting this property. Default is 3.
     figsize : Tuple[float, float], optional
         Width and height of each subplot in inches. Default is (12, 4).
+    **kwargs
+        Additional keyword arguments passed to `ax.scatter`.
 
     Returns
     -------
