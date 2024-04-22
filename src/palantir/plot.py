@@ -1034,9 +1034,8 @@ def plot_stats(
     **kwargs,
 ):
     """
-    This function visualizes a scatter plot of cells over pseudotime.
-    The y-position indicates either a gene expression
-    or any column from .obs or use a different position_layer, like
+    This function visualizes a scatter plot of cells with x- and y-postion dictated
+    by any colum of .obs or even gene-expression indicated by any .layer like
     "MAGIC_imputed_data". The color follows similar rules and behaves like the color
     parameter in scanpy.pl.embedding, but only accepts a single value instead of a list.
 
