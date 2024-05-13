@@ -35,6 +35,14 @@ setup(
         "mellon>=1.3.0",
         "pygam",
     ],
+    extras_require={
+        'dev': [
+            'flake8',
+            'pytest',
+            'coverage',
+            'typing-extensions'
+        ]
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
