@@ -1748,10 +1748,12 @@ def plot_gene_trend_clusters(
 
     # Obtain unique clusters and prepare figure
     cluster_labels = (
-        clusters.cat.categories
+        set(clusters.cat.categories)
         if isinstance(clusters, pd.CategoricalDtype)
         else set(clusters)
     )
+    cluster_labels = cluster_labels.difference({np.NaN})
+
     n_rows = int(np.ceil(len(cluster_labels) / 3))
     fig = plt.figure(figsize=[5.5 * 3, 2.5 * n_rows])
 
