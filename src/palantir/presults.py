@@ -546,6 +546,8 @@ def select_branch_cells(
     fate_probs, fate_names = _validate_obsm_key(ad, fate_prob_key, as_df=False)
     pseudotime = ad.obs[pseudo_time_key].values
 
+    fate_probs[np.isnan(fate_probs)] = 1/fate_probs.shape[1]
+
     idx = np.argsort(pseudotime)
     sorted_fate_probs = fate_probs[idx, :]
     prob_thresholds = np.empty_like(fate_probs)
