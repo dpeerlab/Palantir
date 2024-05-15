@@ -32,18 +32,22 @@ def mock_10x_h5(tmp_path):
     # Number of genes and cells
     n_genes = 400
     n_cells = 300
-    
+
     # Simulate a sparse gene expression matrix
     data = np.random.poisson(lam=0.3, size=(n_genes, n_cells))
     sparse_matrix = csc_matrix(data)
-    
+
     # Create barcodes, gene names, etc.
     barcodes = np.array([f"Cell_{i:05d}-1" for i in range(n_cells)])
     gene_names = np.array([f"Gene_{i}" for i in range(n_genes)])
     feature_type = np.array(["Gene Expression" for i in range(n_genes)])
-    features = np.array(["gene", ])
+    features = np.array(
+        [
+            "gene",
+        ]
+    )
     genome = np.array([f"genome_{i%4}" for i in range(n_genes)])
-    
+
     # Creating an HDF5 file
     hdf5_file = tmp_path / "mock_10x_v3_data.h5"
     with h5py.File(hdf5_file, "w") as f:
@@ -57,13 +61,15 @@ def mock_10x_h5(tmp_path):
         f["matrix"].create_dataset("id", data=gene_names.astype("S"))
         f["matrix"].create_dataset("feature_type", data=feature_type.astype("S"))
         f["matrix"].create_dataset("genome", data=genome.astype("S"))
-    
+
         f["matrix"].create_group("features")
         f["matrix/features"].create_dataset("name", data=gene_names.astype("S"))
         f["matrix/features"].create_dataset("id", data=gene_names.astype("S"))
-        f["matrix/features"].create_dataset("feature_type", data=feature_type.astype("S"))
+        f["matrix/features"].create_dataset(
+            "feature_type", data=feature_type.astype("S")
+        )
         f["matrix/features"].create_dataset("genome", data=genome.astype("S"))
-    
+
     return str(hdf5_file)
 
 

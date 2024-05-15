@@ -29,6 +29,7 @@ from palantir.plot import (
 )
 from palantir.presults import PResults
 
+
 # Fixtures for the UMAP DataFrame
 @pytest.fixture
 def mock_umap_df():

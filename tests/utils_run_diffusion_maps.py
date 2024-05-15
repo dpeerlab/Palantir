@@ -6,6 +6,7 @@ import numpy as np
 
 from palantir.utils import run_diffusion_maps
 
+
 # Generate mock DataFrame data
 def mock_dataframe(rows, cols):
     return pd.DataFrame(np.random.rand(rows, cols))
