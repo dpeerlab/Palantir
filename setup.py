@@ -29,7 +29,7 @@ setup(
         "joblib",
         "fcsparser>=0.1.2",
         "leidenalg>=0.9.1",
-        "matplotlib>=2.2.2",
+        "matplotlib-base>=2.2.2",
         "anndata>=0.8.0",
         "scanpy>=1.6.0",
         "mellon>=1.3.0",
