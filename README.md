@@ -6,11 +6,33 @@ Palantir
 
 Palantir is an algorithm to align cells along differentiation trajectories. Palantir models differentiation as a stochastic process where stem cells differentiate to terminally differentiated cells by a series of steps through a low dimensional phenotypic manifold. Palantir effectively captures the continuity in cell states and the stochasticity in cell fate determination. Palantir has been designed to work with multidimensional single cell data from diverse technologies such as Mass cytometry and single cell RNA-seq.
 
-
-## Installation and dependencies
+## Installation
 Palantir has been implemented in Python3 and can be installed using:
 
-        pip install palantir
+### Using pip
+```sh
+pip install palantir
+```
+
+### Using conda, mamba, or micromamba from the bioconda channel
+You can also install Palantir via conda, mamba, or micromamba from the bioconda channel:
+
+#### Using conda
+```sh
+conda install -c bioconda palantir
+```
+
+#### Using mamba
+```sh
+mamba install -c bioconda palantir
+```
+
+#### Using micromamba
+```sh
+micromamba install -c bioconda palantir
+```
+
+These methods ensure that all dependencies are resolved and installed efficiently.
 
 
 ## Usage
