@@ -17,7 +17,7 @@ from .validation import _validate_obsm_key
 
 
 class CellNotFoundException(Exception):
-    """Exception raised when no valid component is found for the provided cell type."""
+    """Exception raised when no cell could be determined by the used method."""
 
     pass
 
@@ -788,7 +788,9 @@ def early_cell(
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
     fallback_seed : int, optional
-        Seed for random number generator in fallback method. If not specified, no seed is used.
+        Seed for random number generator in fallback method. If not specified,
+        the fallback method is not applied and CellNotFoundException error is
+        raised instead.
         Default is None.
 
     Returns
@@ -935,8 +937,10 @@ def find_terminal_states(
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
     fallback_seed : int, optional
-        Seed for the random number generator used in the fallback method. Defaults to None, in which case
-        the random number generator will be randomly seeded.
+        Seed for random number generator in fallback method. If not specified,
+        the fallback method is not applied and CellNotFoundException error is
+        raised instead.
+        Defaults to None.
 
     Returns
     -------
