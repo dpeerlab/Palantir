@@ -19,17 +19,17 @@ You can also install Palantir via conda, mamba, or micromamba from the bioconda 
 
 #### Using conda
 ```sh
-conda install -c bioconda palantir
+conda install -c conda-forge -c bioconda palantir
 ```
 
 #### Using mamba
 ```sh
-mamba install -c bioconda palantir
+mamba install -c conda-forge -c bioconda palantir
 ```
 
 #### Using micromamba
 ```sh
-micromamba install -c bioconda palantir
+micromamba install -c conda-forge -c bioconda palantir
 ```
 
 These methods ensure that all dependencies are resolved and installed efficiently.
