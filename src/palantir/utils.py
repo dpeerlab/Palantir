@@ -339,6 +339,49 @@ def compute_kernel(
     sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
     kNN = temp.obsp["distances"]
 
+    # Call the compute_kernel_from_knn function to compute the kernel
+    kernel = compute_kernel_from_knn(data=kNN, N=N, knn=knn, alpha=alpha)
+
+    if isinstance(data, sc.AnnData):
+        data.obsp[kernel_key] = kernel
+
+    return kernel
+
+def compute_kernel_from_knn(
+    data: Union[csr_matrix, sc.AnnData],
+    N: int,
+    knn: int,
+    alpha: float = 0,
+    knn_key: str = "distances"
+) -> csr_matrix:
+    """
+    Compute the adaptive anisotropic diffusion kernel from either a k-nearest neighbors matrix or an AnnData object.
+
+    Parameters
+    ----------
+    data : Union[csr_matrix, sc.AnnData]
+        Either a precomputed k-nearest neighbors matrix or an AnnData object containing the kNN matrix in obsp.
+    N : int
+        Number of data points.
+    knn : int
+        Number of nearest neighbors for adaptive kernel calculation.
+    alpha : float
+        Normalization parameter for the diffusion operator. Default is 0.
+    knn_key : str, optional
+        Key to retrieve the kNN graph from the AnnData object. Default is 'distances'.
+
+    Returns
+    -------
+    csr_matrix
+        Computed kernel matrix.
+    """
+
+    # If data is an AnnData object, retrieve the kNN from obsp using the knn_key
+    if isinstance(data, sc.AnnData):
+        kNN = data.obsp[knn_key]
+    else:
+        kNN = data
+
     adaptive_k = int(np.floor(knn / 3))
     adaptive_std = np.zeros(N)
     for i in np.arange(N):
@@ -357,9 +400,6 @@ def compute_kernel(
         D[D != 0] = D[D != 0] ** (-alpha)
         mat = csr_matrix((D, (range(N), range(N))), shape=[N, N])
         kernel = mat.dot(kernel).dot(mat)
-
-    if isinstance(data, sc.AnnData):
-        data.obsp[kernel_key] = kernel
 
     return kernel
 
@@ -837,10 +877,10 @@ def early_cell(
 
     for dcomp in range(eigenvectors.shape[1]):
         ec = eigenvectors[:, dcomp].argmax()
-        if ad.obs[celltype_column][ec] == celltype:
+        if ad.obs[celltype_column].iloc[ec] == celltype:
             return _return_cell(ec, ad.obs_names, celltype, "max", dcomp)
         ec = eigenvectors[:, dcomp].argmin()
-        if ad.obs[celltype_column][ec] == celltype:
+        if ad.obs[celltype_column].iloc[ec] == celltype:
             return _return_cell(ec, ad.obs_names, celltype, "min", dcomp)
 
     if fallback_seed is not None:
