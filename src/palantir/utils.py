@@ -352,7 +352,8 @@ def compute_kernel_from_knn(
     N: int,
     knn: int,
     alpha: float = 0,
-    knn_key: str = "distances"
+    knn_key: str = "distances",
+    kernel_key: str = "DM_Kernel"
 ) -> csr_matrix:
     """
     Compute the adaptive anisotropic diffusion kernel from either a k-nearest neighbors matrix or an AnnData object.
@@ -369,11 +370,13 @@ def compute_kernel_from_knn(
         Normalization parameter for the diffusion operator. Default is 0.
     knn_key : str, optional
         Key to retrieve the kNN graph from the AnnData object. Default is 'distances'.
+    kernel_key : str, optional
+        Key to store the kernel in obsp of data if it is an AnnData object. Default is 'DM_Kernel'.
 
     Returns
     -------
     csr_matrix
-        Computed kernel matrix.
+        Computed kernel matrix. If an AnnData object is passed as data, the result is written to its obsp[kernel_key].
     """
 
     # If data is an AnnData object, retrieve the kNN from obsp using the knn_key
@@ -401,29 +404,55 @@ def compute_kernel_from_knn(
         mat = csr_matrix((D, (range(N), range(N))), shape=[N, N])
         kernel = mat.dot(kernel).dot(mat)
 
+    # If an AnnData object is passed, write the computed kernel to obsp[kernel_key]
+    if isinstance(data, sc.AnnData):
+        data.obsp[kernel_key] = kernel
+
     return kernel
 
 
 def diffusion_maps_from_kernel(
-    kernel: csr_matrix, n_components: int = 10, seed: Union[int, None] = 0
+    data: Union[csr_matrix, sc.AnnData],
+    n_components: int = 10,
+    seed: Union[int, None] = 0,
+    kernel_key: str = "DM_Kernel",
+    sim_key: str = "DM_Similarity",
+    eigval_key: str = "DM_EigenValues",
+    eigvec_key: str = "DM_EigenVectors"
 ):
     """
-    Compute the diffusion map given a kernel matrix.
+    Compute the diffusion map given a kernel matrix or an AnnData object and write the results to AnnData.
 
     Parameters
     ----------
-    kernel : csr_matrix
-        Precomputed kernel matrix.
-    n_components : int
+    data : Union[csr_matrix, sc.AnnData]
+        Precomputed kernel matrix or an AnnData object containing the kernel matrix.
+    n_components : int, optional
         Number of diffusion components to compute. Default is 10.
-    seed : Union[int, None]
+    seed : Union[int, None], optional
         Seed for random initialization. Default is 0.
+    kernel_key : str, optional
+        Key to retrieve the kernel from the AnnData object's obsp attribute. Default is 'DM_Kernel'.
+    sim_key : str, optional
+        Key to store the similarity (T matrix) in obsp of data if it is a sc.AnnData object. Default is 'DM_Similarity'.
+    eigval_key : str, optional
+        Key to store the EigenValues in uns of data if it is a sc.AnnData object. Default is 'DM_EigenValues'.
+    eigvec_key : str, optional
+        Key to store the EigenVectors in obsm of data if it is a sc.AnnData object. Default is 'DM_EigenVectors'.
 
     Returns
     -------
     dict
-        T-matrix (T), Diffusion components (EigenVectors) and corresponding eigenvalues (EigenValues).
+        Diffusion components, corresponding eigenvalues, and the diffusion operator.
+        If sc.AnnData is passed as data, these results are also written to the input object.
     """
+
+    # If data is an AnnData object, retrieve the kernel using the kernel_key
+    if isinstance(data, sc.AnnData):
+        kernel = data.obsp[kernel_key]
+    else:
+        kernel = data
+
     N = kernel.shape[0]
     D = np.ravel(kernel.sum(axis=1))
     D[D != 0] = 1 / D[D != 0]
@@ -442,7 +471,17 @@ def diffusion_maps_from_kernel(
     for i in range(V.shape[1]):
         V[:, i] = V[:, i] / np.linalg.norm(V[:, i])
 
-    return {"T": T, "EigenVectors": pd.DataFrame(V), "EigenValues": pd.Series(D)}
+    res = {"T": T, "EigenVectors": pd.DataFrame(V), "EigenValues": pd.Series(D)}
+
+    if isinstance(data, sc.AnnData):
+        res["EigenVectors"].index = data.obs_names  # Ensure that eigenvector index matches the cell names
+
+        # Write the results back to AnnData
+        data.obsp[sim_key] = res["T"]
+        data.obsm[eigvec_key] = res["EigenVectors"].values
+        data.uns[eigval_key] = res["EigenValues"].values
+
+    return res
 
 
 def run_diffusion_maps(
