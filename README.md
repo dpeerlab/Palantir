@@ -77,6 +77,8 @@ Release Notes
  * avoid devision by zero in `select_branch_cells` for very small datasets
  * make branch selection robust against NaNs
  * do not plot unclustered trends (NaN cluster) in `plot_gene_trend_clusters`
+ * forward scanpy kwars in `plot_trajectory`
+ * implement `compute_kernel_from_knn`
 
  ### Version 1.3.3
  * optional progress bar with `progress=True` in `palantir.utils.run_local_variability`
