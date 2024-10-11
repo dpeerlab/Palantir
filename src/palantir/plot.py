@@ -1941,7 +1941,7 @@ def plot_trajectory(
         Properties for the arrowstyle. If None, defaults to black arrow with lw=1.
     scanpy_kwargs : dict, optional
         Keyword arguments for the scanpy.pl.emebdding function to plot the cells
-        unless `masks_key == "branch_masks"` in which case these arguments are
+        unless `cell_color == "branch_selection"` in which case these arguments are
         passed to `matplotlib.pyplot.scatter`.
     figsize : Tuple[float, float], optional
         Size of the plot in inches, as (width, height). Defaults to (5, 5).
