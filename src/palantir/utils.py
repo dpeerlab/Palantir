@@ -454,10 +454,10 @@ def run_diffusion_maps(
         and returned.
     """
 
-    if isinstance(data, sc.AnnData):
-        data_df = pd.DataFrame(data.obsm[pca_key], index=data.obs_names)
-    else:
+    if isinstance(data, pd.DataFrame):
         data_df = data
+    else:
+        data_df = pd.DataFrame(data.obsm[pca_key], index=data.obs_names)
 
     if not isinstance(data_df, pd.DataFrame) and not issparse(data_df):
         raise ValueError("'data_df' should be a pd.DataFrame or sc.AnnData")
