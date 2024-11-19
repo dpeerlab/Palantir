@@ -550,7 +550,7 @@ def test_plot_stats_optional_parameters(mock_anndata):
 def test_plot_stats_masking(mock_anndata):
     # Create a condition here that you want to mask
     mask_condition = mock_anndata.obs["palantir_pseudotime"] > 0.5
-    mock_anndata.obsm["branch_masks"] = mask_condition
+    mock_anndata.obsm["branch_masks"] = pd.DataFrame({"mock_branch": mask_condition})
     fig, ax = plot_stats(
         mock_anndata,
         x="palantir_pseudotime",

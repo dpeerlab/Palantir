@@ -1155,10 +1155,13 @@ def plot_stats(
     }
     scatter_kwargs.update(kwargs)
 
-    try:
-        cmap = matplotlib.colormaps[cmap] if isinstance(cmap, str) else cmap
-    except KeyError:
+    if cmap is None:
         cmap = matplotlib.colormaps["viridis"]
+    else:
+        try:
+            cmap = matplotlib.colormaps[cmap] if isinstance(cmap, str) else cmap
+        except KeyError:
+            cmap = matplotlib.colormaps["viridis"]
     cmap = copy(cmap)
     cmap.set_bad(na_color)
 
