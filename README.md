@@ -73,7 +73,7 @@ ____
 
 Release Notes
 -------------
- ### Version 1.3.4rc
+ ### Version 1.3.4
  * avoid devision by zero in `select_branch_cells` for very small datasets
  * make branch selection robust against NaNs
  * do not plot unclustered trends (NaN cluster) in `plot_gene_trend_clusters`
