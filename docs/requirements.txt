@@ -1,0 +1,10 @@
+sphinxcontrib-autoprogram
+sphinxcontrib-napoleon
+sphinx-autodocgen
+sphinx-github-style>=1.2.2
+sphinx-mdinclude
+m2r2
+nbsphinx
+furo
+typing-extensions
+IPython

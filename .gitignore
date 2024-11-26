@@ -9,3 +9,4 @@ notebooks/testing.ipynb
 dist/
 .vscode/
 data/
+venv/

@@ -1,6 +1,5 @@
 import pytest
 import numpy as np
-import pandas as pd
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import eigs
 from pytest import approx

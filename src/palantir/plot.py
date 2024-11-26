@@ -83,9 +83,13 @@ class FigureGrid:
 
 
 def get_fig(fig=None, ax=None):
-    """fills in any missing axis or figure with the currently active one
-    :param ax: matplotlib Axis object
-    :param fig: matplotlib Figure object
+    """
+    Fills in any missing axis or figure with the currently active one.
+
+    Parameters
+    ----------
+    ax : matplotlib Axis object
+    fig : matplotlib Figure object
     """
     if not fig:
         fig = plt.figure()
@@ -95,10 +99,13 @@ def get_fig(fig=None, ax=None):
 
 
 def density_2d(x, y):
-    """return x and y and their density z, sorted by their density (smallest to largest)
-    :param x:
-    :param y:
-    :return:
+    """
+    Return x and y and their density z, sorted by their density (smallest to largest).
+
+    Parameters
+    ----------
+    x : array
+    y : array
     """
     xy = np.vstack([np.ravel(x), np.ravel(y)])
     z = gaussian_kde(xy)(xy)
@@ -134,9 +141,15 @@ def plot_molecules_per_cell_and_gene(data, fig=None, ax=None):
 
 
 def cell_types(tsne, clusters, cluster_colors=None, n_cols=5):
-    """Plot cell clusters on the tSNE map
-    :param tsne: tSNE map
-    :param clusters: Results of the determine_cell_clusters function
+    """
+    Plot cell clusters on the tSNE map.
+    
+    Parameters
+    ----------
+    tsne : DataFrame
+        tSNE map or UMAP
+    clusters
+        Results of the determine_cell_clusters function
     """
 
     # Cluster colors
@@ -188,7 +201,7 @@ def highlight_cells_on_umap(
              - a pd.Index: cell identifiers matching those in the data's index will be highlighted.
              - a boolean array-like: used as a mask to select cells from the data's index.
              - a string: used to retrieve a boolean mask from the AnnData's .obs attribute.
-    annotation_offset : float, optional
+     annotation_offset : float, optional
          Offset for the annotations in proportion to the data range. Default is 0.03.
      s : float, optional
          Size of the points in the scatter plot. Default is 1.
@@ -229,7 +242,7 @@ def highlight_cells_on_umap(
     if not isinstance(cells, (pd.Series, np.ndarray, pd.Index, list)):
         if isinstance(cells, str):
             if cells not in data.obs.columns:
-                raise KeyError(f"'{cells}' not found in .obs.")
+                raise KeyError(f"The column '{cells}' was not found in .obs.")
             mask = data.obs[cells].astype(bool).values
             cells = {cell: "" for cell in data.obs[mask].index}
         elif not isinstance(cells, dict):
@@ -949,7 +962,7 @@ def prepare_color_vector(
 
     color_source_vector = _get_color_source_vector(ad, color, layer=layer)
     color_vector, categorical = _color_vector(
-        ad, color, color_source_vector, palette=palette, na_color=na_color
+        ad, color, values=color_source_vector, palette=palette, na_color=na_color
     )
     if mask is not None:
         color_vector = color_vector[mask]
@@ -1021,9 +1034,8 @@ def plot_stats(
     **kwargs,
 ):
     """
-    This function visualizes a scatter plot of cells over pseudotime.
-    The y-position indicates either a gene expression
-    or any column from .obs or use a different position_layer, like
+    This function visualizes a scatter plot of cells with x- and y-postion dictated
+    by any colum of .obs or even gene-expression indicated by any .layer like
     "MAGIC_imputed_data". The color follows similar rules and behaves like the color
     parameter in scanpy.pl.embedding, but only accepts a single value instead of a list.
 
@@ -1094,6 +1106,8 @@ def plot_stats(
         Axes.locator_params method is used for setting this property. Default is 3.
     figsize : Tuple[float, float], optional
         Width and height of each subplot in inches. Default is (12, 4).
+    **kwargs
+        Additional keyword arguments passed to `ax.scatter`.
 
     Returns
     -------
@@ -1141,8 +1155,14 @@ def plot_stats(
     }
     scatter_kwargs.update(kwargs)
 
-    default_cmap = matplotlib.colormaps["viridis"]
-    cmap = copy(matplotlib.colormaps.get(cmap, default_cmap))
+    if cmap is None:
+        cmap = matplotlib.colormaps["viridis"]
+    else:
+        try:
+            cmap = matplotlib.colormaps[cmap] if isinstance(cmap, str) else cmap
+        except KeyError:
+            cmap = matplotlib.colormaps["viridis"]
+    cmap = copy(cmap)
     cmap.set_bad(na_color)
 
     na_color = matplotlib.colors.to_hex(na_color, keep_alpha=True)
@@ -1156,9 +1176,9 @@ def plot_stats(
     if isinstance(norm, Normalize) or not isinstance(norm, cabc.Sequence):
         norm = [norm]
 
-    if not categorical and color is not None:
+    if categorical == "cont":
         vmin_float, vmax_float, vcenter_float, norm_obj = _get_vboundnorm(
-            vmin, vmax, vcenter, norm, 0, color_vector
+            vmin, vmax, vcenter, norm=norm, index=0, colors=color_vector
         )
         normalize = check_colornorm(
             vmin_float,
@@ -1191,7 +1211,10 @@ def plot_stats(
         warnings.filterwarnings("ignore", category=UserWarning)
         ax.locator_params(axis="both", nbins=nticks)
 
-    if categorical or color_vector.dtype == bool:
+    if color is None:
+        return fig, ax
+
+    if categorical == "cat" or color_vector.dtype == bool:
         _add_categorical_legend(
             ax,
             color_source_vector,
@@ -1203,7 +1226,7 @@ def plot_stats(
             na_color=na_color,
             na_in_legend=True,
         )
-    elif color_bar_bounds is not None and color is not None:
+    elif color_bar_bounds is not None:
         cax = ax.inset_axes(color_bar_bounds)
         cb = plt.colorbar(points, cax=cax)
         cb.set_label(color)
@@ -1309,6 +1332,8 @@ def plot_branch(
         Axes.locator_params method is used for setting this property. Default is 3.
     figsize : Tuple[float, float], optional
         Width and height of each subplot in inches. Default is (12, 4).
+    **kwargs
+        Additional keyword arguments passed to `ax.scatter`.
 
     Returns
     -------
@@ -1463,6 +1488,8 @@ def plot_trend(
         Axes.locator_params method is used for setting this property. Default is 3.
     figsize : Tuple[float, float], optional
         Width and height of each subplot in inches. Default is (12, 4).
+    **kwargs
+        Additional keyword arguments passed to `ax.scatter`.
 
     Returns
     -------
@@ -1727,10 +1754,12 @@ def plot_gene_trend_clusters(
 
     # Obtain unique clusters and prepare figure
     cluster_labels = (
-        clusters.cat.categories
-        if pd.api.types.is_categorical_dtype(clusters)
+        set(clusters.cat.categories)
+        if isinstance(clusters, pd.CategoricalDtype)
         else set(clusters)
     )
+    cluster_labels = cluster_labels.difference({np.NaN})
+
     n_rows = int(np.ceil(len(cluster_labels) / 3))
     fig = plt.figure(figsize=[5.5 * 3, 2.5 * n_rows])
 
@@ -1917,7 +1946,9 @@ def plot_trajectory(
     arrowprops : dict, optional
         Properties for the arrowstyle. If None, defaults to black arrow with lw=1.
     scanpy_kwargs : dict, optional
-        Keyword arguments for the scanpy.pl.emebdding function to plot the cells.
+        Keyword arguments for the scanpy.pl.emebdding function to plot the cells
+        unless `masks_key == "branch_masks"` in which case these arguments are
+        passed to `matplotlib.pyplot.scatter`.
     figsize : Tuple[float, float], optional
         Size of the plot in inches, as (width, height). Defaults to (5, 5).
     **kwargs
@@ -1970,12 +2001,14 @@ def plot_trajectory(
             umap[~mask, 1],
             c=config.DESELECTED_COLOR,
             label="Other Cells",
+            **scanpy_kwargs
         )
         ax.scatter(
             umap[mask, 0],
             umap[mask, 1],
             c=config.SELECTED_COLOR,
             label="Selected Cells",
+            **scanpy_kwargs
         )
     elif cell_color is not None:
         b = embedding_basis[2:] if embedding_basis.startswith("X_") else embedding_basis

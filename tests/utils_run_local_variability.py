@@ -5,6 +5,7 @@ from scipy.sparse import csr_matrix
 
 from palantir.utils import run_local_variability
 
+
 # Mock data for dense matrix
 def mock_anndata_dense(n_cells, n_genes, layer_keys, obsp_keys):
     ad = sc.AnnData(np.random.rand(n_cells, n_genes))

@@ -17,7 +17,7 @@ from .validation import _validate_obsm_key
 
 
 class CellNotFoundException(Exception):
-    """Exception raised when no valid component is found for the provided cell type."""
+    """Exception raised when no cell could be determined by the used method."""
 
     pass
 
@@ -63,7 +63,7 @@ def run_pca(
         n_comps = n_components
     else:
         l_n_comps = min(1000, ad.n_obs - 1, ad.n_vars - 1)
-        sc.pp.pca(ad, n_comps=l_n_comps, use_highly_variable=True, zero_center=False)
+        sc.pp.pca(ad, n_comps=l_n_comps, mask_var="highly_variable", zero_center=False)
         try:
             n_comps = np.where(np.cumsum(ad.uns["pca"]["variance_ratio"]) > 0.85)[0][0]
         except IndexError:
@@ -71,7 +71,10 @@ def run_pca(
 
     # Rerun with selection number of components
     n_comps = min(n_comps, ad.n_obs - 1, ad.n_vars - 1)
-    sc.pp.pca(ad, n_comps=n_comps, use_highly_variable=use_hvg, zero_center=False)
+    kwargs = dict()
+    if use_hvg:
+        kwargs["mask_var"] = "highly_variable"
+    sc.pp.pca(ad, n_comps=n_comps, zero_center=False, **kwargs)
 
     if isinstance(data, sc.AnnData):
         data.obsm[pca_key] = ad.obsm["X_pca"]
@@ -488,7 +491,7 @@ def _dot_helper_func(x, y):
     return x.dot(y)
 
 
-def _local_var_helper(expressions, distances):
+def _local_var_helper(expressions, distances, eps=1e-16):
     if hasattr(expressions, "todense"):
 
         def cast(x):
@@ -510,7 +513,7 @@ def _local_var_helper(expressions, distances):
         except ValueError:
             raise ValueError(f"This cell caused the error: {cell}")
         expr_distance = np.sqrt(np.sum(expr_deltas**2, axis=1, keepdims=True))
-        change_rate = expr_deltas / expr_distance
+        change_rate = expr_deltas / (expr_distance + eps)
         yield np.max(change_rate**2, axis=0)
 
 
@@ -519,6 +522,8 @@ def run_local_variability(
     expression_key: str = "MAGIC_imputed_data",
     distances_key: str = "distances",
     localvar_key: str = "local_variability",
+    progress: bool = False,
+    eps: float = 1e-16,
 ) -> np.ndarray:
     """
     Compute local gene variability scores for each cell.
@@ -539,6 +544,10 @@ def run_local_variability(
     localvar_key : str, optional
         Key under which the computed local variability matrix is stored in the layers of the AnnData object.
         Default is 'local_variability'.
+    progress : bool
+        Show progress bar. Requires tqdm to be installed. Default is False.
+    eps : float
+        A small value preventing devision by 0. Defaults to 1e-16.
 
     Returns
     -------
@@ -557,7 +566,17 @@ def run_local_variability(
         raise KeyError(f"'{distances_key}' not found in .obsp.")
     X_dists = ad.obsp[distances_key]
 
-    local_variability = np.stack(list(_local_var_helper(X, X_dists)))
+    local_var_generator = _local_var_helper(X, X_dists, eps=eps)
+    if progress is True:
+        try:
+            from fastprogress.fastprogress import progress_bar
+        except ModuleNotFoundError:
+            raise Exception(
+                "Showing the progress bar requires the python module `fastprogress` to be installed."
+            )
+        local_var_generator = progress_bar(local_var_generator, total=X.shape[0])
+
+    local_variability = np.stack(list(local_var_generator))
 
     ad.layers[localvar_key] = local_variability
 
@@ -722,6 +741,9 @@ def determine_multiscale_space(
         n_eigs = np.argsort(vals[: (len(vals) - 1)] - vals[1:])[-1] + 1
         if n_eigs < 3:
             n_eigs = np.argsort(vals[: (len(vals) - 1)] - vals[1:])[-2] + 1
+        if n_eigs < 3:
+            # Fix for #39
+            n_eigs = 3
 
     # Scale the data
     use_eigs = list(range(1, n_eigs))
@@ -781,7 +803,9 @@ def early_cell(
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
     fallback_seed : int, optional
-        Seed for random number generator in fallback method. If not specified, no seed is used.
+        Seed for random number generator in fallback method. If not specified,
+        the fallback method is not applied and CellNotFoundException error is
+        raised instead.
         Default is None.
 
     Returns
@@ -928,8 +952,10 @@ def find_terminal_states(
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
     fallback_seed : int, optional
-        Seed for the random number generator used in the fallback method. Defaults to None, in which case
-        the random number generator will be randomly seeded.
+        Seed for random number generator in fallback method. If not specified,
+        the fallback method is not applied and CellNotFoundException error is
+        raised instead.
+        Defaults to None.
 
     Returns
     -------
