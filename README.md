@@ -73,6 +73,9 @@ ____
 
 Release Notes
 -------------
+ ### Version 1.3.5rc
+ * `run_magic_imputation` now has a boolean parameter `sparse` to control output sparsity
+
  ### Version 1.3.4
  * avoid devision by zero in `select_branch_cells` for very small datasets
  * make branch selection robust against NaNs

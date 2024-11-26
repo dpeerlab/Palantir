@@ -591,6 +591,8 @@ def run_magic_imputation(
     expression_key: str = None,
     imputation_key: str = "MAGIC_imputed_data",
     n_jobs: int = -1,
+    sparse: bool = True,
+    clip_threshold: float = 1e-2,
 ) -> Union[pd.DataFrame, None, csr_matrix]:
     """
     Run MAGIC imputation on the data.
@@ -614,6 +616,10 @@ def run_magic_imputation(
         Key to store the imputed data in layers of data if it is a sc.AnnData object. Default is 'MAGIC_imputed_data'.
     n_jobs : int, optional
         Number of cores to use for parallel processing. If -1, all available cores are used. Default is -1.
+    sparse : bool, optional
+        If True, sets values below `clip_threshold` to 0 to return a sparse matrix. If False, return a dense matrix. Default is True.
+    clip_threshold: float, optional
+        Threshold value for setting values to 0 when returning a sparse matrix. Default is 1e-2. Unused if `sparse` is False.
 
     Returns
     -------
@@ -659,20 +665,31 @@ def run_magic_imputation(
 
     # Stack the results together
     if issparse(X):
-        imputed_data = hstack(res).todense()
+        imputed_data = hstack(res)
     else:
         imputed_data = np.hstack(res)
 
-    # Set small values to zero
-    imputed_data[imputed_data < 1e-2] = 0
+    # Set small values to zero if returning sparse matrix 
+    if sparse:
+        if issparse(X):
+            imputed_data.data[imputed_data.data < clip_threshold] = 0
+            imputed_data.eliminate_zeros()
+        else:
+            imputed_data = np.where(imputed_data < clip_threshold, 0, imputed_data)
+            imputed_data = csr_matrix(imputed_data)
+    else:
+        if issparse(X):
+            imputed_data = imputed_data.todense()
 
     # Clean up
     gc.collect()
 
     if isinstance(data, sc.AnnData):
-        data.layers[imputation_key] = np.asarray(imputed_data)
+        data.layers[imputation_key] = imputed_data
 
     if isinstance(data, pd.DataFrame):
+        if issparse(imputed_data):
+            imputed_data = imputed_data.toarray()
         imputed_data = pd.DataFrame(
             imputed_data, index=data.index, columns=data.columns
         )

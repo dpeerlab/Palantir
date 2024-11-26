@@ -16,6 +16,8 @@ def mock_dm_res():
 def test_run_magic_imputation_ndarray(mock_dm_res):
     data = np.random.rand(50, 20)
     result = run_magic_imputation(data, dm_res=mock_dm_res)
+    assert isinstance(result, csr_matrix)
+    result = run_magic_imputation(data, dm_res=mock_dm_res, sparse=False)
     assert isinstance(result, np.ndarray)
 
 
@@ -30,6 +32,8 @@ def test_run_magic_imputation_dataframe(mock_dm_res):
 def test_run_magic_imputation_csr(mock_dm_res):
     data = csr_matrix(np.random.rand(50, 20))
     result = run_magic_imputation(data, dm_res=mock_dm_res)
+    assert isinstance(result, csr_matrix)
+    result = run_magic_imputation(data, dm_res=mock_dm_res, sparse=False)
     assert isinstance(result, np.ndarray)
 
 
@@ -39,7 +43,7 @@ def test_run_magic_imputation_anndata():
     data.obsp["DM_Similarity"] = np.random.rand(50, 50)
     result = run_magic_imputation(data)
     assert "MAGIC_imputed_data" in data.layers
-    assert isinstance(result, np.ndarray)
+    assert isinstance(result, csr_matrix)
 
 
 # Test with AnnData and custom keys
