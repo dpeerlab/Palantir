@@ -652,7 +652,12 @@ def run_magic_imputation(
 
     # Set small values to zero if returning sparse matrix 
     if sparse:
-        imputed_data[imputed_data < clip_threshold] = 0
+        if issparse(X):
+            imputed_data.data[imputed_data.data < clip_threshold] = 0
+            imputed_data.eliminate_zeros()
+        else:
+            imputed_data = np.where(imputed_data < clip_threshold, 0, imputed_data)
+            imputed_data = csr_matrix(imputed_data)
 
     # Clean up
     gc.collect()
