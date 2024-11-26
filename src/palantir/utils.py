@@ -665,7 +665,7 @@ def run_magic_imputation(
 
     # Stack the results together
     if issparse(X):
-        imputed_data = hstack(res).todense()
+        imputed_data = hstack(res)
     else:
         imputed_data = np.hstack(res)
 
@@ -677,14 +677,19 @@ def run_magic_imputation(
         else:
             imputed_data = np.where(imputed_data < clip_threshold, 0, imputed_data)
             imputed_data = csr_matrix(imputed_data)
+    else:
+        if issparse(X):
+            imputed_data = imputed_data.todense()
 
     # Clean up
     gc.collect()
 
     if isinstance(data, sc.AnnData):
-        data.layers[imputation_key] = np.asarray(imputed_data)
+        data.layers[imputation_key] = imputed_data
 
     if isinstance(data, pd.DataFrame):
+        if issparse(imputed_data):
+            imputed_data = imputed_data.toarray()
         imputed_data = pd.DataFrame(
             imputed_data, index=data.index, columns=data.columns
         )
