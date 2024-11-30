@@ -495,14 +495,16 @@ def _local_var_helper(expressions, distances, eps=1e-16):
     if hasattr(expressions, "todense"):
         def cast(x):
             return x.todense()
-        issparse = True
     else:
         def cast(x):
             return x
-
+    if not hasattr(distances, "getrow"):
+        warn("The passed distance matrix is not sparse. Pass a sparse matrix for improved runtime.")
         issparse = False
+    else:
+        issparse = True
     for cell in range(expressions.shape[0]):
-        neighbors = distances.getrow(cell).indices
+        neighbors = distances.getrow(cell).indices if issparse else slice(None)
         try:
             neighbor_expression = cast(expressions[neighbors, :])
             cell_expression = cast(expressions[cell, :])
