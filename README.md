@@ -77,10 +77,6 @@ Release Notes
  * `run_magic_imputation` now has a boolean parameter `sparse` to control output sparsity
  * **bugfix**: `run_local_variability` for dense expression arrays now runs much faster and more accurate
 
- ### Version 1.3.5rc
- * `run_magic_imputation` now has a boolean parameter `sparse` to control output sparsity
-
->>>>>>> 4d0f0314270d4c8463fa8fd69a217ac1a6491f6a
  ### Version 1.3.4
  * avoid devision by zero in `select_branch_cells` for very small datasets
  * make branch selection robust against NaNs
