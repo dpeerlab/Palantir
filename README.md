@@ -73,7 +73,7 @@ ____
 
 Release Notes
 -------------
- ### Version 1.3.5rc
+ ### Version 1.3.5
  * `run_magic_imputation` now has a boolean parameter `sparse` to control output sparsity
  * **bugfix**: `run_local_variability` for dense expression arrays now runs much faster and more accurate
 
