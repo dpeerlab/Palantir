@@ -493,19 +493,16 @@ def _dot_helper_func(x, y):
 
 def _local_var_helper(expressions, distances, eps=1e-16):
     if hasattr(expressions, "todense"):
-
         def cast(x):
             return x.todense()
-
         issparse = True
     else:
-
         def cast(x):
             return x
 
         issparse = False
     for cell in range(expressions.shape[0]):
-        neighbors = distances.getrow(cell).indices if issparse else slice(None)
+        neighbors = distances.getrow(cell).indices
         try:
             neighbor_expression = cast(expressions[neighbors, :])
             cell_expression = cast(expressions[cell, :])
