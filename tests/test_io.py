@@ -65,9 +65,7 @@ def mock_10x_h5(tmp_path):
         f["matrix"].create_group("features")
         f["matrix/features"].create_dataset("name", data=gene_names.astype("S"))
         f["matrix/features"].create_dataset("id", data=gene_names.astype("S"))
-        f["matrix/features"].create_dataset(
-            "feature_type", data=feature_type.astype("S")
-        )
+        f["matrix/features"].create_dataset("feature_type", data=feature_type.astype("S"))
         f["matrix/features"].create_dataset("genome", data=genome.astype("S"))
 
     return str(hdf5_file)
