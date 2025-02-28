@@ -5,6 +5,7 @@ import fcsparser
 import scanpy as sc
 from scipy.io import mmread
 import anndata
+from typing import Optional, List
 
 
 def _clean_up(df: pd.DataFrame) -> pd.DataFrame:

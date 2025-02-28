@@ -24,6 +24,7 @@ import warnings
 from anndata import AnnData
 
 from . import config
+from . import presults
 
 warnings.filterwarnings(action="ignore", message="scipy.cluster")
 warnings.filterwarnings(action="ignore", module="scipy", message="Changing the sparsity")
