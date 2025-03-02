@@ -13,14 +13,6 @@ import scanpy as sc
 import mellon
 from anndata import AnnData
 
-# Check if pygam is available
-has_pygam = importlib.util.find_spec("pygam") is not None
-if has_pygam:
-    from pygam import LinearGAM, s
-else:
-    LinearGAM = None
-    s = None
-
 from . import config
 from .validation import _validate_obsm_key, _validate_varm_key
 

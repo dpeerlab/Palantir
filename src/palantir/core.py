@@ -2,7 +2,7 @@
 Core functions for running Palantir
 """
 
-from typing import Union, Optional, List, Dict, Tuple, Generator, Any
+from typing import Union, Optional, List, Dict, Tuple
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -19,12 +19,10 @@ from scipy.sparse import csr_matrix, find, csgraph
 from scipy.stats import entropy, pearsonr, norm
 from numpy.linalg import inv, pinv, LinAlgError
 from copy import deepcopy
-import scanpy as sc
 import warnings
 from anndata import AnnData
 
 from . import config
-from . import presults
 
 warnings.filterwarnings(action="ignore", message="scipy.cluster")
 warnings.filterwarnings(action="ignore", module="scipy", message="Changing the sparsity")
@@ -47,7 +45,7 @@ def run_palantir(
     save_as_df: bool = None,
     waypoints_key: str = "palantir_waypoints",
     seed: int = 20,
-) -> Optional["presults.PResults"]:
+) -> Optional[object]:
     """
     Executes the Palantir algorithm to derive pseudotemporal ordering of cells, their fate probabilities, and
     state entropy based on the multiscale diffusion map results.
@@ -169,10 +167,10 @@ def run_palantir(
     )
     ent = branch_probs.apply(entropy, axis=1)
 
-    # Update results into PResults class object
-    from . import presults
+    # Import PResults class only when needed to avoid circular imports
+    from .presults import PResults
 
-    pr_res = presults.PResults(pseudotime, ent, branch_probs, waypoints)
+    pr_res = PResults(pseudotime, ent, branch_probs, waypoints)
 
     if isinstance(data, AnnData):
         data.obs[pseudo_time_key] = pseudotime
