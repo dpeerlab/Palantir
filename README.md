@@ -110,7 +110,7 @@ Release Notes
  * compatibility with `scanpy>=1.10.0`
 
  ### Version 1.3.2
- * require `python>=3.8`
+ * require `python>=3.9`
  * implement CI for testing
  * fixes for edge cases discovered through extended testing
  * implement `plot_trajectory` function to show trajectory on the umap
