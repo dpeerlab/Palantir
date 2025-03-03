@@ -76,17 +76,12 @@ Release Notes
  * Made pygam an optional dependency that can be installed with `pip install palantir[gam]` or `pip install palantir[full]`
  * Added proper conditional imports and improved error handling for pygam
  * Enhanced `run_magic_imputation` to return appropriate data types for different inputs
-   * For numpy arrays or csr_matrix inputs, returns sparse matrices by default (sparse=True)
-   * For pandas DataFrames, returns pandas DataFrames
-   * For AnnData objects, stores results in the object and returns sparse matrices by default
- * Maintained sparse=True as the default for run_magic_imputation for backward compatibility
- * Added better support for both sparse and dense output formats in `run_magic_imputation`
- * Fixed circular import issues between modules
  * Updated code to use direct AnnData imports for newer compatibility
- * Improved version detection using importlib.metadata with graceful fallbacks
+ * Improved version detection using `importlib.metadata` with graceful fallbacks
  * Fixed Series indexing deprecation warnings in early cell detection functions
- * Standardized documentation with NumPy-style docstrings throughout the codebase
+ * Expanded and standardized documentation with NumPy-style docstrings throughout the codebase
  * Added comprehensive type hints to improve code quality and IDE support
+ * Remove dependency from `_` methods in scanpy for plotting.
  
  #### Testing and Quality Improvements
  * Added comprehensive tests for optional pygam dependency
