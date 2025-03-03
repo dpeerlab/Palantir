@@ -51,8 +51,7 @@ here: https://palantir.readthedocs.io
 - [Replicate 2 (Rep2)](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep2.h5ad)
 - [Replicate 3 (Rep3)](https://s3.amazonaws.com/dp-lab-data-public/palantir/human_cd34_bm_rep3.h5ad)
 
-This notebook details how to use the data in `Python` and `R`:
-https://github.com/dpeerlab/Palantir/blob/master/notebooks/manuscript_data.ipynb
+This notebook details how to use the data in `Python` and `R`: http://nbviewer.jupyter.org/github/dpeerlab/Palantir/blob/master/notebooks/manuscript_data.ipynb
 
 ## Comparison to trajectory detection algorithms
 Notebooks detailing the generation of results comparing Palantir to trajectory detection algorithms are available [here](https://github.com/dpeerlab/Palantir/blob/master/notebooks/comparisons)
@@ -73,6 +72,24 @@ ____
 
 Release Notes
 -------------
+ ### Version 1.4.0
+ * Made pygam an optional dependency that can be installed with `pip install palantir[gam]` or `pip install palantir[full]`
+ * Added proper conditional imports and improved error handling for pygam
+ * Enhanced `run_magic_imputation` to return appropriate data types for different inputs
+ * Updated code to use direct AnnData imports for newer compatibility
+ * Improved version detection using `importlib.metadata` with graceful fallbacks
+ * Fixed Series indexing deprecation warnings in early cell detection functions
+ * Expanded and standardized documentation with NumPy-style docstrings throughout the codebase
+ * Added comprehensive type hints to improve code quality and IDE support
+ * Remove dependency from `_` methods in scanpy for plotting.
+ 
+ #### Testing and Quality Improvements
+ * Added comprehensive tests for optional pygam dependency
+ * Improved test coverage for run_magic_imputation with various input/output types
+ * Added integration tests against expected results
+ * Enhanced test infrastructure to work with newer library versions
+ * Expanded test coverage to catch edge cases in data processing
+
  ### Version 1.3.6
  * `run_magic_imputation` now has a boolean parameter `sparse` to control output sparsity
  * **bugfix**: `run_local_variability` for dense expression arrays now runs much faster and more accurate
@@ -88,15 +105,15 @@ Release Notes
  * compatibility with `scanpy>=1.10.0`
 
  ### Version 1.3.2
- * require `python>=3.8`
+ * require `python>=3.9`
  * implement CI for testing
- * fixes for edge cases discoverd through extended testing
+ * fixes for edge cases discovered through extended testing
  * implement `plot_trajectory` function to show trajectory on the umap
- * scale pseudotime to unit intervall in anndata
+ * scale pseudotime to unit interval in anndata
 
  ### Version 1.3.1
- * implemented `palantir.plot.plot_stats` to plot arbitray cell-wise statistics as x-/y-positions.
- * reduce memory usgae of `palantir.presults.compute_gene_trends`
+ * implemented `palantir.plot.plot_stats` to plot arbitrary cell-wise statistics as x-/y-positions.
+ * reduce memory usage of `palantir.presults.compute_gene_trends`
  * removed seaborn dependency
  * refactor `run_diffusion_maps` to split out `compute_kernel` and `diffusion_maps_from_kernel`
  * remove unused dependencies `tables`, `Cython`, `cmake`, and `tzlocal`.
@@ -107,7 +124,7 @@ Release Notes
  #### New Features
  * Enable an AnnData-centric workflow for improved usability and interoperability with other single-cell analysis tools.
  * Introduced new utility functions
-     * `palantir.utils.early_cell` To automate fining an early cell based on cell type and diffusion components.
+     * `palantir.utils.early_cell` To automate finding an early cell based on cell type and diffusion components.
      * `palantir.utils.find_terminal_states` To automate finding terminal cell states based on cell type and diffusion components.
      * `palantir.presults.select_branch_cells` To find cells associated to each branch based on fate probability.
      * `palantir.plot.plot_branch_selection` To inspect the cell to branch association.
@@ -115,20 +132,20 @@ Release Notes
      * `palantir.utils.run_density` A wrapper for [mellon.DensityEstimator](https://mellon.readthedocs.io/en/latest/model.html#mellon.model.DensityEstimator).
      * `palantir.utils.run_density_evaluation` Evaluate computed density on a different dataset.
      * `palantir.utils.run_low_density_variability`. To aggregate local gene expression variability in low density.
-     * `palantir.plot.plot_branch`. To plot branch-selected cells over pseudotime in arbitrary y-postion and coloring.
-     * `palantir.plot.plot_trend`. To plot the gene trend ontop of `palantir.plot.plot_branch`.
+     * `palantir.plot.plot_branch`. To plot branch-selected cells over pseudotime in arbitrary y-position and coloring.
+     * `palantir.plot.plot_trend`. To plot the gene trend on top of `palantir.plot.plot_branch`.
  * Added input validation for better error handling and improved user experience.
  * Expanded documentation within docstrings, providing additional clarity for users and developers.
 
  #### Enhancements
  * Updated tutorial notebook to reflect the new workflow, guiding users through the updated processes.
  * Implemented gene trend computation using [Mellon](https://github.com/settylab/Mellon), providing more robust and efficient gene trend analysis.
- * Enable annotation in `palantir.plot.highight_cells_on_umap`.
+ * Enable annotation in `palantir.plot.highlight_cells_on_umap`.
 
  #### Changes
  * Replaced PhenoGraph dependency with `scanpy.tl.leiden` for gene trend clustering.
- * Deprecated the `run_tsne`, `determine_cell_clusters`, and `plot_cell_clusters` functions. Use corresponding implementations from [Scanpy](https://scanpy.readthedocs.io/en/stable/), widely used single-cell analysis library and direct dependecy of Palantir.
- * Rename `palantir.plot.highight_cells_on_tsne` to `palantir.plot.highight_cells_on_umap`
+ * Deprecated the `run_tsne`, `determine_cell_clusters`, and `plot_cell_clusters` functions. Use corresponding implementations from [Scanpy](https://scanpy.readthedocs.io/en/stable/), widely used single-cell analysis library and direct dependency of Palantir.
+ * Rename `palantir.plot.highlight_cells_on_tsne` to `palantir.plot.highlight_cells_on_umap`
  * Depend on `anndata>=0.8.0` to avoid issues writing dataframes in `ad.obsm`.
 
  #### Fixes
@@ -136,20 +153,20 @@ Release Notes
 
 
 ### Version 1.1.0
- * Replaced rpy2 with pyGAM for computing gene expression trends.
- * Updated tutorial and plotting functions
+ * Replaced rpy2 with pyGAM for computing gene expression trends. 
+ * Updated tutorial and plotting functions 
 
 
 ### Version 1.0.0
 
- * A fix to [issue#41](https://github.com/dpeerlab/Palantir/issues/41)
+ * A fix to [issue#41](https://github.com/dpeerlab/Palantir/issues/41) 
  * A fix to [issue#42](https://github.com/dpeerlab/Palantir/issues/42)
  * Revamped tutorial with support for Anndata and force directed layouts
 
 ### Version 0.2.6
 
  * A fix to [issue#33](https://github.com/dpeerlab/Palantir/issues/33) and [issue#31](https://github.com/dpeerlab/Palantir/issues/31)
-
+ 
 ### Version 0.2.5
 
  * A fix related to [issue#28](https://github.com/dpeerlab/Palantir/issues/28). When identifying terminal states, duplicate values were generated instead of unique ones.

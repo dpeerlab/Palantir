@@ -4,9 +4,9 @@ __pycache__/
 *.h5ad
 build/
 palantir.egg-info/
-.coverage
+.coverage*
 notebooks/testing.ipynb
+.pytest_cache/
 dist/
 .vscode/
 data/
-venv/
