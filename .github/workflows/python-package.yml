@@ -43,3 +43,5 @@ jobs:
         python -m pytest --cov=src/palantir
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
