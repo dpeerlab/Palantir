@@ -15,10 +15,19 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
 from matplotlib.colors import Normalize, Colormap
+from matplotlib.lines import Line2D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # Import plot utilities
-from .plot_utils import _scatter_with_colorbar, _highlight_cells, _add_legend, _setup_axes
+from .plot_utils import (
+    _scatter_with_colorbar,
+    _highlight_cells,
+    _add_legend,
+    _setup_axes,
+    _get_palantir_fates_colors,
+    _plot_arrows,
+    no_mellon_log_messages,
+)
 
 # Define type aliases and helper functions to ensure compatibility with all scanpy versions
 _FontWeight = Literal["light", "normal", "medium", "semibold", "bold", "heavy", "black"]
@@ -44,6 +53,8 @@ def check_colornorm(
         return colors.TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
     else:
         return colors.Normalize(vmin=vmin, vmax=vmax)
+
+
 
 
 def _get_vboundnorm(vmin, vmax, vcenter, norm, index, array):
@@ -2120,7 +2131,6 @@ def gene_score_histogram(
 
     return fig
 
-
 def plot_trajectory(
     ad: AnnData,
     branch: str,
@@ -2210,7 +2220,8 @@ def plot_trajectory(
             raise ValueError("pseudotime_interval must be a tuple of two values.")
     pseudotime_grid = np.linspace(pseudotime_interval[0], pseudotime_interval[1], 200)
     ls = smoothness * np.sqrt(np.sum((np.max(umap, axis=0) - np.min(umap, axis=0)) ** 2)) / 20
-    umap_est = mellon.FunctionEstimator(ls=ls, sigma=ls, n_landmarks=50)
+    with no_mellon_log_messages():
+        umap_est = mellon.FunctionEstimator(ls=ls, sigma=ls, n_landmarks=50)
     umap_trajectory = umap_est.fit_predict(pseudotime, umap[mask, :], pseudotime_grid)
 
     # plot UMAP
@@ -2249,55 +2260,221 @@ def plot_trajectory(
     return ax
 
 
-def _plot_arrows(x, y, n=5, ax=None, arrowprops=dict(), **kwargs):
+def plot_trajectories(
+    ad,
+    groups: Optional[List[str]] = None,
+    pseudo_time_key: str = "palantir_pseudotime",
+    masks_key: str = "branch_masks",
+    embedding_basis: str = "X_umap",
+    cell_color: str = "palantir_pseudotime",
+    palantir_fates_colors: Optional[Union[List[str], Dict[str, str]]] = None,
+    smoothness: float = 1.0,
+    pseudotime_interval: Optional[Union[Tuple[float, float], List[float], np.ndarray]] = None,
+    n_arrows: int = 5,
+    arrowprops: Optional[dict] = None,
+    outline_arrowprops: Optional[dict] = None,  # Parameter controlling the outline arrows.
+    scanpy_kwargs: Optional[dict] = None,
+    figsize: Tuple[float, float] = (5, 5),
+    show_legend: bool = True,
+    legend_kwargs: Optional[dict] = None,
+    **kwargs,
+):
     """
-    Helper function to plot arrows on a trajectory line.
+    Plot trajectories for multiple branches on the UMAP embedding.
+    
+    This function plots trajectories for either a selection or all branches.
+    It colors the trajectories using a combination of predefined colors stored in ad.uns and/or
+    user-specified palette. Any missing branch colors are generated such that duplicates are avoided.
 
     Parameters
     ----------
-    x, y : array-like
-        Coordinates of the trajectory points.
-    n : int, optional
-        Number of arrows to plot. Defaults to 5.
-    ax : matplotlib.axes.Axes, optional
-        Matplotlib axes object to plot on. If None, a new figure is created.
+    ad : AnnData
+        Annotated data matrix. Pseudotime and branch masks should be stored under given keys.
+    groups : list of str, optional
+        List of branch names to plot. If None, all branches are used.
+    pseudo_time_key : str, optional
+        Key in ad.obs for pseudotime values.
+    masks_key : str, optional
+        Key in ad.obsm where branch masks are stored.
+    embedding_basis : str, optional
+        Key in ad.obsm for the low-dimensional embedding (e.g. UMAP).
+    cell_color : str or None, optional
+        How to color the cells. If "branch_selection", non-selected cells are drawn with a deselected color.
+        Otherwise, an external plotting function may be used.
+    palantir_fates_colors : dict or list, optional
+        Mapping or ordered list of colors (for each branch). Missing colors are generated uniquely.
+    smoothness : float, optional
+        Controls the smoothness of the trajectory. Higher values yield smoother curves.
+    pseudotime_interval : tuple, list, np.ndarray, optional
+        Interval for pseudotime evaluation. If None, it is determined per branch.
+    n_arrows : int, optional
+        Number of arrows to annotate the trajectory.
     arrowprops : dict, optional
-        Properties for the arrowstyle. If None, defaults to black arrow with lw=1.
-    **kwargs
-        Extra keyword arguments are passed to the plot function.
+        Properties for the arrow style of the branch-specific (foreground) arrows.
+    outline_arrowprops : dict, optional
+        Properties for the outline (background) arrows. Defaults to a thicker black arrow.
+    scanpy_kwargs : dict, optional
+        Extra keyword arguments for an external embedding plotting function.
+    figsize : tuple of float, optional
+        Size of the figure (width, height).
+    show_legend : bool, optional
+        Whether to display a legend for the branches. Default is True.
+    legend_kwargs : dict, optional
+        Additional keyword arguments for customizing the legend appearance.
+        Defaults to {"frameon": False} if not provided.
+    **kwargs :
+        Extra keyword arguments passed to the trajectory plotting (e.g., line style).
 
     Returns
     -------
-    None
+    matplotlib.axes.Axes
+        The axis object containing the plot.
     """
-    if ax is None:
-        fig, ax = plt.subplots()
+    # Validate required keys.
+    if pseudo_time_key not in ad.obs:
+        raise KeyError(f"{pseudo_time_key} not found in ad.obs")
+    if embedding_basis not in ad.obsm:
+        raise KeyError(f"{embedding_basis} not found in ad.obsm")
 
+    # Get branch masks and branch names.
+    fate_mask, fate_mask_names = _validate_obsm_key(ad, masks_key)
+    
+    # Determine groups: if none provided, use all branches.
+    if groups is None:
+        groups = fate_mask_names
+    else:
+        missing_groups = set(groups) - set(fate_mask_names)
+        if missing_groups:
+            raise ValueError(
+                f"Specified branch names not found in masks: {', '.join(missing_groups)}"
+            )
+    
+    # Retrieve or generate colors ensuring uniqueness.
+    colors_mapping = _get_palantir_fates_colors(ad, fate_mask_names, palantir_fates_colors)
+    # Store the updated mapping in ad.uns.
+    ad.uns["palantir_fates_colors"] = colors_mapping
+
+    pt = ad.obs[pseudo_time_key]
+    umap = ad.obsm[embedding_basis]
+    
+    # Default arrow properties: use a more prominent arrow head.
+    if arrowprops is None:
+        arrowprops = dict(lw=2, color="black", mutation_scale=20)
     default_kwargs = {"color": "black"}
     default_kwargs.update(kwargs)
 
-    ax.plot(x, y, **default_kwargs)
+    
+    # Set a default for outline_arrowprops if not provided.
+    if outline_arrowprops is None:
+        lw = arrowprops.get("lw", 1) * 2
+        outline_arrowprops = dict(lw=lw, color="black", mutation_scale=20)
 
-    if n <= 0:
-        return ax
+    if scanpy_kwargs is None:
+        scanpy_kwargs = {}
 
-    default_arrowprops = dict(arrowstyle="->", lw=1)
-    default_arrowprops["color"] = default_kwargs.get("color", "black")
-    default_arrowprops.update(arrowprops)
-
-    # Calculate the length of each subsection
-    total_points = len(x)
-    section_length = total_points // n
-
-    for i in range(n):
-        idx = total_points - i * section_length
-        if idx < 2:
-            break
-        # Add arrowhead at the last point of the subsection on ax
-        ax.annotate(
-            "",
-            xy=(x[idx - 1], y[idx - 1]),
-            xytext=(x[idx - 2], y[idx - 2]),
-            arrowprops=default_arrowprops,
+    # Generate a custom legend based on branch colors.
+    custom_handles = []
+    
+    # Set up the axes.
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    
+    # Plot background cells if using branch-based selection.
+    if cell_color == "branch_selection":
+        scatter_kwargs = {"alpha": 0.5, "s": 10, "edgecolor": "none"}
+        scatter_kwargs.update(scanpy_kwargs)
+        scatter_kwargs["zorder"] = 1
+        scatter_kwargs.pop("c", None)
+        scatter_kwargs.pop("color", None)
+        combined_mask = np.zeros(ad.n_obs, dtype=bool)
+        for branch in groups:
+            combined_mask |= fate_mask[branch].astype(bool)
+        ax.scatter(
+            umap[~combined_mask, 0],
+            umap[~combined_mask, 1],
+            c=config.DESELECTED_COLOR,
+            label="Other Cells",
+            **scatter_kwargs
         )
+    elif cell_color is not None:
+        if scanpy_kwargs is None:
+            scanpy_kwargs = {}
+        b = embedding_basis[2:] if embedding_basis.startswith("X_") else embedding_basis
+        sc.pl.embedding(ad, b, color=cell_color, ax=ax, show=False, **scanpy_kwargs)
+    
+    with no_mellon_log_messages():
+        # Loop over each branch to plot its trajectory.
+        for branch in groups:
+            branch_mask = fate_mask[branch].astype(bool)
+            if cell_color == "branch_selection":
+                ax.scatter(
+                    umap[branch_mask, 0],
+                    umap[branch_mask, 1],
+                    c=colors_mapping[branch],
+                    label=f"Branch {branch}",
+                    **scatter_kwargs,
+                )
+            branch_pt = pt[branch_mask]
+            if branch_pt.size == 0:
+                continue
+            # Set pseudotime interval.
+            if pseudotime_interval is None:
+                branch_interval = (np.min(branch_pt), np.max(branch_pt))
+            else:
+                if len(pseudotime_interval) != 2:
+                    raise ValueError("pseudotime_interval must be a tuple of two values.")
+                branch_interval = pseudotime_interval
+            
+            pseudotime_grid = np.linspace(branch_interval[0], branch_interval[1], 200)
+            
+            # Calculate smoothness parameter (ls) from overall UMAP span.
+            ls = smoothness * np.sqrt(np.sum((np.max(umap, axis=0) - np.min(umap, axis=0)) ** 2)) / 20
+            umap_est = mellon.FunctionEstimator(ls=ls, sigma=ls, n_landmarks=50)
+            umap_trajectory = umap_est.fit_predict(branch_pt, umap[branch_mask, :], pseudotime_grid)
+            
+            branch_kwargs = default_kwargs.copy()
+            # For outline arrows we use the outline_arrowprops color.
+            branch_kwargs["color"] = outline_arrowprops.get("color", "black")
+            branch_kwargs["lw"] = branch_kwargs.get("lw", 2) + 2
+            _plot_arrows(
+                umap_trajectory[:, 0],
+                umap_trajectory[:, 1],
+                n=n_arrows,
+                ax=ax,
+                arrowprops=outline_arrowprops,
+                head_offset=.1,
+                arrow_zorder=2,
+                **branch_kwargs,
+            )
+            
+            # Now plot branch-specific colored arrows on top with higher zorder.
+            branch_arrowprops = arrowprops.copy()
+            branch_arrowprops["color"] = colors_mapping[branch]
+            branch_kwargs["color"] = colors_mapping[branch]
+            branch_kwargs["lw"] = branch_kwargs.get("lw", 4) - 2
+            _plot_arrows(
+                umap_trajectory[:, 0],
+                umap_trajectory[:, 1],
+                n=n_arrows,
+                ax=ax,
+                arrowprops=branch_arrowprops,
+                arrow_zorder=3,
+                **branch_kwargs,
+            )
+            custom_handles.append(
+            Line2D([], [], color=colors_mapping[branch],
+                lw=arrowprops.get("lw", 2),
+                label=f"Branch {branch}")
+            )
+    
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
+    if show_legend and custom_handles:
+        if legend_kwargs is None:
+            legend_kwargs = {"frameon": False}
+        ax.legend(handles=custom_handles, **legend_kwargs)
+    
+    # Remove fixed title assignment to let scanpy handle titles.
+    ax.axis("off")
+    
     return ax

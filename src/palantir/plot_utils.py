@@ -10,7 +10,19 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import contextlib
+import logging
+import mellon
 
+
+@contextlib.contextmanager
+def no_mellon_log_messages():
+    current_level = mellon.logger.level
+    mellon.logger.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        mellon.logger.setLevel(current_level)
 
 def _scatter_with_colorbar(
     ax: Axes,
@@ -195,3 +207,162 @@ def _setup_axes(
     elif fig is None:
         fig = ax.figure
     return fig, ax
+
+
+def _get_palantir_fates_colors(
+    ad,
+    fate_names: List[str],
+    palantir_fates_colors: Optional[Union[List[str], Dict[str, str]]] = None
+) -> Dict[str, str]:
+    """
+    Generate or update the mapping from branch names to colors.
+    
+    This utility checks if ad.uns already contains predefined colors.
+    Then, if the `palantir_fates_colors` parameter is provided, its values are merged
+    (with user-specified colors taking precedence). For any missing branch the function 
+    generates a new color ensuring that no color is used twice.
+    
+    Parameters
+    ----------
+    ad : AnnData
+        The annotated data object from which .uns will be checked.
+    fate_names : list of str
+        List of branch (fate) names.
+    palantir_fates_colors : dict or list or None, optional
+        If a dict, keys should be branch names with a color for each.
+        If a list, its order is assumed to correspond to fate_names.
+        If None, only the predefined colors (if any) and generated defaults are used.
+
+    Returns
+    -------
+    dict
+        Mapping from branch names to colors.
+    """
+    # Get any predefined colors stored in ad.uns.
+    predefined = {}
+    if "palantir_fates_colors" in ad.uns:
+        predefined = ad.uns["palantir_fates_colors"]
+    
+    # Process user-provided colors from argument.
+    provided = {}
+    if palantir_fates_colors is not None:
+        if isinstance(palantir_fates_colors, dict):
+            provided = palantir_fates_colors
+        elif isinstance(palantir_fates_colors, list):
+            if len(palantir_fates_colors) < len(fate_names):
+                raise ValueError("Provided color list length is less than the number of branch names.")
+            provided = {name: clr for name, clr in zip(fate_names, palantir_fates_colors)}
+        else:
+            raise TypeError("palantir_fates_colors must be a dict, list, or None.")
+    
+    # Merge: user-provided takes precedence, then predefined.
+    mapping = {}
+    for branch in fate_names:
+        if branch in provided:
+            mapping[branch] = provided[branch]
+        elif branch in predefined:
+            mapping[branch] = predefined[branch]
+    
+    # Collect already used colors to exclude duplicates.
+    used_colors = set(mapping.values())
+    
+    # Generate colors for missing branches.
+    missing = [branch for branch in fate_names if branch not in mapping]
+    if missing:
+        # Get the default color cycle.
+        default_cycle = plt.rcParams['axes.prop_cycle'].by_key().get(
+            'color', ['C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9']
+        )
+        # Create a generator that skips colors already used.
+        def color_generator(exclude):
+            for clr in default_cycle:
+                if clr not in exclude:
+                    yield clr
+            # If default cycle is exhausted, generate random colors.
+            while True:
+                new_color = "#" + "".join(random.choice("0123456789ABCDEF") for _ in range(6))
+                if new_color not in exclude:
+                    yield new_color
+
+        gen = color_generator(used_colors)
+        for branch in missing:
+            new_color = next(gen)
+            mapping[branch] = new_color
+            used_colors.add(new_color)
+    
+    return mapping
+
+
+def _plot_arrows(x, y, n=5, ax=None, arrowprops=dict(), arrow_zorder=2, head_offset=0.0, **kwargs):
+    """
+    Helper function to plot arrows on a trajectory line.
+    
+    The new 'head_offset' parameter (as a fraction of the segment length)
+    moves the arrow head slightly forward.
+    
+    Parameters
+    ----------
+    x, y : array-like
+        Coordinates of the trajectory points.
+    n : int, optional
+        Number of arrows to plot. Defaults to 5.
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on.
+    arrowprops : dict, optional
+        Properties for the arrow style.
+    arrow_zorder : int, optional
+        zorder level for both the line and arrow annotations.
+    head_offset : float, optional
+        Fraction of the segment length to move the arrow head forward.
+    **kwargs :
+        Extra keyword arguments passed to the plot function.
+    
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The axis with the arrows plotted.
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+    
+    default_kwargs = {"color": "black", "zorder": arrow_zorder}
+    default_kwargs.update(kwargs)
+    
+    # Plot the trajectory line.
+    ax.plot(x, y, **default_kwargs)
+    
+    if n <= 0:
+        return ax
+    
+    default_arrowprops = dict(arrowstyle="->", lw=1, mutation_scale=20)
+    default_arrowprops["color"] = default_kwargs.get("color", "black")
+    default_arrowprops.update(arrowprops)
+    
+    total_points = len(x)
+    section_length = total_points // n
+    
+    for i in range(n):
+        idx = total_points - i * section_length
+        if idx < 2:
+            break
+        # Compute the vector from the previous point to the arrow head.
+        dx = x[idx - 1] - x[idx - 2]
+        dy = y[idx - 1] - y[idx - 2]
+        norm = (dx**2 + dy**2) ** 0.5
+        # Compute the forward offset.
+        if norm != 0:
+            offset_dx = head_offset * dx / norm
+            offset_dy = head_offset * dy / norm
+        else:
+            offset_dx = offset_dy = 0
+        # Adjust the arrow head coordinates.
+        target = (x[idx - 1] + offset_dx, y[idx - 1] + offset_dy)
+        
+        ax.annotate(
+            "",
+            xy=target,
+            xytext=(x[idx - 2], y[idx - 2]),
+            arrowprops=default_arrowprops,
+            zorder=arrow_zorder,
+        )
+    return ax
