@@ -7,6 +7,7 @@ from anndata import AnnData
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.markers import MarkerStyle
+from matplotlib.lines import Line2D
 
 from palantir.plot import (
     density_2d,
@@ -27,6 +28,8 @@ from palantir.plot import (
     plot_gene_trend_heatmaps,
     plot_gene_trend_clusters,
     gene_score_histogram,
+    plot_trajectories,
+    plot_trajectory,
 )
 from palantir.presults import PResults
 
@@ -676,3 +679,92 @@ def test_gene_score_histogram_errors(mock_anndata):
     # Test with invalid quantile
     with pytest.raises(ValueError):
         gene_score_histogram(mock_anndata, "gene_score", quantile=1.5)
+
+
+def test_plot_trajectory(mock_anndata):
+    # Test with basic parameters
+    ax = plot_trajectory(mock_anndata, "a")
+    assert isinstance(ax, plt.Axes)
+    assert ax.get_title() == "Branch: a"
+    plt.close()
+
+    # Test with custom parameters
+    fig, custom_ax = plt.subplots(figsize=(6, 6))
+    ax = plot_trajectory(
+        mock_anndata, 
+        "a",
+        ax=custom_ax,
+        cell_color="palantir_pseudotime",
+        smoothness=2.0,
+        n_arrows=3,
+        arrowprops={"color": "red"},
+        pseudotime_interval=(0.2, 0.8)
+    )
+    assert ax is custom_ax
+    plt.close()
+
+
+def test_plot_trajectory_errors(mock_anndata):
+    # Test with invalid branch - note the error is actually a TypeError in the implementation
+    with pytest.raises(TypeError):
+        plot_trajectory(mock_anndata, "invalid_branch")
+    
+    # Test with invalid keys
+    with pytest.raises(KeyError):
+        plot_trajectory(mock_anndata, "a", pseudo_time_key="invalid_key")
+    
+    with pytest.raises(KeyError):
+        plot_trajectory(mock_anndata, "a", masks_key="invalid_key")
+    
+    with pytest.raises(KeyError):
+        plot_trajectory(mock_anndata, "a", embedding_basis="invalid_basis")
+    
+    # Test with invalid pseudotime_interval
+    with pytest.raises(ValueError):
+        plot_trajectory(mock_anndata, "a", pseudotime_interval=[0.1, 0.2, 0.3])
+
+
+def test_plot_trajectories(mock_anndata):
+    # Test with default parameters
+    ax = plot_trajectories(mock_anndata)
+    assert isinstance(ax, plt.Axes)
+    plt.close()
+    
+    # Test with specific branches
+    ax = plot_trajectories(mock_anndata, groups=["a", "b"])
+    assert isinstance(ax, plt.Axes)
+    plt.close()
+    
+    # Test with custom parameters
+    ax = plot_trajectories(
+        mock_anndata,
+        cell_color="palantir_pseudotime",
+        smoothness=2.0,
+        n_arrows=3,
+        arrowprops={"color": "blue"},
+        outline_arrowprops={"color": "black", "lw": 3},
+        show_legend=True,
+        legend_kwargs={"loc": "upper left", "frameon": True}
+    )
+    assert isinstance(ax, plt.Axes)
+    plt.close()
+
+
+def test_plot_trajectories_errors(mock_anndata):
+    # Test with invalid branches
+    with pytest.raises(ValueError):
+        plot_trajectories(mock_anndata, groups=["invalid_branch"])
+    
+    # Test with invalid keys
+    with pytest.raises(KeyError):
+        plot_trajectories(mock_anndata, pseudo_time_key="invalid_key")
+    
+    with pytest.raises(KeyError):
+        plot_trajectories(mock_anndata, masks_key="invalid_key")
+    
+    with pytest.raises(KeyError):
+        plot_trajectories(mock_anndata, embedding_basis="invalid_basis")
+    
+    # Test with invalid pseudotime_interval
+    with pytest.raises(ValueError):
+        plot_trajectories(mock_anndata, pseudotime_interval=[0.1, 0.2, 0.3])
