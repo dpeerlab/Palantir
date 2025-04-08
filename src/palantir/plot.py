@@ -2130,6 +2130,7 @@ def plot_trajectory(
     embedding_basis: str = "X_umap",
     cell_color: str = "branch_selection",
     smoothness: float = 1.0,
+    pseudotime_interval: Optional[Union[Tuple[float, float], List[float], np.ndarray]] = None,
     n_arrows: int = 5,
     arrowprops: Optional[dict] = dict(),
     scanpy_kwargs: Optional[dict] = dict(),
@@ -2158,6 +2159,8 @@ def plot_trajectory(
         If None, no coloring is applied. Defaults to 'branch_selection'.
     smoothness : float, optional
         Smoothness of fitted trajectory. Higher value means smoother. Defaults to 1.
+    pseudotime_interval : tuple, list, np.ndarray, optional
+        Interval for pseudotime values. If None, it is automatically determined.
     n_arrows : int, optional
         Number of arrows to plot. Defaults to 5.
     arrowprops : dict, optional
@@ -2200,7 +2203,12 @@ def plot_trajectory(
     mask = fate_mask[branch].astype(bool)
 
     pseudotime = pt[mask]
-    pseudotime_grid = np.linspace(np.min(pseudotime), np.max(pseudotime), 200)
+    if pseudotime_interval is None:
+        pseudotime_interval = (np.min(pseudotime), np.max(pseudotime))
+    else:
+        if len(pseudotime_interval) != 2:
+            raise ValueError("pseudotime_interval must be a tuple of two values.")
+    pseudotime_grid = np.linspace(pseudotime_interval[0], pseudotime_interval[1], 200)
     ls = smoothness * np.sqrt(np.sum((np.max(umap, axis=0) - np.min(umap, axis=0)) ** 2)) / 20
     umap_est = mellon.FunctionEstimator(ls=ls, sigma=ls, n_landmarks=50)
     umap_trajectory = umap_est.fit_predict(pseudotime, umap[mask, :], pseudotime_grid)

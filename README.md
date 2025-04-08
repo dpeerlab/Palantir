@@ -82,6 +82,7 @@ Release Notes
  * Expanded and standardized documentation with NumPy-style docstrings throughout the codebase
  * Added comprehensive type hints to improve code quality and IDE support
  * Remove dependency from `_` methods in scanpy for plotting.
+ * add `pseudotime_interval` argument to control path length in `palantir.plot.plot_trajectory`
  
  #### Testing and Quality Improvements
  * Added comprehensive tests for optional pygam dependency
