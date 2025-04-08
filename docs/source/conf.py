@@ -48,10 +48,17 @@ extensions = [
 ]
 if os.environ.get('READTHEDOCS') == 'True':
     extensions.append("sphinx_github_style")
-    # Set the linkcode_url for sphinx-github-style extension
-    linkcode_url = "https://github.com/dpeerlab/Palantir/blob/master/{path}#L{lineno}"
-    github_repo = "dpeerlab/Palantir"
-    github_version = "master"
+    extensions.append("sphinx.ext.linkcode")
+    
+    # GitHub repo information
+    html_context = {
+        "github_user": "dpeerlab",
+        "github_repo": "Palantir",
+        "github_version": "master",
+    }
+    
+    # Set linkcode_url for sphinx-github-style
+    linkcode_url = "https://github.com/dpeerlab/Palantir/blob/master/{filepath}#L{linestart}-L{linestop}"
 
 source_suffix = [".rst", ".md"]
 
