@@ -2273,6 +2273,7 @@ def plot_trajectories(
     n_arrows: int = 5,
     arrowprops: Optional[dict] = None,
     outline_arrowprops: Optional[dict] = None,  # Parameter controlling the outline arrows.
+    ax: Optional[plt.Axes] = None,
     scanpy_kwargs: Optional[dict] = None,
     figsize: Tuple[float, float] = (5, 5),
     show_legend: bool = True,
@@ -2313,6 +2314,8 @@ def plot_trajectories(
         Properties for the arrow style of the branch-specific (foreground) arrows.
     outline_arrowprops : dict, optional
         Properties for the outline (background) arrows. Defaults to a thicker black arrow.
+    ax : matplotlib.axes.Axes, optional
+        Matplotlib axes object to plot on. If None, a new figure is created.
     scanpy_kwargs : dict, optional
         Extra keyword arguments for an external embedding plotting function.
     figsize : tuple of float, optional
@@ -2359,15 +2362,20 @@ def plot_trajectories(
     
     # Default arrow properties: use a more prominent arrow head.
     if arrowprops is None:
-        arrowprops = dict(lw=2, color="black", mutation_scale=20)
+        arrowprops = {}
+
+    arrowprops = {**{"lw": 2, "mutation_scale": 20}, **arrowprops}
     default_kwargs = {"color": "black"}
     default_kwargs.update(kwargs)
 
     
     # Set a default for outline_arrowprops if not provided.
     if outline_arrowprops is None:
-        lw = arrowprops.get("lw", 1) * 2
-        outline_arrowprops = dict(lw=lw, color="black", mutation_scale=20)
+        outline_arrowprops = {}
+
+    lw = arrowprops.get("lw", 1) * 2
+    ms = arrowprops.get("mutation_scale", 20)
+    outline_arrowprops = {**{"lw": lw, "color": "black", "mutation_scale": ms}, **arrowprops}
 
     if scanpy_kwargs is None:
         scanpy_kwargs = {}
@@ -2376,7 +2384,8 @@ def plot_trajectories(
     custom_handles = []
     
     # Set up the axes.
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    if ax is None:
+        _, ax = plt.subplots(1, 1, figsize=figsize)
     
     # Plot background cells if using branch-based selection.
     if cell_color == "branch_selection":
