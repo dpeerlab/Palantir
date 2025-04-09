@@ -2364,7 +2364,9 @@ def plot_trajectories(
     if arrowprops is None:
         arrowprops = {}
 
-    arrowprops = {**{"lw": 2, "mutation_scale": 20}, **arrowprops}
+    lw = kwargs.get("lw", 1)
+    ms = 20 * lw ** .5
+    arrowprops = {**{"lw": lw, "mutation_scale": ms}, **arrowprops}
     default_kwargs = {"color": "black"}
     default_kwargs.update(kwargs)
 
@@ -2373,9 +2375,10 @@ def plot_trajectories(
     if outline_arrowprops is None:
         outline_arrowprops = {}
 
-    lw = arrowprops.get("lw", 1) * 2
+    lwo = arrowprops.get("lw", 1)
+    lwo = lwo + 2 * lwo ** .5
     ms = arrowprops.get("mutation_scale", 20)
-    outline_arrowprops = {**{"lw": lw, "color": "black", "mutation_scale": ms}, **arrowprops}
+    outline_arrowprops = {**{"lw": lwo, "color": "black", "mutation_scale": ms}, **outline_arrowprops}
 
     if scanpy_kwargs is None:
         scanpy_kwargs = {}
@@ -2450,7 +2453,7 @@ def plot_trajectories(
                 n=n_arrows,
                 ax=ax,
                 arrowprops=outline_arrowprops,
-                head_offset=.1,
+                head_offset=.1*(lwo - lw),
                 arrow_zorder=2,
                 **branch_kwargs,
             )
