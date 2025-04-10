@@ -1984,7 +1984,7 @@ def plot_gene_trend_clusters(
     )
 
     # Obtain unique clusters and prepare figure
-    if pd.api.types.is_categorical_dtype(clusters):
+    if isinstance(clusters.dtype, pd.CategoricalDtype):
         cluster_labels = clusters.cat.categories
     else:
         # Filter out NaN values to avoid issues with np.NaN vs np.nan
@@ -2096,7 +2096,9 @@ def gene_score_histogram(
             label=f"{quantile:.0%} percentile",
         )
 
-    ax.legend()
+    # Only create legend if we have elements with labels
+    if quantile is not None:
+        ax.legend()
     ax.set_xlabel(f"{score_key} score")
     ax.set_ylabel("# of genes")
 

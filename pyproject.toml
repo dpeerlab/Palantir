@@ -34,7 +34,6 @@ dependencies = [
     "scikit-learn",
     "joblib",
     "fcsparser>=0.1.2",
-    "leidenalg>=0.9.1",
     "matplotlib>=3.8.0",
     "anndata>=0.8.0",
     "scanpy>=1.6.0",

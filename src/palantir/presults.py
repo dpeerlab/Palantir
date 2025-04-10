@@ -504,7 +504,13 @@ def cluster_gene_trends(
 
     gt_ad = AnnData(trends.values, dtype=np.float32)
     sc.pp.neighbors(gt_ad, n_neighbors=n_neighbors, use_rep="X")
-    sc.tl.leiden(gt_ad, **kwargs)
+    
+    # Add required kwargs for leiden with igraph backend to avoid FutureWarning
+    leiden_kwargs = {'flavor': 'igraph', 'n_iterations': 2, 'directed': False}
+    # Override with user-provided kwargs if any
+    leiden_kwargs.update(kwargs)
+    
+    sc.tl.leiden(gt_ad, **leiden_kwargs)
 
     communities = pd.Series(gt_ad.obs["leiden"].values, index=trends.index)
 

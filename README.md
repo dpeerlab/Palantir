@@ -75,6 +75,7 @@ Release Notes
  ### Version 1.4.1
   * update `LICENSE` file to be consistent with MIT - license
   * implement `plot_trajectories` to show multiple poaths on the UMAP
+  * Drop leiden dependency to allow Python >= 3.13. igrph is used instead.
 
  ### Version 1.4.0
  * Made pygam an optional dependency that can be installed with `pip install palantir[gam]` or `pip install palantir[full]`

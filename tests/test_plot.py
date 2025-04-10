@@ -401,14 +401,19 @@ def test_plot_palantir_results_custom_args(mock_anndata):
 
 # Test with AnnData and all keys available
 def test_plot_terminal_state_probs_anndata(mock_anndata, mock_cells):
+    # Close existing figures to avoid warnings
+    plt.close('all')
     fig = plot_terminal_state_probs(mock_anndata, mock_cells)
     assert isinstance(fig, plt.Figure)
+    plt.close(fig)
 
 
 # Test with DataFrame and PResults
 def test_plot_terminal_state_probs_dataframe(mock_data, mock_presults, mock_cells):
+    plt.close('all')
     fig = plot_terminal_state_probs(mock_data, mock_cells, pr_res=mock_presults)
     assert isinstance(fig, plt.Figure)
+    plt.close(fig)
 
 
 # Test ValueError for missing pr_res in DataFrame input
@@ -616,6 +621,9 @@ def test_plot_gene_trend_heatmaps(mock_anndata):
 
 
 def test_plot_gene_trend_clusters(mock_anndata):
+    # Close all figures to start clean
+    plt.close('all')
+    
     # Test with AnnData object
     fig = plot_gene_trend_clusters(mock_anndata, branch_name="a", clusters="clusters")
     assert isinstance(fig, plt.Figure)
@@ -623,7 +631,11 @@ def test_plot_gene_trend_clusters(mock_anndata):
     # We expect one subplot per unique non-NaN cluster
     unique_clusters = [x for x in mock_anndata.var["clusters"].unique() if not pd.isna(x)]
     assert len(fig.axes) == len(unique_clusters)
+    plt.close(fig)
 
+    # Close all figures again before next test
+    plt.close('all')
+    
     # Test DataFrame input
     trends_df = mock_anndata.varm["gene_trends_a"]
     clusters_series = mock_anndata.var["clusters"]
@@ -631,16 +643,20 @@ def test_plot_gene_trend_clusters(mock_anndata):
 
     assert isinstance(fig_df, plt.Figure)
     assert len(fig_df.axes) == len(unique_clusters)
-
-    plt.close(fig)
+    
     plt.close(fig_df)
+    plt.close('all')
 
 
 def test_gene_score_histogram(mock_anndata):
+    # Close all figures before testing
+    plt.close('all')
+    
     # Test with minimum required parameters
     fig = gene_score_histogram(mock_anndata, "gene_score")
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
+    plt.close('all')
 
     # Test with optional parameters
     fig = gene_score_histogram(
@@ -652,8 +668,10 @@ def test_gene_score_histogram(mock_anndata):
     )
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
+    plt.close('all')
 
-    # Test with None quantile
+    # Test with None quantile - this would previously cause a warning
+    # about empty legend when quantile is None
     fig = gene_score_histogram(
         mock_anndata,
         "gene_score",
@@ -661,6 +679,7 @@ def test_gene_score_histogram(mock_anndata):
     )
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
+    plt.close('all')
 
 
 def test_gene_score_histogram_errors(mock_anndata):

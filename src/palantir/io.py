@@ -191,7 +191,8 @@ def from_fcs(
     """
     # Parse the fcs file
     text, data = fcsparser.parse(fcs_file)
-    data = data.astype(np.float64)
+    # Use view instead of newbyteorder for NumPy 2.0 compatibility
+    data = data.astype(np.float64, copy=False)
 
     # Extract the S and N features (Indexing assumed to start from 1)
     # Assumes channel names are in S
