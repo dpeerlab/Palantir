@@ -12,11 +12,12 @@ from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import contextlib
 import logging
-import mellon
 
 
 @contextlib.contextmanager
 def no_mellon_log_messages():
+    # Import mellon locally to avoid JAX fork warnings in other parts of the code
+    import mellon
     current_level = mellon.logger.level
     mellon.logger.setLevel(logging.ERROR)
     try:

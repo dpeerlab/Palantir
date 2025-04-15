@@ -29,7 +29,17 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install flake8 pytest pytest-cov coverage typing-extensions
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        python -m pip install -e .
+        
+        # Install the package with appropriate test dependencies
+        # For Python 3.13+, use test-base (without fcsparser)
+        # For Python <3.13, use test (includes fcsparser)
+        if python -c "import sys; exit(0 if sys.version_info >= (3, 13) else 1)"; then
+          python -m pip install -e ".[test-base]"
+          echo "Installed with test-base dependencies (no fcsparser) for Python 3.13+"
+        else
+          python -m pip install -e ".[test]"
+          echo "Installed with test dependencies (includes fcsparser) for Python < 3.13"
+        fi
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names

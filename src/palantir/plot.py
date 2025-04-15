@@ -8,7 +8,6 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import gaussian_kde
 import scanpy as sc
-import mellon
 from anndata import AnnData
 
 import matplotlib
@@ -2223,6 +2222,8 @@ def plot_trajectory(
     pseudotime_grid = np.linspace(pseudotime_interval[0], pseudotime_interval[1], 200)
     ls = smoothness * np.sqrt(np.sum((np.max(umap, axis=0) - np.min(umap, axis=0)) ** 2)) / 20
     with no_mellon_log_messages():
+        # Import mellon inside the context to avoid JAX fork warnings
+        import mellon
         umap_est = mellon.FunctionEstimator(ls=ls, sigma=ls, n_landmarks=50)
     umap_trajectory = umap_est.fit_predict(pseudotime, umap[mask, :], pseudotime_grid)
 
@@ -2442,6 +2443,8 @@ def plot_trajectories(
             
             # Calculate smoothness parameter (ls) from overall UMAP span.
             ls = smoothness * np.sqrt(np.sum((np.max(umap, axis=0) - np.min(umap, axis=0)) ** 2)) / 20
+            # Import mellon locally to avoid JAX fork warnings
+            import mellon
             umap_est = mellon.FunctionEstimator(ls=ls, sigma=ls, n_landmarks=50)
             umap_trajectory = umap_est.fit_predict(branch_pt, umap[branch_mask, :], pseudotime_grid)
             

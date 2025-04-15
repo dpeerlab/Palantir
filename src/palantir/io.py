@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 import os.path
-import fcsparser
+import sys
 import scanpy as sc
 from scipy.io import mmread
 import anndata
-from typing import Optional, List
+from typing import Optional, List, Union
 
 
 def _clean_up(df: pd.DataFrame) -> pd.DataFrame:
@@ -188,23 +188,23 @@ def from_fcs(
     pd.DataFrame
         Processed cytometry data with metadata channels removed and
         optionally transformed using arcsinh.
+        
+    Notes
+    -----
+    This function requires the fcsparser package to be installed.
+    If not installed, it will raise an ImportError with instructions.
     """
+    try:
+        import fcsparser
+    except ImportError:
+        raise ImportError(
+            "The fcsparser package is required for reading FCS files. "
+            "Please install it with: pip install fcsparser"
+        )
     # Parse the fcs file
     text, data = fcsparser.parse(fcs_file)
     # Use view instead of newbyteorder for NumPy 2.0 compatibility
     data = data.astype(np.float64, copy=False)
-
-    # Extract the S and N features (Indexing assumed to start from 1)
-    # Assumes channel names are in S
-    no_channels = text["$PAR"]
-    channel_names = [""] * no_channels
-    for i in range(1, no_channels + 1):
-        # S name
-        try:
-            channel_names[i - 1] = text["$P%dS" % i]
-        except KeyError:
-            channel_names[i - 1] = text["$P%dN" % i]
-    data.columns = channel_names
 
     # Metadata and data
     metadata_channels = data.columns.intersection(metadata_channels)

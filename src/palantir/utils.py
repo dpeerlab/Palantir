@@ -3,12 +3,13 @@ from warnings import warn
 import pandas as pd
 import numpy as np
 
+import os
+import warnings
 from joblib import Parallel, delayed
 import gc
 
 from scipy.sparse import csr_matrix, find, issparse, hstack
 from scipy.sparse.linalg import eigs
-import mellon
 import scanpy as sc
 from anndata import AnnData
 
@@ -215,6 +216,9 @@ def run_density(
     ValueError
         If `repr_key` is not found in `ad.obsm`.
     """
+    # Import mellon locally to avoid JAX fork warnings in other parts of the code
+    import mellon
+    
     if repr_key not in ad.obsm:
         raise ValueError(
             f"'{repr_key}' not found in ad.obsm. "
@@ -274,6 +278,9 @@ def run_density_evaluation(
     ValueError
         If `repr_key` is not found in `out_ad.obsm` or `predictor_key` is not found in `in_ad.uns`.
     """
+    # Import mellon locally to avoid JAX fork warnings in other parts of the code
+    import mellon
+    
     if repr_key not in out_ad.obsm:
         raise ValueError(
             f"'{repr_key}' not found in out_ad.obsm. "

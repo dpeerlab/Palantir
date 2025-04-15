@@ -3,7 +3,6 @@ import h5py
 import pandas as pd
 import numpy as np
 import os.path
-import fcsparser
 import scanpy as sc
 from scipy.io import mmread, mmwrite
 from scipy.sparse import csr_matrix, csc_matrix
@@ -15,6 +14,13 @@ from palantir.io import (
     from_10x_HDF5,
     from_fcs,
 )
+
+# Check if fcsparser is available
+try:
+    import fcsparser
+    FCSPARSER_AVAILABLE = True
+except ImportError:
+    FCSPARSER_AVAILABLE = False
 
 
 @pytest.fixture
@@ -141,6 +147,7 @@ def test_from_10x_HDF5(mock_10x_h5):
     assert len(clean_df.columns) == 400
 
 
+@pytest.mark.skipif(not FCSPARSER_AVAILABLE, reason="fcsparser not installed")
 def test_from_fcs():
     df = from_fcs(None, fcsparser.test_sample_path)
     assert len(df) == 14945

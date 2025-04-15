@@ -33,7 +33,6 @@ dependencies = [
     "networkx>=2.1",
     "scikit-learn",
     "joblib",
-    "fcsparser>=0.1.2",
     "matplotlib>=3.8.0",
     "anndata>=0.8.0",
     "scanpy>=1.6.0",
@@ -47,14 +46,30 @@ gam = [
     "pygam",
 ]
 
+fcs = [
+    "fcsparser>=0.1.2",
+]
+
 full = [
     "pygam",
+    "fcsparser>=0.1.2",
+]
+
+test-base = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "h5py",
 ]
 
 test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "h5py",
+    "fcsparser>=0.1.2",
+]
+
+pre313 = [
+    "fcsparser>=0.1.2",
 ]
 
 [project.urls]
@@ -104,3 +119,6 @@ exclude_lines = [
     "def _return_cell",
     "print"
 ]
+
+[project.scripts]
+palantir-cli = "palantir.cli:main"

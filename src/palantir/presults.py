@@ -10,7 +10,6 @@ from collections import OrderedDict
 from joblib import delayed, Parallel
 from sklearn.preprocessing import StandardScaler
 import scanpy as sc
-import mellon
 from anndata import AnnData
 
 from . import config
@@ -280,6 +279,9 @@ def compute_gene_trends(
     else:
         lineages = branches
 
+    # Import mellon locally to avoid JAX fork warnings in other parts of the code
+    import mellon
+    
     # Set the default arguments for mellon.FunctionEstimator
     mellon_args = dict(sigma=1, ls=1)
 
