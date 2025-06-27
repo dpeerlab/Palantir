@@ -72,6 +72,10 @@ ____
 
 Release Notes
 -------------
+
+ ### Next Release
+ * fix "lightgray" error in `plot_trend`
+
  ### Version 1.4.1
   * update `LICENSE` file to be consistent with MIT - license
   * implement `plot_trajectories` to show multiple poaths on the UMAP

@@ -184,7 +184,12 @@ def _color_vector(ad, color_key, values=None, palette=None, na_color="lightgray"
 
         # Convert categories to colors
         if legend_palette:
-            color_vector = values.map(legend_palette).fillna(na_color)
+            mapped_colors = values.map(legend_palette)
+            if hasattr(mapped_colors, 'cat') and hasattr(mapped_colors.cat, 'add_categories'):
+                # For categorical data, add na_color to categories before fillna
+                if na_color not in mapped_colors.cat.categories:
+                    mapped_colors = mapped_colors.cat.add_categories([na_color])
+            color_vector = mapped_colors.fillna(na_color)
         else:
             # Default to grayscale
             color_vector = values.map(lambda x: na_color if pd.isna(x) else "gray")
