@@ -24,3 +24,11 @@ AUTO_CONVERT_CELL_IDS_TO_STR = True
 # When True, emit warnings when cell identifier format mismatches are detected and converted,
 # or when requested cells are not found in the data.
 WARN_ON_CELL_ID_CONVERSION = True
+
+# Joblib parallel processing backend configuration
+# Options: None (automatic selection), 'loky', 'threading', 'multiprocessing'
+# When None, automatically selects:
+#   - 'threading' for Python 3.12+ with joblib < 1.5 to avoid ResourceTracker errors
+#   - Default backend otherwise
+# See: https://github.com/joblib/joblib/issues/1708
+JOBLIB_BACKEND = None

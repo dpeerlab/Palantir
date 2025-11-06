@@ -78,6 +78,7 @@ Release Notes
  * better cell index checks for compatibility with spatial data
  * address pygam incompatibility with newer scipy versions
  * address fcsparser incompatibility with Numpy 2.0
+ * use different joblib backend in bugy version
 
 
  ### Version 1.4.1

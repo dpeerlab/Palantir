@@ -13,7 +13,7 @@ from scipy.sparse.linalg import eigs
 import scanpy as sc
 from anndata import AnnData
 
-from .core import run_palantir
+from .core import run_palantir, _get_joblib_backend
 
 from .validation import _validate_obsm_key, normalize_cell_identifiers
 
@@ -710,7 +710,11 @@ def run_magic_imputation(
     chunks = np.append(np.arange(0, X.shape[1], 100), [X.shape[1]])
 
     # Run the dot product in parallel on chunks
-    res = Parallel(n_jobs=n_jobs)(
+    parallel_kwargs = {"n_jobs": n_jobs}
+    backend = _get_joblib_backend()
+    if backend is not None:
+        parallel_kwargs["backend"] = backend
+    res = Parallel(**parallel_kwargs)(
         delayed(_dot_helper_func)(T_steps, X[:, chunks[i - 1] : chunks[i]])
         for i in range(1, len(chunks))
     )

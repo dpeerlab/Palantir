@@ -28,6 +28,35 @@ from .validation import normalize_cell_identifiers
 warnings.filterwarnings(action="ignore", message="scipy.cluster")
 warnings.filterwarnings(action="ignore", module="scipy", message="Changing the sparsity")
 
+def _get_joblib_backend():
+    """
+    Determine the appropriate joblib backend based on configuration and environment.
+
+    Returns
+    -------
+    str or None
+        The backend to use, or None to use joblib's default.
+    """
+    # Check if user has explicitly set backend in config
+    if config.JOBLIB_BACKEND is not None:
+        return config.JOBLIB_BACKEND
+
+    # Automatic selection for Python 3.12+ with old joblib
+    # This avoids ResourceTracker ChildProcessError warnings
+    # See: https://github.com/joblib/joblib/issues/1708
+    import sys
+    if sys.version_info >= (3, 12):
+        try:
+            import joblib
+            joblib_version = tuple(map(int, joblib.__version__.split('.')[:2]))
+            if joblib_version < (1, 5):
+                # Use threading backend to avoid ResourceTracker errors
+                return "threading"
+        except Exception:
+            pass  # If we can't determine version, use default
+
+    return None  # Use joblib's default backend
+
 
 def run_palantir(
     data: Union[pd.DataFrame, AnnData],
@@ -331,7 +360,11 @@ def _compute_pseudotime(
     adj = _connect_graph(adj, data, np.where(data.index == start_cell)[0][0])
 
     # Distances
-    dists = Parallel(n_jobs=n_jobs, max_nbytes=None)(
+    parallel_kwargs = {"n_jobs": n_jobs, "max_nbytes": None}
+    backend = _get_joblib_backend()
+    if backend is not None:
+        parallel_kwargs["backend"] = backend
+    dists = Parallel(**parallel_kwargs)(
         delayed(_shortest_path_helper)(np.where(data.index == cell)[0][0], adj)
         for cell in waypoints
     )

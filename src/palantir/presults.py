@@ -14,6 +14,7 @@ from anndata import AnnData
 
 from . import config
 from .validation import _validate_obsm_key, _validate_varm_key
+from .core import _get_joblib_backend
 
 
 # Used for trend computation and branch selection
@@ -170,7 +171,11 @@ def compute_gene_trends_legacy(
         # Branch cells and weights
         weights = pr_res.branch_probs.loc[gene_exprs.index, branch].values
         bins = np.array(results[branch]["trends"].columns)
-        res = Parallel(n_jobs=n_jobs)(
+        parallel_kwargs = {"n_jobs": n_jobs}
+        backend = _get_joblib_backend()
+        if backend is not None:
+            parallel_kwargs["backend"] = backend
+        res = Parallel(**parallel_kwargs)(
             delayed(gam_fit_predict)(
                 pr_res.pseudotime[gene_exprs.index].values,
                 gene_exprs.loc[:, gene].values,
