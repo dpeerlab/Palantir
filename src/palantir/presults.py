@@ -364,17 +364,36 @@ def gam_fit_predict(x, y, weights=None, pred_x=None, n_splines=4, spline_order=2
 
     # Check for known compatibility issues
     try:
+        import scipy
         import scipy.sparse as sp
+        import warnings
 
+        scipy_version = tuple(map(int, scipy.__version__.split('.')[:2]))
         test_matrix = sp.csr_matrix((1, 1))
-        if not hasattr(test_matrix, "A"):
-            import warnings
 
+        # Check for scipy >= 1.13 which removed the .A attribute from sparse matrices
+        if not hasattr(test_matrix, "A"):
             warnings.warn(
-                "Your scipy version may be incompatible with the installed pygam version. "
-                "If you encounter errors, consider using an older scipy version or updating pygam."
+                f"pygam is incompatible with scipy >= 1.13 (you have scipy {scipy.__version__}). "
+                "The sparse matrix .A attribute was removed in scipy 1.13. "
+                "This will cause errors when fitting GAM models. "
+                "To fix this issue:\n"
+                "  1. Downgrade scipy: pip install 'scipy<1.13'\n"
+                "  2. Or wait for pygam to be updated for scipy 1.13+\n"
+                "See: https://github.com/dswah/pyGAM/issues/361",
+                UserWarning,
+                stacklevel=2
             )
-    except:
+        elif scipy_version >= (1, 13):
+            # Preemptive warning even if .A still exists somehow
+            warnings.warn(
+                f"pygam may be incompatible with scipy {scipy.__version__}. "
+                "If you encounter AttributeError about sparse matrix .A attribute, "
+                "downgrade scipy: pip install 'scipy<1.13'",
+                UserWarning,
+                stacklevel=2
+            )
+    except Exception:
         pass  # Silently ignore any errors in the compatibility check
 
     # Weights

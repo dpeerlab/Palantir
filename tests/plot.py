@@ -41,7 +41,10 @@ def mock_umap_df():
 
 @pytest.fixture
 def mock_tsne():
-    return pd.DataFrame({"x": np.random.rand(100), "y": np.random.rand(100)})
+    return pd.DataFrame(
+        {"x": np.random.rand(100), "y": np.random.rand(100)},
+        index=[f"cell_{i}" for i in range(100)],
+    )
 
 
 @pytest.fixture
@@ -71,12 +74,13 @@ def mock_dm_res():
 
 @pytest.fixture
 def mock_presults():
+    cell_index = [f"cell_{i}" for i in range(100)]
     return PResults(
-        pseudotime=pd.Series(np.random.rand(100)),
-        entropy=pd.Series(np.random.rand(100)),
+        pseudotime=pd.Series(np.random.rand(100), index=cell_index),
+        entropy=pd.Series(np.random.rand(100), index=cell_index),
         branch_probs=pd.DataFrame(
             np.random.rand(100, 3),
-            index=[f"cell_{i}" for i in range(100)],
+            index=cell_index,
         ),
         waypoints=None,
     )

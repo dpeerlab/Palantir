@@ -15,12 +15,16 @@ from palantir.io import (
     from_fcs,
 )
 
-# Check if fcsparser is available
+# Check if fcsparser is available and compatible
 try:
     import fcsparser
     FCSPARSER_AVAILABLE = True
+    # fcsparser is incompatible with NumPy >= 2.0 (newbyteorder removed)
+    NUMPY_VERSION = tuple(map(int, np.__version__.split('.')[:2]))
+    NUMPY_INCOMPATIBLE_WITH_FCSPARSER = NUMPY_VERSION >= (2, 0)
 except ImportError:
     FCSPARSER_AVAILABLE = False
+    NUMPY_INCOMPATIBLE_WITH_FCSPARSER = False
 
 
 @pytest.fixture
@@ -147,7 +151,10 @@ def test_from_10x_HDF5(mock_10x_h5):
     assert len(clean_df.columns) == 400
 
 
-@pytest.mark.skipif(not FCSPARSER_AVAILABLE, reason="fcsparser not installed")
+@pytest.mark.skipif(
+    not FCSPARSER_AVAILABLE or NUMPY_INCOMPATIBLE_WITH_FCSPARSER,
+    reason="fcsparser not installed or incompatible with NumPy >= 2.0 (newbyteorder removed)"
+)
 def test_from_fcs():
     df = from_fcs(None, fcsparser.test_sample_path)
     assert len(df) == 14945

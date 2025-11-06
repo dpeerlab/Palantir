@@ -1,8 +1,11 @@
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple
 import numpy as np
 import pandas as pd
 import scanpy as sc
 from anndata import AnnData
+import warnings
+
+from . import config
 
 
 def _validate_obsm_key(ad, key, as_df=True):
@@ -154,3 +157,152 @@ def _validate_gene_trend_input(
         )
 
     return gene_trends
+
+
+def normalize_cell_identifiers(
+    cells: Union[List, Dict, pd.Series, pd.Index, np.ndarray],
+    obs_names: pd.Index,
+    context: str = "cell selection",
+) -> Tuple[Dict[str, str], int, int]:
+    """
+    Normalize cell identifiers to match the format of obs_names.
+
+    This function handles type mismatches between integer and string cell identifiers,
+    which commonly occur in spatial data where cells have integer indices but AnnData
+    may store obs_names as strings.
+
+    Parameters
+    ----------
+    cells : Union[List, Dict, pd.Series, pd.Index, np.ndarray]
+        Cell identifiers to normalize. Can be:
+        - List: List of cell identifiers
+        - Dict: {cell_id: annotation} mapping
+        - pd.Series: Cell identifiers as index, annotations as values
+        - pd.Index: Cell identifiers
+        - np.ndarray: Cell identifiers (1D array)
+    obs_names : pd.Index
+        The cell identifiers from the data (typically data.obs_names)
+    context : str, optional
+        Description of where this function is called from, for better error messages.
+        Default is "cell selection".
+
+    Returns
+    -------
+    normalized_cells : Dict[str, str]
+        Dictionary mapping normalized cell identifiers to annotations (empty string if no annotation)
+    n_requested : int
+        Number of cells requested
+    n_found : int
+        Number of cells found in obs_names after normalization
+
+    Raises
+    ------
+    ValueError
+        If cells format is invalid or if no cells are found after normalization
+    """
+    # Convert input to dict format
+    if isinstance(cells, dict):
+        cell_dict = cells.copy()
+    elif isinstance(cells, pd.Series):
+        cell_dict = dict(cells)
+    elif isinstance(cells, (list, pd.Index, np.ndarray)):
+        cell_dict = {cell: "" for cell in cells}
+    else:
+        raise ValueError(
+            f"Invalid cells format for {context}. Expected list, dict, pd.Series, "
+            f"pd.Index, or np.ndarray, got {type(cells).__name__}"
+        )
+
+    if len(cell_dict) == 0:
+        raise ValueError(f"No cells provided for {context}")
+
+    n_requested = len(cell_dict)
+
+    # Check if any cells match as-is
+    n_matched_original = sum(1 for cell in cell_dict.keys() if cell in obs_names)
+
+    # Detect type mismatch
+    first_cell = next(iter(cell_dict.keys()))
+    first_obs_name = obs_names[0]
+
+    cell_type = type(first_cell).__name__
+    obs_type = type(first_obs_name).__name__
+
+    # Check if there's a type mismatch (int vs str)
+    has_type_mismatch = False
+    if isinstance(first_cell, (int, np.integer)) and isinstance(first_obs_name, str):
+        has_type_mismatch = True
+        mismatch_desc = f"Cell identifiers are integers but data.obs_names contains strings"
+    elif isinstance(first_cell, str) and isinstance(first_obs_name, (int, np.integer)):
+        has_type_mismatch = True
+        mismatch_desc = f"Cell identifiers are strings but data.obs_names contains integers"
+
+    # Try conversion if there's a mismatch and auto-conversion is enabled
+    converted = False
+    if has_type_mismatch and config.AUTO_CONVERT_CELL_IDS_TO_STR:
+        try:
+            # Convert both to strings for consistent matching
+            if isinstance(first_cell, (int, np.integer)):
+                cell_dict = {str(k): v for k, v in cell_dict.items()}
+                converted = True
+                conversion_desc = "Converting cell identifiers from int to str"
+            elif isinstance(first_obs_name, (int, np.integer)):
+                obs_names_str = obs_names.astype(str)
+                # Check matches with converted obs_names
+                n_matched_converted = sum(1 for cell in cell_dict.keys() if cell in obs_names_str)
+                if n_matched_converted > n_matched_original:
+                    # Use string version for matching
+                    obs_names = obs_names_str
+                    converted = True
+                    conversion_desc = "Treating data.obs_names as strings for matching"
+        except (ValueError, TypeError):
+            pass
+
+    # Count matches after potential conversion
+    n_found = sum(1 for cell in cell_dict.keys() if cell in obs_names)
+
+    # Generate warnings if configured
+    if config.WARN_ON_CELL_ID_CONVERSION:
+        if has_type_mismatch:
+            if converted and n_found > 0:
+                warnings.warn(
+                    f"{context}: {mismatch_desc}. "
+                    f"{conversion_desc} (config.AUTO_CONVERT_CELL_IDS_TO_STR=True). "
+                    f"Found {n_found}/{n_requested} cells after conversion. "
+                    f"To disable this warning, set config.WARN_ON_CELL_ID_CONVERSION=False. "
+                    f"To fix this issue, ensure your cell identifiers match the type of data.obs_names: "
+                    f"use pd.Series(values, index=data.obs_names[your_indices]) or ensure consistent types.",
+                    UserWarning,
+                    stacklevel=3
+                )
+            elif not converted:
+                warnings.warn(
+                    f"{context}: {mismatch_desc}. "
+                    f"Automatic conversion is disabled (config.AUTO_CONVERT_CELL_IDS_TO_STR=False). "
+                    f"Only {n_found}/{n_requested} cells matched. "
+                    f"To enable automatic conversion, set config.AUTO_CONVERT_CELL_IDS_TO_STR=True. "
+                    f"To fix this issue manually, ensure your cell identifiers match the type of data.obs_names.",
+                    UserWarning,
+                    stacklevel=3
+                )
+
+        # Warn about cells not found
+        if n_found == 0:
+            warnings.warn(
+                f"{context}: None of the {n_requested} requested cells were found in data.obs_names. "
+                f"Your cells have type {cell_type}, data.obs_names has type {obs_type}. "
+                f"When using pd.Series, the index should contain actual cell identifiers from data.obs_names, "
+                f"not positional indices. Example: pd.Series(['label1', 'label2'], index=['cell_A', 'cell_B'])",
+                UserWarning,
+                stacklevel=3
+            )
+        elif n_found < n_requested:
+            n_missing = n_requested - n_found
+            warnings.warn(
+                f"{context}: Only {n_found}/{n_requested} requested cells were found in data.obs_names "
+                f"({n_missing} cells missing). Check that cell identifiers match data.obs_names exactly.",
+                UserWarning,
+                stacklevel=3
+            )
+
+    return cell_dict, n_requested, n_found

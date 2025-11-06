@@ -23,6 +23,7 @@ import warnings
 from anndata import AnnData
 
 from . import config
+from .validation import normalize_cell_identifiers
 
 warnings.filterwarnings(action="ignore", message="scipy.cluster")
 warnings.filterwarnings(action="ignore", module="scipy", message="Changing the sparsity")
@@ -99,16 +100,48 @@ def run_palantir(
     if save_as_df is None:
         save_as_df = config.SAVE_AS_DF
 
-    if isinstance(terminal_states, dict):
-        terminal_states = pd.Series(terminal_states)
-    if isinstance(terminal_states, pd.Series):
-        terminal_cells = terminal_states.index.values
+    # Handle terminal_states with normalization
+    if terminal_states is not None:
+        if isinstance(data, AnnData):
+            obs_names = data.obs_names
+        else:
+            obs_names = data.index
+
+        if isinstance(terminal_states, dict):
+            terminal_states = pd.Series(terminal_states)
+
+        if isinstance(terminal_states, pd.Series):
+            # Normalize terminal state cell identifiers
+            terminal_dict, n_requested, n_found = normalize_cell_identifiers(
+                terminal_states, obs_names, context="run_palantir terminal_states"
+            )
+            # Reconstruct Series with normalized keys
+            terminal_states = pd.Series(terminal_dict)
+            terminal_cells = list(terminal_dict.keys())
+        else:
+            # List or array of cell identifiers
+            terminal_dict, n_requested, n_found = normalize_cell_identifiers(
+                terminal_states, obs_names, context="run_palantir terminal_states"
+            )
+            terminal_cells = list(terminal_dict.keys())
     else:
-        terminal_cells = terminal_states
+        terminal_cells = None
+
     if isinstance(data, AnnData):
         ms_data = pd.DataFrame(data.obsm[eigvec_key], index=data.obs_names)
     else:
         ms_data = data
+
+    # Normalize early_cell identifier
+    early_cell_dict, _, n_early_found = normalize_cell_identifiers(
+        [early_cell], ms_data.index, context="run_palantir early_cell"
+    )
+    if n_early_found == 0:
+        raise ValueError(
+            f"Early cell '{early_cell}' not found in data. "
+            f"Please provide a valid cell identifier from data.obs_names (type: {type(ms_data.index[0]).__name__})"
+        )
+    early_cell = list(early_cell_dict.keys())[0]
 
     if scale_components:
         data_df = pd.DataFrame(
@@ -399,6 +432,17 @@ def identify_terminal_states(
         excluded_boundaries : pd.Index
             Boundary cells that are not terminal states.
     """
+    # Normalize early_cell identifier
+    early_cell_dict, _, n_early_found = normalize_cell_identifiers(
+        [early_cell], ms_data.index, context="identify_terminal_states early_cell"
+    )
+    if n_early_found == 0:
+        raise ValueError(
+            f"Early cell '{early_cell}' not found in data. "
+            f"Please provide a valid cell identifier from data.index (type: {type(ms_data.index[0]).__name__})"
+        )
+    early_cell = list(early_cell_dict.keys())[0]
+
     # Scale components
     data = pd.DataFrame(
         preprocessing.minmax_scale(ms_data),

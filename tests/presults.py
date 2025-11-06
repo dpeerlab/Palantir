@@ -1,6 +1,13 @@
 import numpy as np
 import pandas as pd
+import pytest
+import scipy
 import palantir
+
+# Check scipy version for pygam compatibility
+# pygam has known issues with scipy >= 1.13 due to sparse matrix changes
+SCIPY_VERSION = tuple(map(int, scipy.__version__.split('.')[:2]))
+SCIPY_INCOMPATIBLE_WITH_PYGAM = SCIPY_VERSION >= (1, 13)
 
 
 def test_PResults():
@@ -22,6 +29,10 @@ def test_PResults():
     assert np.array_equal(presults.branch_probs, branch_probs.values)
 
 
+@pytest.mark.skipif(
+    SCIPY_INCOMPATIBLE_WITH_PYGAM,
+    reason="pygam is incompatible with scipy >= 1.13 (sparse matrix .A attribute removed)"
+)
 def test_gam_fit_predict():
     # Create some dummy data
     x = np.array([0.1, 0.2, 0.3, 0.4, 0.5])

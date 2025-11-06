@@ -1,16 +1,18 @@
 import pytest
 import pandas as pd
 import numpy as np
+import warnings
 import scanpy as sc
 from anndata import AnnData
 from pandas.testing import assert_frame_equal, assert_series_equal
-from anndata import AnnData
 
 from palantir.validation import (
     _validate_obsm_key,
     _validate_varm_key,
     _validate_gene_trend_input,
+    normalize_cell_identifiers,
 )
+from palantir import config
 
 
 @pytest.fixture
@@ -230,3 +232,207 @@ def test_validate_gene_trend_input_errors(mock_anndata_with_gene_trends):
     # Test invalid data type
     with pytest.raises(ValueError, match="must be an instance of either AnnData"):
         _validate_gene_trend_input([1, 2, 3])  # List is not valid input
+
+
+# Tests for normalize_cell_identifiers
+@pytest.fixture
+def mock_obs_names_str():
+    """Create string obs_names for testing"""
+    return pd.Index(["cell_A", "cell_B", "cell_C", "cell_D", "cell_E"])
+
+
+@pytest.fixture
+def mock_obs_names_int():
+    """Create integer obs_names for testing"""
+    return pd.Index([100, 200, 300, 400, 500])
+
+
+def test_normalize_cell_identifiers_list_exact_match(mock_obs_names_str):
+    """Test normalization with list of cells that match exactly"""
+    cells = ["cell_A", "cell_C", "cell_E"]
+    result, n_req, n_found = normalize_cell_identifiers(cells, mock_obs_names_str, context="test")
+
+    assert n_req == 3
+    assert n_found == 3
+    assert set(result.keys()) == {"cell_A", "cell_C", "cell_E"}
+    assert all(v == "" for v in result.values())
+
+
+def test_normalize_cell_identifiers_dict(mock_obs_names_str):
+    """Test normalization with dict input"""
+    cells = {"cell_A": "type1", "cell_B": "type2"}
+    result, n_req, n_found = normalize_cell_identifiers(cells, mock_obs_names_str, context="test")
+
+    assert n_req == 2
+    assert n_found == 2
+    assert result == {"cell_A": "type1", "cell_B": "type2"}
+
+
+def test_normalize_cell_identifiers_series(mock_obs_names_str):
+    """Test normalization with pd.Series input"""
+    cells = pd.Series(["label1", "label2"], index=["cell_A", "cell_C"])
+    result, n_req, n_found = normalize_cell_identifiers(cells, mock_obs_names_str, context="test")
+
+    assert n_req == 2
+    assert n_found == 2
+    assert result == {"cell_A": "label1", "cell_C": "label2"}
+
+
+def test_normalize_cell_identifiers_int_to_str_conversion(mock_obs_names_str):
+    """Test automatic conversion of integer cell IDs to strings"""
+    # User provides integers, obs_names are strings
+    cells = pd.Series(["pDC", "ERP"], index=[123, 456])
+
+    # Should warn about no cells found (which mentions the type mismatch)
+    with pytest.warns(UserWarning, match="None of the 2 requested cells were found"):
+        result, n_req, n_found = normalize_cell_identifiers(cells, mock_obs_names_str, context="test")
+
+    assert n_req == 2
+    assert n_found == 0  # Won't match because integers don't exist in string obs_names
+    # Will convert to strings "123" and "456" but won't match obs_names
+    assert "123" in result
+    assert "456" in result
+
+
+def test_normalize_cell_identifiers_str_to_int_data(mock_obs_names_int):
+    """Test with string cells and integer obs_names"""
+    # User provides strings, obs_names are integers
+    cells = ["100", "300", "500"]
+
+    with pytest.warns(UserWarning, match="Cell identifiers are strings but data.obs_names contains integers"):
+        result, n_req, n_found = normalize_cell_identifiers(cells, mock_obs_names_int, context="test")
+
+    assert n_req == 3
+    assert n_found == 3
+    assert set(result.keys()) == {"100", "300", "500"}
+
+
+def test_normalize_cell_identifiers_int_cells_int_obs():
+    """Test with integer cells and integer obs_names - should match perfectly"""
+    obs_names = pd.Index([100, 200, 300, 400, 500])
+    cells = [100, 300, 500]
+
+    # Should not warn when types match
+    result, n_req, n_found = normalize_cell_identifiers(cells, obs_names, context="test")
+
+    assert n_req == 3
+    assert n_found == 3
+    assert set(result.keys()) == {100, 300, 500}
+
+
+def test_normalize_cell_identifiers_partial_match():
+    """Test when only some cells are found"""
+    obs_names = pd.Index(["cell_A", "cell_B", "cell_C"])
+    cells = ["cell_A", "cell_X", "cell_Y"]  # Only cell_A exists
+
+    with pytest.warns(UserWarning, match="Only 1/3 requested cells were found"):
+        result, n_req, n_found = normalize_cell_identifiers(cells, obs_names, context="test")
+
+    assert n_req == 3
+    assert n_found == 1
+    assert "cell_A" in result
+
+
+def test_normalize_cell_identifiers_no_match():
+    """Test when no cells are found"""
+    obs_names = pd.Index(["cell_A", "cell_B", "cell_C"])
+    cells = ["cell_X", "cell_Y", "cell_Z"]
+
+    with pytest.warns(UserWarning, match="None of the 3 requested cells were found"):
+        result, n_req, n_found = normalize_cell_identifiers(cells, obs_names, context="test")
+
+    assert n_req == 3
+    assert n_found == 0
+
+
+def test_normalize_cell_identifiers_config_disable_warnings():
+    """Test that warnings can be disabled via config"""
+    obs_names = pd.Index(["cell_A", "cell_B"])
+    cells = ["cell_X", "cell_Y"]  # Won't be found
+
+    # Save original config
+    original_warn = config.WARN_ON_CELL_ID_CONVERSION
+
+    try:
+        # Disable warnings
+        config.WARN_ON_CELL_ID_CONVERSION = False
+
+        # Should not raise warning
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # Turn warnings into errors
+            result, n_req, n_found = normalize_cell_identifiers(cells, obs_names, context="test")
+
+        assert n_req == 2
+        assert n_found == 0
+
+    finally:
+        # Restore original config
+        config.WARN_ON_CELL_ID_CONVERSION = original_warn
+
+
+def test_normalize_cell_identifiers_config_disable_auto_convert():
+    """Test that auto-conversion can be disabled via config"""
+    obs_names = pd.Index(["100", "200", "300"])
+    cells = [100, 200]  # Integers
+
+    # Save original configs
+    original_auto = config.AUTO_CONVERT_CELL_IDS_TO_STR
+    original_warn = config.WARN_ON_CELL_ID_CONVERSION
+
+    try:
+        # Disable auto-conversion
+        config.AUTO_CONVERT_CELL_IDS_TO_STR = False
+        config.WARN_ON_CELL_ID_CONVERSION = True
+
+        with pytest.warns(UserWarning, match="Automatic conversion is disabled"):
+            result, n_req, n_found = normalize_cell_identifiers(cells, obs_names, context="test")
+
+        assert n_req == 2
+        assert n_found == 0  # Won't match because conversion is disabled
+
+    finally:
+        # Restore original configs
+        config.AUTO_CONVERT_CELL_IDS_TO_STR = original_auto
+        config.WARN_ON_CELL_ID_CONVERSION = original_warn
+
+
+def test_normalize_cell_identifiers_pd_index():
+    """Test with pd.Index input"""
+    obs_names = pd.Index(["cell_A", "cell_B", "cell_C"])
+    cells = pd.Index(["cell_A", "cell_C"])
+
+    result, n_req, n_found = normalize_cell_identifiers(cells, obs_names, context="test")
+
+    assert n_req == 2
+    assert n_found == 2
+    assert set(result.keys()) == {"cell_A", "cell_C"}
+
+
+def test_normalize_cell_identifiers_numpy_array():
+    """Test with numpy array input"""
+    obs_names = pd.Index(["cell_A", "cell_B", "cell_C"])
+    cells = np.array(["cell_A", "cell_C"])
+
+    result, n_req, n_found = normalize_cell_identifiers(cells, obs_names, context="test")
+
+    assert n_req == 2
+    assert n_found == 2
+    assert set(result.keys()) == {"cell_A", "cell_C"}
+
+
+def test_normalize_cell_identifiers_empty_input():
+    """Test with empty input"""
+    obs_names = pd.Index(["cell_A", "cell_B"])
+    cells = []
+
+    with pytest.raises(ValueError, match="No cells provided"):
+        normalize_cell_identifiers(cells, obs_names, context="test")
+
+
+def test_normalize_cell_identifiers_invalid_type():
+    """Test with invalid input type"""
+    obs_names = pd.Index(["cell_A", "cell_B"])
+    cells = 12345  # Invalid type
+
+    with pytest.raises(ValueError, match="Invalid cells format"):
+        normalize_cell_identifiers(cells, obs_names, context="test")

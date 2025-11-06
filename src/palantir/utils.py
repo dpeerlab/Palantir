@@ -15,7 +15,7 @@ from anndata import AnnData
 
 from .core import run_palantir
 
-from .validation import _validate_obsm_key
+from .validation import _validate_obsm_key, normalize_cell_identifiers
 
 
 class CellNotFoundException(Exception):
@@ -154,7 +154,11 @@ def run_low_density_variability(
             "",
         ]
     elif isinstance(cell_mask, (list, pd.Series, pd.Index)):
-        masks = ad.obs_names.isin(cell_mask)[:, None]
+        # Normalize cell identifiers before matching
+        normalized_cells, _, _ = normalize_cell_identifiers(
+            cell_mask, ad.obs_names, context="run_low_density_variability cell_mask"
+        )
+        masks = ad.obs_names.isin(list(normalized_cells.keys()))[:, None]
         branch_names = [
             "",
         ]

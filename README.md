@@ -75,6 +75,10 @@ Release Notes
 
  ### Next Release
  * fix "lightgray" error in `plot_trend`
+ * better cell index checks for compatibility with spatial data
+ * address pygam incompatibility with newer scipy versions
+ * address fcsparser incompatibility with Numpy 2.0
+
 
  ### Version 1.4.1
   * update `LICENSE` file to be consistent with MIT - license

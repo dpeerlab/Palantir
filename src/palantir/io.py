@@ -201,6 +201,28 @@ def from_fcs(
             "The fcsparser package is required for reading FCS files. "
             "Please install it with: pip install fcsparser"
         )
+
+    # Check for known compatibility issues with NumPy 2.0
+    try:
+        import numpy
+        import warnings
+
+        numpy_version = tuple(map(int, numpy.__version__.split('.')[:2]))
+        if numpy_version >= (2, 0):
+            warnings.warn(
+                f"fcsparser is incompatible with NumPy >= 2.0 (you have NumPy {numpy.__version__}). "
+                "The ndarray.newbyteorder() method was removed in NumPy 2.0. "
+                "This may cause errors when parsing FCS files. "
+                "To fix this issue:\n"
+                "  1. Downgrade NumPy: pip install 'numpy<2.0'\n"
+                "  2. Or wait for fcsparser to be updated for NumPy 2.0+\n"
+                "See: https://github.com/eyurtsev/fcsparser/issues/66",
+                UserWarning,
+                stacklevel=2
+            )
+    except Exception:
+        pass  # Silently ignore any errors in the compatibility check
+
     # Parse the fcs file
     text, data = fcsparser.parse(fcs_file)
     # Use view instead of newbyteorder for NumPy 2.0 compatibility

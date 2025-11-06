@@ -27,6 +27,7 @@ from .plot_utils import (
     _plot_arrows,
     no_mellon_log_messages,
 )
+from .validation import normalize_cell_identifiers
 
 # Define type aliases and helper functions to ensure compatibility with all scanpy versions
 _FontWeight = Literal["light", "normal", "medium", "semibold", "bold", "heavy", "black"]
@@ -398,31 +399,38 @@ def highlight_cells_on_umap(
     else:
         raise TypeError("'data' should be either AnnData or pd.DataFrame.")
 
-    if not isinstance(cells, (pd.Series, np.ndarray, pd.Index, list)):
-        if isinstance(cells, str):
-            if cells not in data.obs.columns:
-                raise KeyError(f"'{cells}' not found in .obs.")
-            mask = data.obs[cells].astype(bool).values
-            cells = {cell: "" for cell in data.obs[mask].index}
-        elif not isinstance(cells, dict):
-            raise TypeError(
-                "'cells' should be either list, dict, pd.Series, pd.Index, string "
-                "(as column in .obs), or a boolean array-like."
-            )
-    elif isinstance(data, AnnData) and len(cells) == data.n_obs:
+    # Handle special case: string column name from obs
+    if isinstance(cells, str):
+        if cells not in data.obs.columns:
+            raise KeyError(f"'{cells}' not found in .obs.")
+        mask = data.obs[cells].astype(bool).values
+        cells = {cell: "" for cell in data.obs[mask].index}
+    # Handle special case: boolean array
+    elif isinstance(data, AnnData) and isinstance(cells, (np.ndarray, pd.Series)) and len(cells) == data.n_obs:
         try:
-            cells = data.obs_names[cells]
-        except IndexError:
-            raise ValueError(
-                "Using 'cells' as boolean index since len(cells) == ad.n_obs but failed."
+            # Check if it's a boolean array
+            if cells.dtype == bool or np.all((cells == 0) | (cells == 1)):
+                cells = {cell: "" for cell in data.obs_names[cells.astype(bool)]}
+            else:
+                # Not a boolean array, treat as cell identifiers
+                cells, n_requested, n_found = normalize_cell_identifiers(
+                    cells, umap.index, context="highlight_cells_on_umap"
+                )
+        except (IndexError, TypeError):
+            # Fall back to treating as cell identifiers
+            cells, n_requested, n_found = normalize_cell_identifiers(
+                cells, umap.index, context="highlight_cells_on_umap"
             )
-        cells = {cell: "" for cell in cells}
-    elif isinstance(cells, (list, np.ndarray, pd.Index)):
-        cells = {cell: "" for cell in cells}
-    elif isinstance(cells, pd.Series):
-        cells = dict(cells)
-    elif isinstance(cells, pd.Index):
-        cells = {cell: "" for cell in cells}
+    # Handle dict - may still need normalization if keys don't match
+    elif isinstance(cells, dict):
+        cells, n_requested, n_found = normalize_cell_identifiers(
+            cells, umap.index, context="highlight_cells_on_umap"
+        )
+    # Handle all other cases: list, pd.Series, pd.Index, np.ndarray
+    elif isinstance(cells, (list, pd.Series, pd.Index, np.ndarray)):
+        cells, n_requested, n_found = normalize_cell_identifiers(
+            cells, umap.index, context="highlight_cells_on_umap"
+        )
     else:
         raise TypeError(
             "'cells' should be either list, dict, pd.Series, pd.Index, string "
