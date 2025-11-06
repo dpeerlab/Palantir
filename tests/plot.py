@@ -49,12 +49,18 @@ def mock_tsne():
 
 @pytest.fixture
 def mock_data():
-    return pd.DataFrame(np.random.rand(100, 20))
+    return pd.DataFrame(
+        np.random.rand(100, 20),
+        index=[f"cell_{i}" for i in range(100)],
+    )
 
 
 @pytest.fixture
 def mock_clusters():
-    return pd.Series(["Cluster_1"] * 50 + ["Cluster_2"] * 50)
+    return pd.Series(
+        ["Cluster_1"] * 50 + ["Cluster_2"] * 50,
+        index=[f"cell_{i}" for i in range(100)],
+    )
 
 
 @pytest.fixture
@@ -64,12 +70,19 @@ def mock_cluster_colors():
 
 @pytest.fixture
 def mock_gene_data():
-    return pd.DataFrame(np.random.rand(100, 5), columns=[f"gene_{i}" for i in range(5)])
+    return pd.DataFrame(
+        np.random.rand(100, 5),
+        columns=[f"gene_{i}" for i in range(5)],
+        index=[f"cell_{i}" for i in range(100)],
+    )
 
 
 @pytest.fixture
 def mock_dm_res():
-    return pd.DataFrame(np.random.rand(100, 3))
+    return pd.DataFrame(
+        np.random.rand(100, 3),
+        index=[f"cell_{i}" for i in range(100)],
+    )
 
 
 @pytest.fixture

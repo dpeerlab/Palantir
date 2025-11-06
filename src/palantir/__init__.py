@@ -18,6 +18,12 @@ plot : Visualization functions
 """
 
 import importlib.metadata
+import warnings
+
+# Filter JAX warnings about CUDA when GPU support is not available
+warnings.filterwarnings("ignore", message=".*CUDA.*", module="jax.*")
+warnings.filterwarnings("ignore", message=".*cuSPARSE.*")
+warnings.filterwarnings("ignore", message=".*NVIDIA GPU.*")
 
 from . import config
 
