@@ -19,11 +19,16 @@ plot : Visualization functions
 
 import importlib.metadata
 import warnings
+import logging
 
-# Filter JAX warnings about CUDA when GPU support is not available
+# Filter JAX warnings and errors about CUDA when GPU support is not available
 warnings.filterwarnings("ignore", message=".*CUDA.*", module="jax.*")
 warnings.filterwarnings("ignore", message=".*cuSPARSE.*")
 warnings.filterwarnings("ignore", message=".*NVIDIA GPU.*")
+
+# Suppress JAX logging errors for CUDA plugin failures
+# These are harmless - JAX falls back to CPU automatically
+logging.getLogger("jax._src.xla_bridge").setLevel(logging.CRITICAL)
 
 from . import config
 
