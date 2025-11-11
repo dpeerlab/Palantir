@@ -145,7 +145,8 @@ def test_cluster_gene_trends_parameters():
     clusters2 = cluster_gene_trends(trends, "branch1", n_neighbors=20)
 
     # The clusters should be different with different parameters
-    assert (clusters1 != clusters2).any()
+    # Convert to string to avoid categorical comparison issues with different categories
+    assert (clusters1.astype(str) != clusters2.astype(str)).any()
 
 
 def test_cluster_gene_trends_error_handling():
