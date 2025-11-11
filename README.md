@@ -64,7 +64,7 @@ Palantir manuscript is available from [Nature Biotechnology](https://www.nature.
                 author = {Manu Setty and Vaidotas Kiseliovas and Jacob Levine and Adam Gayoso and Linas Mazutis and Dana Pe'er},
                 journal = {Nature Biotechnology},
                 year = {2019},
-                month = {march},
+                month = {March},
                 url = {https://doi.org/10.1038/s41587-019-0068-4},
                 doi = {10.1038/s41587-019-0068-4}
         }
@@ -78,14 +78,14 @@ Release Notes
  * better cell index checks for compatibility with spatial data
  * address pygam incompatibility with newer scipy versions
  * address fcsparser incompatibility with Numpy 2.0
- * use different joblib backend in bugy version
- * more convinient cell-name handling for intergers (e.g., in spatial data)
+ * use different joblib backend in buggy version
+ * more convenient cell-name handling for integers (e.g., in spatial data)
 
 
  ### Version 1.4.1
   * update `LICENSE` file to be consistent with MIT - license
-  * implement `plot_trajectories` to show multiple poaths on the UMAP
-  * Drop leiden dependency to allow Python >= 3.13. igrph is used instead.
+  * implement `plot_trajectories` to show multiple paths on the UMAP
+  * Drop leiden dependency to allow Python >= 3.13. igraph is used instead.
 
  ### Version 1.4.0
  * Made pygam an optional dependency that can be installed with `pip install palantir[gam]` or `pip install palantir[full]`
@@ -98,7 +98,7 @@ Release Notes
  * Added comprehensive type hints to improve code quality and IDE support
  * Remove dependency from `_` methods in scanpy for plotting.
  * add `pseudotime_interval` argument to control path length in `palantir.plot.plot_trajectory`
- 
+
  #### Testing and Quality Improvements
  * Added comprehensive tests for optional pygam dependency
  * Improved test coverage for run_magic_imputation with various input/output types
@@ -111,7 +111,7 @@ Release Notes
  * **bugfix**: `run_local_variability` for dense expression arrays now runs much faster and more accurate
 
  ### Version 1.3.4
- * avoid devision by zero in `select_branch_cells` for very small datasets
+ * avoid division by zero in `select_branch_cells` for very small datasets
  * make branch selection robust against NaNs
  * do not plot unclustered trends (NaN cluster) in `plot_gene_trend_clusters`
 
