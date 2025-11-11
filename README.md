@@ -73,14 +73,12 @@ ____
 Release Notes
 -------------
 
- ### Next Release
- * fix "lightgray" error in `plot_trend`
- * better cell index checks for compatibility with spatial data
- * address pygam incompatibility with newer scipy versions
- * address fcsparser incompatibility with Numpy 2.0
- * use different joblib backend in buggy version
- * more convenient cell-name handling for integers (e.g., in spatial data)
-
+ ### Version 1.4.2
+ * Fix "lightgray" error in `plot_trend`
+ * Address pygam incompatibility with newer scipy versions (automatic skip in tests, user warnings)
+ * Address fcsparser incompatibility with NumPy 2.0 (automatic skip in tests, user warnings)
+ * Use different joblib backend in Python 3.12+ with joblib < 1.5 to avoid ResourceTracker warnings
+ * More convenient cell-name handling for integers (e.g., in spatial data) with automatic type conversion
 
  ### Version 1.4.1
   * update `LICENSE` file to be consistent with MIT - license
