@@ -2437,7 +2437,7 @@ def plot_trajectories(
                 ax.scatter(
                     umap[branch_mask, 0],
                     umap[branch_mask, 1],
-                    c=colors_mapping[branch],
+                    color=colors_mapping[branch],
                     label=f"Branch {branch}",
                     **scatter_kwargs,
                 )

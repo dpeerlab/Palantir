@@ -73,6 +73,9 @@ ____
 Release Notes
 -------------
 
+ ### Next Release
+ * Avoid warning in `plot_trajectories`
+
  ### Version 1.4.2
  * Fix "lightgray" error in `plot_trend`
  * Address pygam incompatibility with newer scipy versions (automatic skip in tests, user warnings)
