@@ -74,7 +74,8 @@ Release Notes
 -------------
 
  ### Next Release
- * Avoid warning in `plot_trajectories`
+ * Avoid warning about coloring in `plot_trajectories`
+ * Fix: forward `eigvec_key` to fallback method in `early_cell()`
 
  ### Version 1.4.2
  * Fix "lightgray" error in `plot_trend`

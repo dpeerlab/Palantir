@@ -935,7 +935,7 @@ def early_cell(
     if fallback_seed is not None:
         print("Falling back to slow early cell detection.")
         return fallback_terminal_cell(
-            ad, celltype, celltype_column=celltype_column, seed=fallback_seed
+            ad, celltype, celltype_column=celltype_column, eigvec_key=eigvec_key, seed=fallback_seed
         )
 
     raise CellNotFoundException(
