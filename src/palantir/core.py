@@ -13,11 +13,12 @@ from sklearn.metrics import pairwise_distances
 from sklearn import preprocessing
 from sklearn.neighbors import NearestNeighbors
 from joblib import Parallel, delayed
-from scipy.sparse.linalg import eigs
+from scipy.sparse.linalg import eigs, splu
 
 from scipy.sparse import csr_matrix, find, csgraph
+from scipy.sparse.csgraph import connected_components
 from scipy.stats import entropy, pearsonr, norm
-from numpy.linalg import inv, pinv, LinAlgError
+from numpy.linalg import LinAlgError
 import warnings
 from anndata import AnnData
 
@@ -272,6 +273,14 @@ def _max_min_sampling(
     """
 
     waypoint_set = list()
+    min_waypoints = max(3, data.shape[1])
+    if num_waypoints < min_waypoints:
+        warnings.warn(
+            f"num_waypoints={num_waypoints} is too small for {data.shape[1]} components; "
+            f"using {min_waypoints} instead for stable sampling.",
+            UserWarning,
+        )
+        num_waypoints = min_waypoints
     no_iterations = int((num_waypoints) / data.shape[1])
     if seed is not None:
         np.random.seed(seed)
@@ -362,19 +371,16 @@ def _compute_pseudotime(
     adj = _connect_graph(adj, data, np.where(data.index == start_cell)[0][0])
 
     # Distances
-    parallel_kwargs = {"n_jobs": n_jobs, "max_nbytes": None}
-    backend = _get_joblib_backend()
-    if backend is not None:
-        parallel_kwargs["backend"] = backend
-    dists = Parallel(**parallel_kwargs)(
-        delayed(_shortest_path_helper)(np.where(data.index == cell)[0][0], adj)
-        for cell in waypoints
-    )
+    # Get indices for waypoints
+    # Using get_indexer is O(K) hash map lookup
+    wp_indices = data.index.get_indexer(waypoints)
+    
+    # Compute all shortest paths at once using scipy csgraph
+    # indices argument allows computing paths from specific sources
+    dists = csgraph.dijkstra(adj, directed=False, indices=wp_indices)
 
     # Convert to distance matrix
-    D = pd.DataFrame(0.0, index=waypoints, columns=data.index)
-    for i, cell in enumerate(waypoints):
-        D.loc[cell, :] = pd.Series(np.ravel(dists[i]), index=data.index[dists[i].index])[data.index]
+    D = pd.DataFrame(dists, index=waypoints, columns=data.index)
     end = time.time()
     print("Time for shortest paths: {} minutes".format((end - start) / 60))
 
@@ -418,6 +424,10 @@ def _compute_pseudotime(
         
         # Signs: -1 where mask is True, 1 otherwise
         signs = np.where(mask, -1.0, 1.0)
+        
+        # Preserve parity with the original loop which skipped the first waypoint row
+        t_wp[0] = 0.0
+        signs[0, :] = 1.0
         
         # P = D * signs + t_wp
         P_vals = D_vals * signs + t_wp
@@ -559,11 +569,11 @@ def _construct_markov_chain(
     # Markov chain construction
     print("Markov chain construction...")
     waypoints = wp_data.index
+    N = len(waypoints)
 
     # kNN graph
     n_neighbors = knn
     nbrs = NearestNeighbors(n_neighbors=n_neighbors, metric="euclidean", n_jobs=n_jobs).fit(wp_data)
-    kNN = nbrs.kneighbors_graph(wp_data, mode="distance")
     dist, ind = nbrs.kneighbors(wp_data)
 
     # Standard deviation allowing for "back" edges
@@ -571,23 +581,33 @@ def _construct_markov_chain(
     adaptive_std = np.ravel(dist[:, adpative_k])
 
     # Directed graph construction
-    # pseudotime position of all the neighbors
-    traj_nbrs = pd.DataFrame(
-        pseudotime[np.ravel(waypoints.values[ind])].values.reshape([len(waypoints), n_neighbors]),
-        index=waypoints,
-    )
-
-    # Remove edges that move backwards in pseudotime except for edges that are within
-    # the computed standard deviation
-    rem_edges = traj_nbrs.apply(lambda x: x < pseudotime[traj_nbrs.index] - adaptive_std)
-    rem_edges = rem_edges.stack()[rem_edges.stack()]
-
-    # Determine the indices and update adjacency matrix
-    cell_mapping = pd.Series(range(len(waypoints)), index=waypoints)
-    x = list(cell_mapping[rem_edges.index.get_level_values(0)])
-    y = list(rem_edges.index.get_level_values(1))
-    # Update adjacecy matrix
-    kNN[x, ind[x, y]] = 0
+    # Pseudotime of waypoints (N,)
+    pt = pseudotime[waypoints].values
+    
+    # Pseudotime of neighbors (N, knn)
+    traj = pt[ind]
+    
+    # Threshold per waypoint (N, 1)
+    cut = (pt - adaptive_std)[:, None]
+    
+    # Edges to remove (where neighbor is too far back)
+    # mask[i, j] is True if edge i -> ind[i, j] should be removed
+    mask = traj < cut
+    
+    # Edges to keep
+    keep = ~mask
+    
+    # Build sparse matrix directly with kept edges
+    # Row indices: 0,0,0... 1,1,1...
+    rows = np.repeat(np.arange(N), n_neighbors)
+    
+    # Flatten arrays
+    rows = rows[keep.ravel()]
+    cols = ind.ravel()[keep.ravel()]
+    data = dist.ravel()[keep.ravel()]
+    
+    # kNN distance matrix (directed)
+    kNN = csr_matrix((data, (rows, cols)), shape=(N, N))
 
     # Affinity matrix and markov chain
     x, y, z = find(kNN)
@@ -644,11 +664,31 @@ def _terminal_states_from_markov_chain(
 
     # Connected components of cells beyond cutoff
     cells = ranks.index[ranks > cutoff]
+    
+    # Map cells to indices in T
+    # waypoints are the index of T
+    cells_indices = np.where(waypoints.isin(cells))[0]
 
-    # Find connected components
-    T_dense = pd.DataFrame(T.todense(), index=waypoints, columns=waypoints)
-    graph = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
-    cells = [pseudotime[list(i)].idxmax() for i in nx.connected_components(graph)]
+    # Find connected components on subgraph
+    # T is directed, but we want components irrespective of direction (weakly connected)
+    # connected_components with directed=False treats the graph as undirected
+    T_sub = T[cells_indices, :][:, cells_indices]
+    n_comps, labels = connected_components(T_sub, directed=False)
+    
+    # Identify max pseudotime cell per component
+    # Iterate over component labels
+    terminal_candidates = []
+    for i in range(n_comps):
+        # Get indices of cells in this component (relative to T_sub)
+        comp_indices = np.where(labels == i)[0]
+        # Map back to global waypoints indices
+        global_indices = cells_indices[comp_indices]
+        # Get corresponding cell names
+        comp_cells = waypoints[global_indices]
+        # Find cell with max pseudotime in this component
+        terminal_candidates.append(pseudotime[comp_cells].idxmax())
+    
+    cells = terminal_candidates
 
     # Nearest diffusion map boundaries
     terminal_states = [
@@ -725,25 +765,39 @@ def _differentiation_entropy(
 
     # Q matrix
     Q = T[trans_states, :][:, trans_states]
-    # Fundamental matrix
-    mat = np.eye(Q.shape[0]) - Q.todense()
+    
+    # Fundamental matrix solver
+    # We want to solve (I - Q) * B = T_trans_abs
+    # Instead of inverting (I - Q), we solve the linear system
+    from scipy.sparse import eye
+    I_Q = eye(Q.shape[0], format="csc") - Q.tocsc()
+    
+    # RHS: Transition to Absorption states
+    R = T[trans_states, :][:, abs_states].toarray()
+    
     try:
-        N = inv(mat)
-    except LinAlgError:
-        warnings.warn(
-            "Singular matrix encountered. Attempting pseudo-inverse.",
-        )
-        N = pinv(mat, hermitian=True)
+        # Use sparse LU solver
+        lu = splu(I_Q)
+        branch_probs_vals = lu.solve(R)
+    except Exception:
+        # Fallback if singular or other issues (though unlikely for I-Q in absorbing chain)
+        warnings.warn("Sparse solver failed. Falling back to dense inverse.")
+        mat = I_Q.todense()
+        try:
+            N = inv(mat)
+        except LinAlgError:
+            N = pinv(mat, hermitian=True)
+        branch_probs_vals = np.dot(N, R)
 
     # Absorption probabilities
-    branch_probs = np.dot(N, T[trans_states, :][:, abs_states].todense())
     branch_probs = pd.DataFrame(
-        branch_probs, index=waypoints[trans_states], columns=waypoints[abs_states]
+        branch_probs_vals, index=waypoints[trans_states], columns=waypoints[abs_states]
     )
     branch_probs[branch_probs < 0] = 0
 
     # Entropy
-    ent = branch_probs.apply(entropy, axis=1)
+    # entropy expects (N, k) array and axis
+    ent = pd.Series(entropy(branch_probs.values, axis=1), index=branch_probs.index)
 
     # Add terminal states
     ent = pd.concat([ent, pd.Series(0, index=terminal_states)])
