@@ -15,7 +15,7 @@ from sklearn.neighbors import NearestNeighbors
 from joblib import Parallel, delayed
 from scipy.sparse.linalg import eigs, splu
 
-from scipy.sparse import csr_matrix, find, csgraph
+from scipy.sparse import csr_matrix, find, csgraph, eye
 from scipy.sparse.csgraph import connected_components
 from scipy.stats import entropy, pearsonr, norm
 from numpy.linalg import LinAlgError
@@ -769,7 +769,6 @@ def _differentiation_entropy(
     # Fundamental matrix solver
     # We want to solve (I - Q) * B = T_trans_abs
     # Instead of inverting (I - Q), we solve the linear system
-    from scipy.sparse import eye
     I_Q = eye(Q.shape[0], format="csc") - Q.tocsc()
     
     # RHS: Transition to Absorption states
