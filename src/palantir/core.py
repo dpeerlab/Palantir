@@ -18,7 +18,6 @@ from scipy.sparse.linalg import eigs
 from scipy.sparse import csr_matrix, find, csgraph
 from scipy.stats import entropy, pearsonr, norm
 from numpy.linalg import inv, pinv, LinAlgError
-from copy import deepcopy
 import warnings
 from anndata import AnnData
 
