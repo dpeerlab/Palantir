@@ -279,31 +279,34 @@ def _max_min_sampling(
 
     # Sample along each component
     N = data.shape[0]
-    for ind in data.columns:
+    # Pre-access values to avoid dataframe overhead in loop
+    data_values = data.values
+
+    for i, ind in enumerate(data.columns):
         # Data vector
-        vec = np.ravel(data[ind])
+        vec = data_values[:, i]
 
         # Random initialzlation
+        current_wp = np.random.randint(N)
         iter_set = [
-            np.random.randint(N),
+            current_wp,
         ]
 
-        # Distances along the component
-        dists = np.zeros([N, no_iterations])
-        dists[:, 0] = abs(vec - data[ind].values[iter_set])
-        for k in range(1, no_iterations):
-            # Minimum distances across the current set
-            min_dists = dists[:, 0:k].min(axis=1)
+        # Initialize minimum distances (distance to the first point)
+        min_dists = np.abs(vec - vec[current_wp])
 
+        for k in range(1, no_iterations):
             # Point with the maximum of the minimum distances is the new waypoint
-            new_wp = np.where(min_dists == min_dists.max())[0][0]
+            new_wp = np.argmax(min_dists)
             iter_set.append(new_wp)
 
-            # Update distances
-            dists[:, k] = abs(vec - data[ind].values[new_wp])
+            # Update minimum distances
+            # We only need to compare current min_dists with dists to new_wp
+            new_dists = np.abs(vec - vec[new_wp])
+            min_dists = np.minimum(min_dists, new_dists)
 
         # Update global set
-        waypoint_set = waypoint_set + iter_set
+        waypoint_set.extend(iter_set)
 
     # Unique waypoints
     waypoints = data.index[waypoint_set].unique()
@@ -392,22 +395,37 @@ def _compute_pseudotime(
 
     # Iteratively update perspective and determine pseudotime
     iteration = 1
+    
+    # Convert inputs to numpy for speed
+    D_vals = D.values  # K x N
+    W_vals = W.values  # K x N
+    
     while not converged and iteration < max_iterations:
-        # Perspective matrix by alinging to start distances
-        P = deepcopy(D)
-        for wp in waypoints[1:]:
-            # Position of waypoints relative to start
-            idx_val = pseudotime[wp]
-
-            # Convert all cells before starting point to the negative
-            before_indices = pseudotime.index[pseudotime < idx_val]
-            P.loc[wp, before_indices] = -D.loc[wp, before_indices]
-
-            # Align to start
-            P.loc[wp, :] = P.loc[wp, :] + idx_val
-
-        # Weighted pseudotime
-        new_traj = P.multiply(W).sum()
+        # P calculation vectorized
+        # P[i, j] = D[i, j] * sign + t_wp[i]
+        
+        # t_wp: pseudotime at waypoints. Shape (K, 1)
+        # pseudotime contains values for all cells.
+        # D.index contains waypoint names.
+        t_wp = pseudotime[D.index].values[:, None]
+        
+        # t_cells: pseudotime at all cells. Shape (1, N)
+        # pseudotime Series is aligned with D columns (cells)
+        t_cells = pseudotime.values[None, :]
+        
+        # Mask: where cell time < waypoint time
+        # Shape (K, N)
+        mask = t_cells < t_wp
+        
+        # Signs: -1 where mask is True, 1 otherwise
+        signs = np.where(mask, -1.0, 1.0)
+        
+        # P = D * signs + t_wp
+        P_vals = D_vals * signs + t_wp
+        
+        # Weighted pseudotime: sum(P * W, axis=0)
+        new_traj_vals = np.sum(P_vals * W_vals, axis=0)
+        new_traj = pd.Series(new_traj_vals, index=pseudotime.index)
 
         # Check for convergence
         corr = pearsonr(pseudotime, new_traj)[0]
