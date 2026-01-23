@@ -91,7 +91,9 @@ def test_early_cell_fallback():
         # Test early_cell with fallback - it should find no cell in extremes and fall back
         result = early_cell(ad, "C", fallback_seed=42)  # Cell type C doesn't exist
         assert result == "cell_5"
-        mock_fallback.assert_called_once_with(ad, "C", celltype_column="celltype", seed=42)
+        mock_fallback.assert_called_once_with(
+            ad, "C", celltype_column="celltype", eigvec_key="DM_EigenVectors_multiscaled", seed=42
+        )
 
 
 def test_early_cell_exception():
