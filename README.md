@@ -76,6 +76,14 @@ Release Notes
  ### Next Release
  * Avoid warning about coloring in `plot_trajectories`
  * Fix: forward `eigvec_key` to fallback method in `early_cell()`
+ * Performance optimizations (PR #176):
+   - Faster max-min waypoint sampling: O(N·K²) → O(N·K)
+   - PCA slicing optimization to avoid redundant recomputation
+   - Sparse LU solver for absorption probabilities
+   - Vectorized perspective matrix and Dijkstra shortest paths
+   - Vectorized Markov chain construction and terminal state detection
+   - Optional sklearn backend for diffusion kernel (`kernel_backend` parameter)
+ * Fix: `run_pca` now correctly preserves existing `X_pca` when using custom `pca_key`
 
  ### Version 1.4.2
  * Fix "lightgray" error in `plot_trend`

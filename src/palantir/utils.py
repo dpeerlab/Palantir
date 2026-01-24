@@ -26,6 +26,29 @@ class CellNotFoundException(Exception):
     pass
 
 
+def _slice_pca(ad: AnnData, n_comps: int) -> None:
+    """Slice PCA results to fewer components without recomputing.
+
+    Parameters
+    ----------
+    ad : AnnData
+        AnnData object with PCA results in obsm["X_pca"], uns["pca"], and varm["PCs"].
+    n_comps : int
+        Number of components to keep.
+    """
+    if "X_pca" in ad.obsm:
+        ad.obsm["X_pca"] = ad.obsm["X_pca"][:, :n_comps]
+    if "pca" in ad.uns:
+        for key in ("variance", "variance_ratio"):
+            if key in ad.uns["pca"]:
+                ad.uns["pca"][key] = np.asarray(ad.uns["pca"][key])[:n_comps]
+        params = ad.uns["pca"].get("params")
+        if isinstance(params, dict) and "n_comps" in params:
+            params["n_comps"] = n_comps
+    if "PCs" in ad.varm:
+        ad.varm["PCs"] = ad.varm["PCs"][:, :n_comps]
+
+
 def run_pca(
     data: Union[pd.DataFrame, AnnData],
     n_components: int = 300,
@@ -53,25 +76,14 @@ def run_pca(
         Tuple of PCA projections of the data and the explained variance.
         If AnnData is passed as data, the results are also written to the input object and None is returned.
     """
-    def _slice_pca(ad: AnnData, n_comps: int) -> None:
-        if "X_pca" in ad.obsm:
-            ad.obsm["X_pca"] = ad.obsm["X_pca"][:, :n_comps]
-        if "pca" in ad.uns:
-            for key in ("variance", "variance_ratio"):
-                if key in ad.uns["pca"]:
-                    ad.uns["pca"][key] = np.asarray(ad.uns["pca"][key])[:n_comps]
-            params = ad.uns["pca"].get("params")
-            if isinstance(params, dict) and "n_comps" in params:
-                params["n_comps"] = n_comps
-        if "PCs" in ad.varm:
-            ad.varm["PCs"] = ad.varm["PCs"][:, :n_comps]
-
     if isinstance(data, pd.DataFrame):
         ad = AnnData(data.values)
+        old_pca = None
     else:
         ad = data
-        if pca_key != "X_pca":
-            old_pca = ad.obsm.get("X_pca", None)
+        # Preserve existing X_pca if user wants results in a different key
+        if pca_key != "X_pca" and "X_pca" in ad.obsm:
+            old_pca = ad.obsm["X_pca"].copy()
         else:
             old_pca = None
 
@@ -91,15 +103,19 @@ def run_pca(
         elif n_comps > l_n_comps:
             sc.pp.pca(ad, n_comps=n_comps, mask_var="highly_variable", zero_center=False)
 
-    if isinstance(data, AnnData):
-        data.obsm[pca_key] = ad.obsm["X_pca"]
-        if pca_key != "X_pca":
-            del data.obsm["X_pca"]
-        elif old_pca is not None:
-            data.obsm["X_pca"] = old_pca
+    # Capture results before potentially modifying obsm
+    pca_projections = pd.DataFrame(ad.obsm["X_pca"], index=ad.obs_names)
+    variance_ratio = ad.uns["pca"]["variance_ratio"]
 
-    pca_projections = pd.DataFrame(ad.obsm[pca_key], index=ad.obs_names)
-    return pca_projections, ad.uns["pca"]["variance_ratio"]
+    if isinstance(data, AnnData) and pca_key != "X_pca":
+        data.obsm[pca_key] = ad.obsm["X_pca"]
+        # Restore original X_pca if it existed, otherwise remove the temporary one
+        if old_pca is not None:
+            data.obsm["X_pca"] = old_pca
+        else:
+            del data.obsm["X_pca"]
+
+    return pca_projections, variance_ratio
 
 
 def run_low_density_variability(
