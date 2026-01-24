@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import time
-import logging
 import copy
 
 from sklearn.metrics import pairwise_distances
@@ -28,8 +27,6 @@ from .validation import normalize_cell_identifiers
 
 warnings.filterwarnings(action="ignore", message="scipy.cluster")
 warnings.filterwarnings(action="ignore", module="scipy", message="Changing the sparsity")
-
-logger = logging.getLogger(__name__)
 
 def _get_joblib_backend():
     """
@@ -195,7 +192,7 @@ def run_palantir(
         start_cell = early_cell
 
     # Sample waypoints
-    logger.debug("Sampling and flocking waypoints...")
+    print("Sampling and flocking waypoints...")
     start = time.time()
 
     # Append start cell
@@ -211,20 +208,20 @@ def run_palantir(
     # Append start cell
     waypoints = pd.Index([start_cell]).append(waypoints)
     end = time.time()
-    logger.debug("Time for determining waypoints: %.6f minutes", (end - start) / 60)
+    print("Time for determining waypoints: {} minutes".format((end - start) / 60))
 
     # pseudotime and weighting matrix
-    logger.debug("Determining pseudotime...")
+    print("Determining pseudotime...")
     pseudotime, W = _compute_pseudotime(data_df, start_cell, knn, waypoints, n_jobs, max_iterations)
 
     # Entropy and branch probabilities
-    logger.debug("Entropy and branch probabilities...")
+    print("Entropy and branch probabilities...")
     ent, branch_probs = _differentiation_entropy(
         data_df.loc[waypoints, :], terminal_cells, knn, n_jobs, pseudotime
     )
 
     # Project results to all cells
-    logger.debug("Project results to all cells...")
+    print("Project results to all cells...")
     branch_probs = pd.DataFrame(
         np.dot(W.T, branch_probs.loc[W.index, :]),
         index=W.columns,
@@ -353,7 +350,7 @@ def _compute_pseudotime(
             Weight matrix for each cell.
     """
 
-    logger.debug("Shortest path distances using %d-nearest neighbor graph...", knn)
+    print("Shortest path distances using {}-nearest neighbor graph...".format(knn))
     start = time.time()
     nbrs = NearestNeighbors(n_neighbors=knn, metric="euclidean", n_jobs=n_jobs).fit(data)
     adj = nbrs.kneighbors_graph(data, mode="distance")
@@ -365,9 +362,9 @@ def _compute_pseudotime(
     dists = csgraph.dijkstra(adj, directed=False, indices=wp_indices)
     D_vals = np.asarray(dists, dtype=float)
     end = time.time()
-    logger.debug("Time for shortest paths: %.6f minutes", (end - start) / 60)
+    print("Time for shortest paths: {} minutes".format((end - start) / 60))
 
-    logger.debug("Iteratively refining the pseudotime...")
+    print("Iteratively refining the pseudotime...")
     sdv = np.std(D_vals.ravel()) * 1.06 * len(D_vals.ravel()) ** (-1 / 5)
     W_vals = np.exp(-0.5 * np.power((D_vals / sdv), 2))
     W_vals = W_vals / W_vals.sum(axis=0, keepdims=True)
@@ -389,7 +386,7 @@ def _compute_pseudotime(
         new_traj_vals = np.sum(P_vals * W_vals, axis=0)
 
         corr = pearsonr(pseudotime, new_traj_vals)[0]
-        logger.debug("Correlation at iteration %d: %.4f", iteration, corr)
+        print("Correlation at iteration %d: %.4f" % (iteration, corr))
         if corr > 0.9999:
             converged = True
 
@@ -519,7 +516,7 @@ def _construct_markov_chain(
         Transition matrix of the Markov chain.
     """
     # Markov chain construction
-    logger.debug("Markov chain construction...")
+    print("Markov chain construction...")
     waypoints = wp_data.index
     N = len(waypoints)
 
@@ -588,7 +585,7 @@ def _terminal_states_from_markov_chain(
     np.ndarray
         Array of terminal state identifiers.
     """
-    logger.debug("Identification of terminal states...")
+    print("Identification of terminal states...")
 
     # Identify terminal statses
     waypoints = wp_data.index
@@ -705,7 +702,7 @@ def _differentiation_entropy(
     T[abs_states, abs_states] = 1
 
     # Fundamental matrix and absorption probabilities
-    logger.debug("Computing fundamental matrix and absorption probabilities...")
+    print("Computing fundamental matrix and absorption probabilities...")
     # Transition states
     trans_states = list(set(range(len(waypoints))).difference(abs_states))
 

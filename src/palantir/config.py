@@ -34,5 +34,6 @@ WARN_ON_CELL_ID_CONVERSION = True
 JOBLIB_BACKEND = None
 
 # Diffusion kernel backend configuration
-# Options: "scanpy" (parity with prior behavior) or "sklearn" (fast, may drift).
+# Options: "scanpy" (parity with prior behavior; approximate kNN) or
+# "sklearn" (exact kNN; may drift and can be slower on large/high-dimensional data).
 KERNEL_BACKEND = "scanpy"

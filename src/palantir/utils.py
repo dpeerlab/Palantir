@@ -346,8 +346,9 @@ def compute_kernel(
     kernel_key : str, optional
         Key to store the kernel in obsp of data if it is a AnnData object. Default is 'DM_Kernel'.
     backend : str, optional
-        Kernel construction backend: "scanpy" (parity with prior behavior) or
-        "sklearn" (fast, may drift). Defaults to palantir.config.KERNEL_BACKEND.
+        Kernel construction backend: "scanpy" (parity with prior behavior; approximate
+        kNN via scanpy/UMAP) or "sklearn" (exact kNN; may drift and can be slower on
+        large/high-dimensional data). Defaults to palantir.config.KERNEL_BACKEND.
 
     Returns
     -------
@@ -378,8 +379,9 @@ def compute_kernel(
 
     if use_sklearn:
         warn(
-            "Using 'sklearn' backend for diffusion maps. Results may show minor "
-            "numerical drift relative to the scanpy-based implementation.",
+            "Using 'sklearn' backend for diffusion maps (exact kNN). Results may show "
+            "minor numerical drift relative to the scanpy-based implementation, and "
+            "performance may vary with dataset size/dimensionality.",
             stacklevel=2,
         )
         n_neighbors = min(knn + 1, N)
@@ -509,8 +511,9 @@ def run_diffusion_maps(
         Numpy random seed, randomized if None, set to an arbitrary integer for reproducibility.
         Default is 0.
     kernel_backend : str, optional
-        Kernel construction backend: "scanpy" (parity with prior behavior) or
-        "sklearn" (fast, may drift). Defaults to "scanpy".
+        Kernel construction backend: "scanpy" (parity with prior behavior; approximate
+        kNN via scanpy/UMAP) or "sklearn" (exact kNN; may drift and can be slower on
+        large/high-dimensional data). Defaults to "scanpy".
     pca_key : str, optional
         Key to retrieve PCA projections from data if it is a AnnData object. Default is 'X_pca'.
     kernel_key : str, optional
