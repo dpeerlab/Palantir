@@ -73,10 +73,10 @@ ____
 Release Notes
 -------------
 
- ### Next Release
+ ### Version 1.4.3
  * Avoid warning about coloring in `plot_trajectories`
  * Fix: forward `eigvec_key` to fallback method in `early_cell()`
- * Performance optimizations (PR #176):
+ * Performance optimizations (thanks to [@svdrecbd](https://github.com/svdrecbd) for PR #176):
    - Faster max-min waypoint sampling: O(N·K²) → O(N·K)
    - PCA slicing optimization to avoid redundant recomputation
    - Sparse LU solver for absorption probabilities
