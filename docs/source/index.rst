@@ -41,7 +41,4 @@
     Github Repo <https://github.com/dpeerlab/Palantir>
 
 
-Index
-=====
-
-* :ref:`genindex`
+**Index:** :ref:`genindex`

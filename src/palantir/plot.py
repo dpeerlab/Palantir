@@ -348,47 +348,46 @@ def highlight_cells_on_umap(
     embedding_basis: str = "X_umap",
     figsize: Tuple[float, float] = (6, 6),
 ) -> Tuple[plt.Figure, plt.Axes]:
-    """
-     Highlights and annotates specific cells on a UMAP plot.
+    """Highlight and annotate specific cells on a UMAP plot.
 
-     Parameters
-     ----------
-     data : Union[AnnData, pd.DataFrame]
-         Either a Scanpy AnnData object or a DataFrame of UMAP coordinates.
-     cells : Union[List[str], Dict[str, str], pd.Series, pd.Index, np.ndarray, str]
-         Cells to highlight on the UMAP. Can be provided as:
-             - a list, dict, or pd.Series: used as cell names (values in dict/Series used as annotations).
-             - a pd.Index: cell identifiers matching those in the data's index will be highlighted.
-             - a boolean array-like: used as a mask to select cells from the data's index.
-             - a string: used to retrieve a boolean mask from the AnnData's .obs attribute.
+    Parameters
+    ----------
+    data : Union[AnnData, pd.DataFrame]
+        Either a Scanpy AnnData object or a DataFrame of UMAP coordinates.
+    cells : Union[List[str], Dict[str, str], pd.Series, pd.Index, np.ndarray, str]
+        Cells to highlight on the UMAP. Can be provided as:
+            - a list, dict, or pd.Series: used as cell names (values in dict/Series used as annotations).
+            - a pd.Index: cell identifiers matching those in the data's index will be highlighted.
+            - a boolean array-like: used as a mask to select cells from the data's index.
+            - a string: used to retrieve a boolean mask from the AnnData's .obs attribute.
     annotation_offset : float, optional
-         Offset for the annotations in proportion to the data range. Default is 0.03.
-     s : float, optional
-         Size of the points in the scatter plot. Default is 1.
-     s_highlighted : float, optional
-         Size of the points in the highlighted cells. Default is 10.
-     fig : Optional[plt.Figure], optional
-         Matplotlib Figure object. If None, a new figure is created. Default is None.
-     ax : Optional[plt.Axes], optional
-         Matplotlib Axes object. If None, a new Axes object is created. Default is None.
-     embedding_basis : str, optional
-         The key to retrieve UMAP results from the AnnData object. Default is 'X_umap'.
-     figsize : Tuple[float, float], optional
-         Size of the figure (width, height) in inches. Default is (6, 6).
+        Offset for the annotations in proportion to the data range. Default is 0.03.
+    s : float, optional
+        Size of the points in the scatter plot. Default is 1.
+    s_highlighted : float, optional
+        Size of the points in the highlighted cells. Default is 10.
+    fig : Optional[plt.Figure], optional
+        Matplotlib Figure object. If None, a new figure is created. Default is None.
+    ax : Optional[plt.Axes], optional
+        Matplotlib Axes object. If None, a new Axes object is created. Default is None.
+    embedding_basis : str, optional
+        The key to retrieve UMAP results from the AnnData object. Default is 'X_umap'.
+    figsize : Tuple[float, float], optional
+        Size of the figure (width, height) in inches. Default is (6, 6).
 
-     Returns
-     -------
-     fig : plt.Figure
-         A matplotlib Figure object containing the UMAP plot.
-     ax : plt.Axes
-         The corresponding Axes object.
+    Returns
+    -------
+    fig : plt.Figure
+        A matplotlib Figure object containing the UMAP plot.
+    ax : plt.Axes
+        The corresponding Axes object.
 
-     Raises
-     ------
-     KeyError
-         If 'embedding_basis' is not found in 'data.obsm'.
-     TypeError
-         If 'cells' is neither list, dict nor pd.Series.
+    Raises
+    ------
+    KeyError
+        If 'embedding_basis' is not found in 'data.obsm'.
+    TypeError
+        If 'cells' is neither list, dict nor pd.Series.
     """
     if isinstance(data, AnnData):
         if embedding_basis not in data.obsm:
