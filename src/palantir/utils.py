@@ -12,7 +12,9 @@ from scipy.sparse import csr_matrix, find, issparse, hstack
 from scipy.sparse.linalg import eigs
 import scanpy as sc
 from anndata import AnnData
+from sklearn.neighbors import NearestNeighbors
 
+from . import config as palantir_config
 from .core import run_palantir, _get_joblib_backend
 
 from .validation import _validate_obsm_key, normalize_cell_identifiers
@@ -51,6 +53,19 @@ def run_pca(
         Tuple of PCA projections of the data and the explained variance.
         If AnnData is passed as data, the results are also written to the input object and None is returned.
     """
+    def _slice_pca(ad: AnnData, n_comps: int) -> None:
+        if "X_pca" in ad.obsm:
+            ad.obsm["X_pca"] = ad.obsm["X_pca"][:, :n_comps]
+        if "pca" in ad.uns:
+            for key in ("variance", "variance_ratio"):
+                if key in ad.uns["pca"]:
+                    ad.uns["pca"][key] = np.asarray(ad.uns["pca"][key])[:n_comps]
+            params = ad.uns["pca"].get("params")
+            if isinstance(params, dict) and "n_comps" in params:
+                params["n_comps"] = n_comps
+        if "PCs" in ad.varm:
+            ad.varm["PCs"] = ad.varm["PCs"][:, :n_comps]
+
     if isinstance(data, pd.DataFrame):
         ad = AnnData(data.values)
     else:
@@ -60,9 +75,9 @@ def run_pca(
         else:
             old_pca = None
 
-    # Run PCA
     if not use_hvg:
-        n_comps = n_components
+        n_comps = min(n_components, ad.n_obs - 1, ad.n_vars - 1)
+        sc.pp.pca(ad, n_comps=n_comps, zero_center=False)
     else:
         l_n_comps = min(1000, ad.n_obs - 1, ad.n_vars - 1)
         sc.pp.pca(ad, n_comps=l_n_comps, mask_var="highly_variable", zero_center=False)
@@ -70,13 +85,11 @@ def run_pca(
             n_comps = np.where(np.cumsum(ad.uns["pca"]["variance_ratio"]) > 0.85)[0][0]
         except IndexError:
             n_comps = n_components
-
-    # Rerun with selection number of components
-    n_comps = min(n_comps, ad.n_obs - 1, ad.n_vars - 1)
-    kwargs = dict()
-    if use_hvg:
-        kwargs["mask_var"] = "highly_variable"
-    sc.pp.pca(ad, n_comps=n_comps, zero_center=False, **kwargs)
+        n_comps = min(n_comps, ad.n_obs - 1, ad.n_vars - 1)
+        if n_comps < l_n_comps:
+            _slice_pca(ad, n_comps)
+        elif n_comps > l_n_comps:
+            sc.pp.pca(ad, n_comps=n_comps, mask_var="highly_variable", zero_center=False)
 
     if isinstance(data, AnnData):
         data.obsm[pca_key] = ad.obsm["X_pca"]
@@ -314,6 +327,7 @@ def compute_kernel(
     alpha: float = 0,
     pca_key: str = "X_pca",
     kernel_key: str = "DM_Kernel",
+    backend: Optional[str] = None,
 ) -> csr_matrix:
     """
     Compute the adaptive anisotropic diffusion kernel.
@@ -331,6 +345,10 @@ def compute_kernel(
         Key to retrieve PCA projections from data if it is a AnnData object. Default is 'X_pca'.
     kernel_key : str, optional
         Key to store the kernel in obsp of data if it is a AnnData object. Default is 'DM_Kernel'.
+    backend : str, optional
+        Kernel construction backend: "scanpy" (parity with prior behavior; approximate
+        kNN via scanpy/UMAP) or "sklearn" (exact kNN; may drift and can be slower on
+        large/high-dimensional data). Defaults to palantir.config.KERNEL_BACKEND.
 
     Returns
     -------
@@ -338,25 +356,70 @@ def compute_kernel(
         Computed kernel matrix.
     """
 
-    # If the input is AnnData, convert it to a DataFrame
     if isinstance(data, AnnData):
-        data_df = pd.DataFrame(data.obsm[pca_key], index=data.obs_names)
+        data_df = data.obsm[pca_key]
+        if isinstance(data_df, pd.DataFrame):
+            data_df = data_df
+        else:
+            data_df = pd.DataFrame(data_df, index=data.obs_names)
     else:
         data_df = data
 
     N = data_df.shape[0]
-    temp = AnnData(data_df.values)
-    sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
-    kNN = temp.obsp["distances"]
+    data_values = data_df.values if isinstance(data_df, pd.DataFrame) else data_df
 
+    backend = backend or palantir_config.KERNEL_BACKEND
+    if backend not in {"scanpy", "sklearn"}:
+        raise ValueError("backend must be one of {'scanpy', 'sklearn'}")
     adaptive_k = int(np.floor(knn / 3))
-    adaptive_std = np.zeros(N)
-    for i in np.arange(N):
-        adaptive_std[i] = np.sort(kNN.data[kNN.indptr[i] : kNN.indptr[i + 1]])[adaptive_k - 1]
+    use_sklearn = backend == "sklearn"
+    if use_sklearn and issparse(data_df):
+        warn("sklearn backend does not support sparse input; falling back to scanpy.")
+        use_sklearn = False
 
-    x, y, dists = find(kNN)
-    dists /= adaptive_std[x]
-    W = csr_matrix((np.exp(-dists), (x, y)), shape=[N, N])
+    if use_sklearn:
+        warn(
+            "Using 'sklearn' backend for diffusion maps (exact kNN). Results may show "
+            "minor numerical drift relative to the scanpy-based implementation, and "
+            "performance may vary with dataset size/dimensionality.",
+            stacklevel=2,
+        )
+        n_neighbors = min(knn + 1, N)
+        nbrs = NearestNeighbors(
+            n_neighbors=n_neighbors, metric="euclidean", n_jobs=-1
+        ).fit(data_values)
+        dist, ind = nbrs.kneighbors(data_values)
+        if dist.shape[1] > 1 and np.all(ind[:, 0] == np.arange(N)):
+            dist = dist[:, 1:]
+            ind = ind[:, 1:]
+        knn_eff = dist.shape[1]
+        adaptive_k = max(1, min(adaptive_k, knn_eff))
+        adaptive_std = dist[:, adaptive_k - 1]
+        rows = np.repeat(np.arange(N), knn_eff)
+        cols = ind.ravel()
+        dists = dist.ravel() / np.repeat(adaptive_std, knn_eff)
+        W = csr_matrix((np.exp(-dists), (rows, cols)), shape=[N, N])
+    else:
+        temp = AnnData(data_values)
+        try:
+            from scanpy.neighbors import Neighbors as _Neighbors
+
+            neigh = _Neighbors(temp)
+            neigh.compute_neighbors(n_neighbors=knn, n_pcs=0, method=None)
+            kNN = neigh.distances
+        except Exception:
+            sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
+            kNN = temp.obsp["distances"]
+
+        adaptive_std = np.zeros(N)
+        for i in np.arange(N):
+            row = kNN.data[kNN.indptr[i] : kNN.indptr[i + 1]]
+            if row.size:
+                adaptive_std[i] = np.partition(row, adaptive_k - 1)[adaptive_k - 1]
+
+        x, y, dists = find(kNN)
+        dists /= adaptive_std[x]
+        W = csr_matrix((np.exp(-dists), (x, y)), shape=[N, N])
 
     kernel = W + W.T
 
@@ -422,6 +485,7 @@ def run_diffusion_maps(
     knn: int = 30,
     alpha: float = 0,
     seed: Union[int, None] = 0,
+    kernel_backend: str = "scanpy",
     pca_key: str = "X_pca",
     kernel_key: str = "DM_Kernel",
     sim_key: str = "DM_Similarity",
@@ -446,6 +510,10 @@ def run_diffusion_maps(
     seed : Union[int, None], optional
         Numpy random seed, randomized if None, set to an arbitrary integer for reproducibility.
         Default is 0.
+    kernel_backend : str, optional
+        Kernel construction backend: "scanpy" (parity with prior behavior; approximate
+        kNN via scanpy/UMAP) or "sklearn" (exact kNN; may drift and can be slower on
+        large/high-dimensional data). Defaults to "scanpy".
     pca_key : str, optional
         Key to retrieve PCA projections from data if it is a AnnData object. Default is 'X_pca'.
     kernel_key : str, optional
@@ -477,7 +545,7 @@ def run_diffusion_maps(
         raise ValueError("'data_df' should be a pd.DataFrame or AnnData")
 
     if not issparse(data_df):
-        kernel = compute_kernel(data_df, knn, alpha)
+        kernel = compute_kernel(data_df, knn, alpha, backend=kernel_backend)
     else:
         warn(
             "'data' is a sparse matrix and will be interpreted as kernel. "

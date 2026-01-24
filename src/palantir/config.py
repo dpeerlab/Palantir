@@ -32,3 +32,8 @@ WARN_ON_CELL_ID_CONVERSION = True
 #   - Default backend otherwise
 # See: https://github.com/joblib/joblib/issues/1708
 JOBLIB_BACKEND = None
+
+# Diffusion kernel backend configuration
+# Options: "scanpy" (parity with prior behavior; approximate kNN) or
+# "sklearn" (exact kNN; may drift and can be slower on large/high-dimensional data).
+KERNEL_BACKEND = "scanpy"
