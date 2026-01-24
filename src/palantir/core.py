@@ -288,38 +288,28 @@ def _max_min_sampling(
     if seed is not None:
         np.random.seed(seed)
 
-    # Sample along each component
     N = data.shape[0]
-    # Pre-access values to avoid dataframe overhead in loop
     data_values = data.values
 
     for i, ind in enumerate(data.columns):
-        # Data vector
         vec = data_values[:, i]
 
-        # Random initialzlation
         current_wp = np.random.randint(N)
         iter_set = [
             current_wp,
         ]
 
-        # Initialize minimum distances (distance to the first point)
         min_dists = np.abs(vec - vec[current_wp])
 
         for k in range(1, no_iterations):
-            # Point with the maximum of the minimum distances is the new waypoint
             new_wp = np.argmax(min_dists)
             iter_set.append(new_wp)
 
-            # Update minimum distances
-            # We only need to compare current min_dists with dists to new_wp
             new_dists = np.abs(vec - vec[new_wp])
             min_dists = np.minimum(min_dists, new_dists)
 
-        # Update global set
         waypoint_set.extend(iter_set)
 
-    # Unique waypoints
     waypoints = data.index[waypoint_set].unique()
 
     return waypoints
@@ -363,86 +353,46 @@ def _compute_pseudotime(
             Weight matrix for each cell.
     """
 
-    # ################################################
-    # Shortest path distances to determine trajectories
     logger.debug("Shortest path distances using %d-nearest neighbor graph...", knn)
     start = time.time()
     nbrs = NearestNeighbors(n_neighbors=knn, metric="euclidean", n_jobs=n_jobs).fit(data)
     adj = nbrs.kneighbors_graph(data, mode="distance")
 
-    # Connect graph if it is disconnected
     adj = _connect_graph(adj, data, np.where(data.index == start_cell)[0][0])
 
-    # Distances
-    # Get indices for waypoints
-    # Using get_indexer is O(K) hash map lookup
     wp_indices = data.index.get_indexer(waypoints)
-    
-    # Compute all shortest paths at once using scipy csgraph
-    # indices argument allows computing paths from specific sources
+
     dists = csgraph.dijkstra(adj, directed=False, indices=wp_indices)
     D_vals = np.asarray(dists, dtype=float)
     end = time.time()
     logger.debug("Time for shortest paths: %.6f minutes", (end - start) / 60)
 
-    # ###############################################
-    # Determine the perspective matrix
-
     logger.debug("Iteratively refining the pseudotime...")
-    # Waypoint weights
     sdv = np.std(D_vals.ravel()) * 1.06 * len(D_vals.ravel()) ** (-1 / 5)
     W_vals = np.exp(-0.5 * np.power((D_vals / sdv), 2))
-    # Stochastize the matrix (column-wise)
     W_vals = W_vals / W_vals.sum(axis=0, keepdims=True)
 
-    # Initalize pseudotime to start cell distances
     start_row = waypoints.get_loc(start_cell)
     pseudotime = D_vals[start_row, :].copy()
     converged = False
 
-    # Iteratively update perspective and determine pseudotime
     iteration = 1
-    
-    # Precompute waypoint indices in the full cell index
     wp_cell_indices = data.index.get_indexer(waypoints)
-    
     while not converged and iteration < max_iterations:
-        # P calculation vectorized
-        # P[i, j] = D[i, j] * sign + t_wp[i]
-        
-        # t_wp: pseudotime at waypoints. Shape (K, 1)
-        # pseudotime contains values for all cells.
-        # D.index contains waypoint names.
         t_wp = pseudotime[wp_cell_indices][:, None]
-        
-        # t_cells: pseudotime at all cells. Shape (1, N)
-        # pseudotime Series is aligned with D columns (cells)
         t_cells = pseudotime[None, :]
-        
-        # Mask: where cell time < waypoint time
-        # Shape (K, N)
         mask = t_cells < t_wp
-        
-        # Signs: -1 where mask is True, 1 otherwise
         signs = np.where(mask, -1.0, 1.0)
-        
-        # Preserve parity with the original loop which skipped the start cell row
         t_wp[start_row] = 0.0
         signs[start_row, :] = 1.0
-        
-        # P = D * signs + t_wp
         P_vals = D_vals * signs + t_wp
-        
-        # Weighted pseudotime: sum(P * W, axis=0)
         new_traj_vals = np.sum(P_vals * W_vals, axis=0)
 
-        # Check for convergence
         corr = pearsonr(pseudotime, new_traj_vals)[0]
         logger.debug("Correlation at iteration %d: %.4f", iteration, corr)
         if corr > 0.9999:
             converged = True
 
-        # If not converged, continue iteration
         pseudotime = new_traj_vals
         iteration += 1
 

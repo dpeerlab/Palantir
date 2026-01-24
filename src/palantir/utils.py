@@ -54,7 +54,6 @@ def run_pca(
         If AnnData is passed as data, the results are also written to the input object and None is returned.
     """
     def _slice_pca(ad: AnnData, n_comps: int) -> None:
-        # Keep only the first n_comps from PCA outputs.
         if "X_pca" in ad.obsm:
             ad.obsm["X_pca"] = ad.obsm["X_pca"][:, :n_comps]
         if "pca" in ad.uns:
@@ -76,7 +75,6 @@ def run_pca(
         else:
             old_pca = None
 
-    # Run PCA
     if not use_hvg:
         n_comps = min(n_components, ad.n_obs - 1, ad.n_vars - 1)
         sc.pp.pca(ad, n_comps=n_comps, zero_center=False)
@@ -91,7 +89,6 @@ def run_pca(
         if n_comps < l_n_comps:
             _slice_pca(ad, n_comps)
         elif n_comps > l_n_comps:
-            # Fallback if the chosen n_comps exceeds the initial PCA size
             sc.pp.pca(ad, n_comps=n_comps, mask_var="highly_variable", zero_center=False)
 
     if isinstance(data, AnnData):
@@ -358,7 +355,6 @@ def compute_kernel(
         Computed kernel matrix.
     """
 
-    # If the input is AnnData, convert it to a DataFrame
     if isinstance(data, AnnData):
         data_df = data.obsm[pca_key]
         if isinstance(data_df, pd.DataFrame):
@@ -391,7 +387,6 @@ def compute_kernel(
             n_neighbors=n_neighbors, metric="euclidean", n_jobs=-1
         ).fit(data_values)
         dist, ind = nbrs.kneighbors(data_values)
-        # Drop self-neighbor if present to match scanpy's distances matrix.
         if dist.shape[1] > 1 and np.all(ind[:, 0] == np.arange(N)):
             dist = dist[:, 1:]
             ind = ind[:, 1:]
@@ -404,7 +399,6 @@ def compute_kernel(
         W = csr_matrix((np.exp(-dists), (rows, cols)), shape=[N, N])
     else:
         temp = AnnData(data_values)
-        # Distances are all we need; skip connectivities when possible.
         try:
             from scanpy.neighbors import Neighbors as _Neighbors
 
@@ -412,7 +406,6 @@ def compute_kernel(
             neigh.compute_neighbors(n_neighbors=knn, n_pcs=0, method=None)
             kNN = neigh.distances
         except Exception:
-            # Fall back to scanpy's full neighbor computation.
             sc.pp.neighbors(temp, n_pcs=0, n_neighbors=knn)
             kNN = temp.obsp["distances"]
 
