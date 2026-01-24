@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import time
+import logging
 import copy
 
 from sklearn.metrics import pairwise_distances
@@ -18,7 +19,7 @@ from scipy.sparse.linalg import eigs, splu
 from scipy.sparse import csr_matrix, find, csgraph, eye
 from scipy.sparse.csgraph import connected_components
 from scipy.stats import entropy, pearsonr, norm
-from numpy.linalg import LinAlgError
+from numpy.linalg import inv, pinv, LinAlgError
 import warnings
 from anndata import AnnData
 
@@ -27,6 +28,8 @@ from .validation import normalize_cell_identifiers
 
 warnings.filterwarnings(action="ignore", message="scipy.cluster")
 warnings.filterwarnings(action="ignore", module="scipy", message="Changing the sparsity")
+
+logger = logging.getLogger(__name__)
 
 def _get_joblib_backend():
     """
@@ -192,7 +195,7 @@ def run_palantir(
         start_cell = early_cell
 
     # Sample waypoints
-    print("Sampling and flocking waypoints...")
+    logger.debug("Sampling and flocking waypoints...")
     start = time.time()
 
     # Append start cell
@@ -208,20 +211,20 @@ def run_palantir(
     # Append start cell
     waypoints = pd.Index([start_cell]).append(waypoints)
     end = time.time()
-    print("Time for determining waypoints: {} minutes".format((end - start) / 60))
+    logger.debug("Time for determining waypoints: %.6f minutes", (end - start) / 60)
 
     # pseudotime and weighting matrix
-    print("Determining pseudotime...")
+    logger.debug("Determining pseudotime...")
     pseudotime, W = _compute_pseudotime(data_df, start_cell, knn, waypoints, n_jobs, max_iterations)
 
     # Entropy and branch probabilities
-    print("Entropy and branch probabilities...")
+    logger.debug("Entropy and branch probabilities...")
     ent, branch_probs = _differentiation_entropy(
         data_df.loc[waypoints, :], terminal_cells, knn, n_jobs, pseudotime
     )
 
     # Project results to all cells
-    print("Project results to all cells...")
+    logger.debug("Project results to all cells...")
     branch_probs = pd.DataFrame(
         np.dot(W.T, branch_probs.loc[W.index, :]),
         index=W.columns,
@@ -362,7 +365,7 @@ def _compute_pseudotime(
 
     # ################################################
     # Shortest path distances to determine trajectories
-    print("Shortest path distances using {}-nearest neighbor graph...".format(knn))
+    logger.debug("Shortest path distances using %d-nearest neighbor graph...", knn)
     start = time.time()
     nbrs = NearestNeighbors(n_neighbors=knn, metric="euclidean", n_jobs=n_jobs).fit(data)
     adj = nbrs.kneighbors_graph(data, mode="distance")
@@ -378,32 +381,30 @@ def _compute_pseudotime(
     # Compute all shortest paths at once using scipy csgraph
     # indices argument allows computing paths from specific sources
     dists = csgraph.dijkstra(adj, directed=False, indices=wp_indices)
-
-    # Convert to distance matrix
-    D = pd.DataFrame(dists, index=waypoints, columns=data.index)
+    D_vals = np.asarray(dists, dtype=float)
     end = time.time()
-    print("Time for shortest paths: {} minutes".format((end - start) / 60))
+    logger.debug("Time for shortest paths: %.6f minutes", (end - start) / 60)
 
     # ###############################################
     # Determine the perspective matrix
 
-    print("Iteratively refining the pseudotime...")
+    logger.debug("Iteratively refining the pseudotime...")
     # Waypoint weights
-    sdv = np.std(np.ravel(D)) * 1.06 * len(np.ravel(D)) ** (-1 / 5)
-    W = np.exp(-0.5 * np.power((D / sdv), 2))
-    # Stochastize the matrix
-    W = W / W.sum()
+    sdv = np.std(D_vals.ravel()) * 1.06 * len(D_vals.ravel()) ** (-1 / 5)
+    W_vals = np.exp(-0.5 * np.power((D_vals / sdv), 2))
+    # Stochastize the matrix (column-wise)
+    W_vals = W_vals / W_vals.sum(axis=0, keepdims=True)
 
     # Initalize pseudotime to start cell distances
-    pseudotime = D.loc[start_cell, :]
+    start_row = waypoints.get_loc(start_cell)
+    pseudotime = D_vals[start_row, :].copy()
     converged = False
 
     # Iteratively update perspective and determine pseudotime
     iteration = 1
     
-    # Convert inputs to numpy for speed
-    D_vals = D.values  # K x N
-    W_vals = W.values  # K x N
+    # Precompute waypoint indices in the full cell index
+    wp_cell_indices = data.index.get_indexer(waypoints)
     
     while not converged and iteration < max_iterations:
         # P calculation vectorized
@@ -412,11 +413,11 @@ def _compute_pseudotime(
         # t_wp: pseudotime at waypoints. Shape (K, 1)
         # pseudotime contains values for all cells.
         # D.index contains waypoint names.
-        t_wp = pseudotime[D.index].values[:, None]
+        t_wp = pseudotime[wp_cell_indices][:, None]
         
         # t_cells: pseudotime at all cells. Shape (1, N)
         # pseudotime Series is aligned with D columns (cells)
-        t_cells = pseudotime.values[None, :]
+        t_cells = pseudotime[None, :]
         
         # Mask: where cell time < waypoint time
         # Shape (K, N)
@@ -425,31 +426,32 @@ def _compute_pseudotime(
         # Signs: -1 where mask is True, 1 otherwise
         signs = np.where(mask, -1.0, 1.0)
         
-        # Preserve parity with the original loop which skipped the first waypoint row
-        t_wp[0] = 0.0
-        signs[0, :] = 1.0
+        # Preserve parity with the original loop which skipped the start cell row
+        t_wp[start_row] = 0.0
+        signs[start_row, :] = 1.0
         
         # P = D * signs + t_wp
         P_vals = D_vals * signs + t_wp
         
         # Weighted pseudotime: sum(P * W, axis=0)
         new_traj_vals = np.sum(P_vals * W_vals, axis=0)
-        new_traj = pd.Series(new_traj_vals, index=pseudotime.index)
 
         # Check for convergence
-        corr = pearsonr(pseudotime, new_traj)[0]
-        print("Correlation at iteration %d: %.4f" % (iteration, corr))
+        corr = pearsonr(pseudotime, new_traj_vals)[0]
+        logger.debug("Correlation at iteration %d: %.4f", iteration, corr)
         if corr > 0.9999:
             converged = True
 
         # If not converged, continue iteration
-        pseudotime = new_traj
+        pseudotime = new_traj_vals
         iteration += 1
 
     pseudotime -= np.min(pseudotime)
     pseudotime /= np.max(pseudotime)
 
-    return pseudotime, W
+    pseudotime_series = pd.Series(pseudotime, index=data.index)
+    W = pd.DataFrame(W_vals, index=waypoints, columns=data.index)
+    return pseudotime_series, W
 
 
 def identify_terminal_states(
@@ -567,7 +569,7 @@ def _construct_markov_chain(
         Transition matrix of the Markov chain.
     """
     # Markov chain construction
-    print("Markov chain construction...")
+    logger.debug("Markov chain construction...")
     waypoints = wp_data.index
     N = len(waypoints)
 
@@ -590,24 +592,16 @@ def _construct_markov_chain(
     # Threshold per waypoint (N, 1)
     cut = (pt - adaptive_std)[:, None]
     
-    # Edges to remove (where neighbor is too far back)
-    # mask[i, j] is True if edge i -> ind[i, j] should be removed
-    mask = traj < cut
-    
-    # Edges to keep
-    keep = ~mask
+    # Edges to keep (where neighbor is not too far back)
+    keep = traj >= cut
     
     # Build sparse matrix directly with kept edges
-    # Row indices: 0,0,0... 1,1,1...
-    rows = np.repeat(np.arange(N), n_neighbors)
-    
-    # Flatten arrays
-    rows = rows[keep.ravel()]
-    cols = ind.ravel()[keep.ravel()]
-    data = dist.ravel()[keep.ravel()]
+    row_idx, nbr_idx = np.nonzero(keep)
+    cols = ind[row_idx, nbr_idx]
+    data = dist[row_idx, nbr_idx]
     
     # kNN distance matrix (directed)
-    kNN = csr_matrix((data, (rows, cols)), shape=(N, N))
+    kNN = csr_matrix((data, (row_idx, cols)), shape=(N, N))
 
     # Affinity matrix and markov chain
     x, y, z = find(kNN)
@@ -644,15 +638,19 @@ def _terminal_states_from_markov_chain(
     np.ndarray
         Array of terminal state identifiers.
     """
-    print("Identification of terminal states...")
+    logger.debug("Identification of terminal states...")
 
     # Identify terminal statses
     waypoints = wp_data.index
     dm_boundaries = pd.Index(set(wp_data.idxmax()).union(wp_data.idxmin()))
     n = min(*T.shape)
-    vals, vecs = eigs(T.T, 10, maxiter=n * 50)
-
-    ranks = np.abs(np.real(vecs[:, np.argsort(vals)[-1]]))
+    if n <= 2:
+        vals, vecs = np.linalg.eig(T.T.toarray())
+        lead_idx = np.argsort(vals)[-1]
+        ranks = np.abs(np.real(vecs[:, lead_idx]))
+    else:
+        vals, vecs = eigs(T.T, 1, maxiter=n * 50)
+        ranks = np.abs(np.real(vecs[:, 0]))
     ranks = pd.Series(ranks, index=waypoints)
 
     # Cutoff and intersection with the boundary cells
@@ -691,20 +689,14 @@ def _terminal_states_from_markov_chain(
     cells = terminal_candidates
 
     # Nearest diffusion map boundaries
-    terminal_states = [
-        pd.Series(
-            np.ravel(
-                pairwise_distances(
-                    wp_data.loc[dm_boundaries, :],
-                    wp_data.loc[i, :].values.reshape(1, -1),
-                )
-            ),
-            index=dm_boundaries,
-        ).idxmin()
-        for i in cells
-    ]
+    if len(cells) == 0:
+        return np.array([])
 
-    terminal_states = np.unique(terminal_states)
+    dm_vecs = wp_data.loc[dm_boundaries, :].values
+    cell_vecs = wp_data.loc[cells, :].values
+    dists = pairwise_distances(dm_vecs, cell_vecs)
+    nearest = np.argmin(dists, axis=0)
+    terminal_states = np.unique(dm_boundaries[nearest])
 
     # excluded_boundaries = dm_boundaries.difference(terminal_states)
     return terminal_states
@@ -753,40 +745,59 @@ def _differentiation_entropy(
     # Absorption states should not have outgoing edges
     waypoints = wp_data.index
     abs_states = np.where(waypoints.isin(terminal_states))[0]
+    if len(abs_states) == 0:
+        ent = pd.Series(0, index=waypoints)
+        branch_probs = pd.DataFrame(index=waypoints, columns=[])
+        return ent, branch_probs
     # Reset absorption state affinities by Removing neigbors
     T[abs_states, :] = 0
     # Diagnoals as 1s
     T[abs_states, abs_states] = 1
 
     # Fundamental matrix and absorption probabilities
-    print("Computing fundamental matrix and absorption probabilities...")
+    logger.debug("Computing fundamental matrix and absorption probabilities...")
     # Transition states
     trans_states = list(set(range(len(waypoints))).difference(abs_states))
 
     # Q matrix
     Q = T[trans_states, :][:, trans_states]
+    if len(trans_states) == 0:
+        ent = pd.Series(0, index=terminal_states)
+        bp = pd.DataFrame(0, index=terminal_states, columns=terminal_states)
+        bp.values[range(len(terminal_states)), range(len(terminal_states))] = 1
+        return ent, bp
     
     # Fundamental matrix solver
     # We want to solve (I - Q) * B = T_trans_abs
     # Instead of inverting (I - Q), we solve the linear system
     I_Q = eye(Q.shape[0], format="csc") - Q.tocsc()
     
-    # RHS: Transition to Absorption states
-    R = T[trans_states, :][:, abs_states].toarray()
-    
-    try:
-        # Use sparse LU solver
-        lu = splu(I_Q)
-        branch_probs_vals = lu.solve(R)
-    except Exception:
-        # Fallback if singular or other issues (though unlikely for I-Q in absorbing chain)
-        warnings.warn("Sparse solver failed. Falling back to dense inverse.")
-        mat = I_Q.todense()
+    n_abs = len(abs_states)
+    if n_abs == 0:
+        branch_probs_vals = np.zeros((len(trans_states), 0))
+    else:
         try:
-            N = inv(mat)
-        except LinAlgError:
-            N = pinv(mat, hermitian=True)
-        branch_probs_vals = np.dot(N, R)
+            # Use sparse LU solver
+            lu = splu(I_Q)
+            if n_abs <= 256:
+                R = T[trans_states, :][:, abs_states].toarray()
+                branch_probs_vals = lu.solve(R)
+            else:
+                branch_probs_vals = np.empty((len(trans_states), n_abs), dtype=float)
+                for start in range(0, n_abs, 256):
+                    end = min(start + 256, n_abs)
+                    R_block = T[trans_states, :][:, abs_states[start:end]].toarray()
+                    branch_probs_vals[:, start:end] = lu.solve(R_block)
+        except Exception:
+            # Fallback if singular or other issues (though unlikely for I-Q in absorbing chain)
+            warnings.warn("Sparse solver failed. Falling back to dense inverse.")
+            mat = I_Q.todense()
+            try:
+                N = inv(mat)
+            except LinAlgError:
+                N = pinv(mat, hermitian=True)
+            R = T[trans_states, :][:, abs_states].toarray()
+            branch_probs_vals = np.dot(N, R)
 
     # Absorption probabilities
     branch_probs = pd.DataFrame(
