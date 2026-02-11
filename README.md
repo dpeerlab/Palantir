@@ -73,6 +73,9 @@ ____
 Release Notes
 -------------
 
+ ### Version 1.4.4
+ * Fix: reorder dependencies to work around uv resolver order-dependence ([astral-sh/uv#5161](https://github.com/astral-sh/uv/issues/5161)), which caused `uv pip install palantir` to resolve to incompatible ancient versions of scanpy/numba/llvmlite
+
  ### Version 1.4.3
  * Avoid warning about coloring in `plot_trajectories`
  * Fix: forward `eigvec_key` to fallback method in `early_cell()`
