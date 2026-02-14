@@ -6,6 +6,10 @@ build:
     python: "3.11"
   apt_packages:
     - pandoc
+  jobs:
+    pre_build:
+      - rm docs/source/notebooks
+      - cp -r notebooks docs/source/notebooks
 
 sphinx:
    configuration: docs/source/conf.py

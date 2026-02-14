@@ -4,7 +4,8 @@ sphinx-autodocgen
 sphinx-github-style>=1.2.2
 sphinx-mdinclude
 m2r2
-nbsphinx
+nbsphinx>=0.9.8
+sphinx>=8.0,<9
 furo
 typing-extensions
 IPython
