@@ -11,8 +11,9 @@ from palantir.utils import compute_kernel
 def mock_data():
     n_cells = 50
     n_genes = 10
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_cells, n_genes),
+        rng.random((n_cells, n_genes)),
         columns=[f"gene_{i}" for i in range(n_genes)],
         index=[f"cell_{i}" for i in range(n_cells)],
     )
@@ -51,7 +52,8 @@ def test_compute_kernel_alpha(mock_data):
 
 # Test pca_key parameter
 def test_compute_kernel_pca_key(mock_anndata):
-    mock_anndata.obsm["custom_pca"] = np.random.rand(mock_anndata.shape[0], 10)
+    rng = np.random.default_rng()
+    mock_anndata.obsm["custom_pca"] = rng.random((mock_anndata.shape[0], 10))
     kernel = compute_kernel(mock_anndata, pca_key="custom_pca")
     assert "DM_Kernel" in mock_anndata.obsp.keys()
 

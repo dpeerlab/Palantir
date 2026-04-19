@@ -17,12 +17,11 @@ def _max_min_sampling_reference(
 ) -> pd.Index:
     waypoint_set = []
     no_iterations = int(num_waypoints / data.shape[1])
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     N = data.shape[0]
     for ind in data.columns:
         vec = np.ravel(data[ind])
-        iter_set = [np.random.randint(N)]
+        iter_set = [rng.integers(N)]
         dists = np.zeros([N, no_iterations])
         dists[:, 0] = abs(vec - data[ind].values[iter_set])
         for k in range(1, no_iterations):

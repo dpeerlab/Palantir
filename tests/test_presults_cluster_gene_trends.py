@@ -17,20 +17,20 @@ def test_cluster_gene_trends_basic():
     timepoints = np.linspace(0, 1, n_timepoints)
 
     # Create random trends with some patterns
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     trends = pd.DataFrame(index=[f"gene_{i}" for i in range(n_genes)], columns=timepoints)
 
     # First 10 genes follow similar pattern (increasing)
     for i in range(10):
-        trends.iloc[i] = np.linspace(0, 1, n_timepoints) + np.random.normal(0, 0.1, n_timepoints)
+        trends.iloc[i] = np.linspace(0, 1, n_timepoints) + rng.normal(0, 0.1, n_timepoints)
 
     # Next 10 genes follow another pattern (decreasing)
     for i in range(10, 20):
-        trends.iloc[i] = np.linspace(1, 0, n_timepoints) + np.random.normal(0, 0.1, n_timepoints)
+        trends.iloc[i] = np.linspace(1, 0, n_timepoints) + rng.normal(0, 0.1, n_timepoints)
 
     # Last 10 genes follow a third pattern (bell curve)
     for i in range(20, 30):
-        trends.iloc[i] = np.sin(np.linspace(0, np.pi, n_timepoints)) + np.random.normal(
+        trends.iloc[i] = np.sin(np.linspace(0, np.pi, n_timepoints)) + rng.normal(
             0, 0.1, n_timepoints
         )
 
@@ -58,7 +58,9 @@ def test_cluster_gene_trends_anndata():
     # Create AnnData object
     n_cells = 100
     n_genes = 30
-    adata = AnnData(np.random.normal(0, 1, (n_cells, n_genes)))
+    rng = np.random.default_rng()
+
+    adata = AnnData(rng.normal(0, 1, (n_cells, n_genes)))
     adata.var_names = [f"gene_{i}" for i in range(n_genes)]
 
     # Create gene trends for the branch
@@ -70,13 +72,13 @@ def test_cluster_gene_trends_anndata():
     trends = np.zeros((n_genes, n_timepoints))
     # First 10 genes
     for i in range(10):
-        trends[i] = np.linspace(0, 1, n_timepoints) + np.random.normal(0, 0.1, n_timepoints)
+        trends[i] = np.linspace(0, 1, n_timepoints) + rng.normal(0, 0.1, n_timepoints)
     # Next 10 genes
     for i in range(10, 20):
-        trends[i] = np.linspace(1, 0, n_timepoints) + np.random.normal(0, 0.1, n_timepoints)
+        trends[i] = np.linspace(1, 0, n_timepoints) + rng.normal(0, 0.1, n_timepoints)
     # Last 10 genes
     for i in range(20, 30):
-        trends[i] = np.sin(np.linspace(0, np.pi, n_timepoints)) + np.random.normal(
+        trends[i] = np.sin(np.linspace(0, np.pi, n_timepoints)) + rng.normal(
             0, 0.1, n_timepoints
         )
 
@@ -105,10 +107,10 @@ def test_cluster_gene_trends_custom_genes():
     n_timepoints = 50
     timepoints = np.linspace(0, 1, n_timepoints)
 
-    # Create trends
-    np.random.seed(42)
+    # Create trends\
+    rng = np.random.default_rng(42)
     trends = pd.DataFrame(
-        np.random.normal(0, 1, (n_genes, n_timepoints)),
+        rng.normal(0, 1, (n_genes, n_timepoints)),
         index=[f"gene_{i}" for i in range(n_genes)],
         columns=timepoints,
     )
@@ -133,9 +135,9 @@ def test_cluster_gene_trends_parameters():
     timepoints = np.linspace(0, 1, n_timepoints)
 
     # Create trends
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     trends = pd.DataFrame(
-        np.random.normal(0, 1, (n_genes, n_timepoints)),
+        rng.normal(0, 1, (n_genes, n_timepoints)),
         index=[f"gene_{i}" for i in range(n_genes)],
         columns=timepoints,
     )
@@ -152,7 +154,8 @@ def test_cluster_gene_trends_parameters():
 def test_cluster_gene_trends_error_handling():
     """Test error handling of cluster_gene_trends"""
     # Create AnnData without varm data
-    adata = AnnData(np.random.normal(0, 1, (10, 10)))
+    rng = np.random.default_rng()
+    adata = AnnData(rng.normal(0, 1, (10, 10)))
 
     # Should raise KeyError for missing gene_trend_key
     with pytest.raises(KeyError):

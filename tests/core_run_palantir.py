@@ -11,8 +11,9 @@ from palantir.core import run_palantir
 def mock_data():
     n_cells = 50
     n_genes = 10
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_cells, n_genes),
+        rng.random((n_cells, n_genes)),
         columns=[f"gene_{i}" for i in range(n_genes)],
         index=[f"cell_{i}" for i in range(n_cells)],
     )

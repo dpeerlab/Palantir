@@ -38,8 +38,9 @@ from palantir.presults import PResults
 @pytest.fixture
 def mock_umap_df():
     cell_index = [f"cell_{i}" for i in range(100)]
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        {"x": np.random.rand(100), "y": np.random.rand(100)},
+        {"x": rng.random(100), "y": rng.random(100)},
         index=cell_index,
     )
 
@@ -47,8 +48,9 @@ def mock_umap_df():
 @pytest.fixture
 def mock_tsne():
     cell_index = [f"cell_{i}" for i in range(100)]
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        {"x": np.random.rand(100), "y": np.random.rand(100)},
+        {"x": rng.random(100), "y": rng.random(100)},
         index=cell_index,
     )
 
@@ -56,8 +58,9 @@ def mock_tsne():
 @pytest.fixture
 def mock_data():
     cell_index = [f"cell_{i}" for i in range(100)]
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(100, 20), index=cell_index, columns=[f"col_{i}" for i in range(20)]
+        rng.random((100, 20)), index=cell_index, columns=[f"col_{i}" for i in range(20)]
     )
 
 
@@ -75,27 +78,30 @@ def mock_cluster_colors():
 @pytest.fixture
 def mock_gene_data():
     cell_index = [f"cell_{i}" for i in range(100)]
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(100, 5), columns=[f"gene_{i}" for i in range(5)], index=cell_index
+        rng.random((100, 5)), columns=[f"gene_{i}" for i in range(5)], index=cell_index
     )
 
 
 @pytest.fixture
 def mock_dm_res():
     cell_index = [f"cell_{i}" for i in range(100)]
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(100, 3), index=cell_index, columns=[f"component_{i}" for i in range(3)]
+        rng.random((100, 3)), index=cell_index, columns=[f"component_{i}" for i in range(3)]
     )
 
 
 @pytest.fixture
 def mock_presults():
     cell_index = [f"cell_{i}" for i in range(100)]
+    rng = np.random.default_rng()
     return PResults(
-        pseudotime=pd.Series(np.random.rand(100), index=cell_index),
-        entropy=pd.Series(np.random.rand(100), index=cell_index),
+        pseudotime=pd.Series(rng.random(100), index=cell_index),
+        entropy=pd.Series(rng.random(100), index=cell_index),
         branch_probs=pd.DataFrame(
-            np.random.rand(100, 3), index=cell_index, columns=["a", "b", "c"]
+            rng.random((100, 3)), index=cell_index, columns=["a", "b", "c"]
         ),
         waypoints=None,
     )
@@ -134,28 +140,29 @@ def mock_anndata(mock_umap_df):
     cell_index = mock_umap_df.index
     gene_names = [f"gene_{i}" for i in range(5)]
 
+    rng = np.random.default_rng()
     adata = AnnData(
-        X=np.random.randn(100, 5),
+        X=rng.standard_normal((100, 5)),
         obs=pd.DataFrame(index=cell_index),
         var=pd.DataFrame(index=gene_names),
     )
 
     # Add observation data
-    adata.obs["palantir_pseudotime"] = pd.Series(np.random.rand(100), index=cell_index)
-    adata.obs["palantir_entropy"] = pd.Series(np.random.rand(100), index=cell_index)
+    adata.obs["palantir_pseudotime"] = pd.Series(rng.random(100), index=cell_index)
+    adata.obs["palantir_entropy"] = pd.Series(rng.random(100), index=cell_index)
 
     # Add obsm data
     adata.obsm["X_umap"] = mock_umap_df[["x", "y"]].values
-    adata.obsm["DM_EigenVectors"] = pd.DataFrame(np.random.randn(100, 3), index=cell_index).values
+    adata.obsm["DM_EigenVectors"] = pd.DataFrame(rng.standard_normal((100, 3)), index=cell_index).values
 
     # Add obsm dataframes
     adata.obsm["palantir_fate_probabilities"] = pd.DataFrame(
-        np.random.rand(100, 3),
+        rng.random((100, 3)),
         columns=["a", "b", "c"],
         index=cell_index,
     )
     adata.obsm["branch_masks"] = pd.DataFrame(
-        np.random.randint(2, size=(100, 3)),
+        rng.integers(2, size=(100, 3)),
         columns=["a", "b", "c"],
         index=cell_index,
         dtype=bool,
@@ -166,7 +173,7 @@ def mock_anndata(mock_umap_df):
         pseudotime_values = np.linspace(0, 1, 10)
         adata.uns[f"gene_trends_{branch}_pseudotime"] = pseudotime_values
         adata.varm[f"gene_trends_{branch}"] = pd.DataFrame(
-            np.random.rand(5, 10),
+            rng.random((5, 10)),
             index=gene_names,
             columns=pseudotime_values,
         )
@@ -176,15 +183,16 @@ def mock_anndata(mock_umap_df):
         ["A", "A", "B", "B", "B"],
         index=gene_names,
     )
-    adata.var["gene_score"] = pd.Series(np.random.rand(5), index=gene_names)
+    adata.var["gene_score"] = pd.Series(rng.random(5), index=gene_names)
 
     return adata
 
 
 def test_density_2d():
     # Test with random data
-    x = np.random.rand(100)
-    y = np.random.rand(100)
+    rng = np.random.default_rng()
+    x = rng.random(100)
+    y = rng.random(100)
     x_out, y_out, z_out = density_2d(x, y)
 
     # Validate output shape and types
@@ -195,7 +203,8 @@ def test_density_2d():
 
 def test_plot_molecules_per_cell_and_gene():
     # Create synthetic data
-    data = np.random.rand(100, 20)
+    rng = np.random.default_rng()
+    data = rng.random((100, 20))
 
     # Generate plot
     fig, ax = plot_molecules_per_cell_and_gene(data)

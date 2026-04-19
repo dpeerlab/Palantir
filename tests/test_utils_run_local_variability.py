@@ -9,21 +9,23 @@ from palantir.utils import run_local_variability
 
 # Mock data for dense matrix
 def mock_anndata_dense(n_cells, n_genes, layer_keys, obsp_keys):
-    ad = AnnData(np.random.rand(n_cells, n_genes))
+    rng = np.random.default_rng()
+    ad = AnnData(rng.random((n_cells, n_genes)))
     for key in layer_keys:
-        ad.layers[key] = np.random.rand(n_cells, n_genes)
+        ad.layers[key] = rng.random((n_cells, n_genes))
     for key in obsp_keys:
-        ad.obsp[key] = np.random.rand(n_cells, n_cells)
+        ad.obsp[key] = rng.random((n_cells, n_cells))
     return ad
 
 
 # Mock data for sparse matrix
 def mock_anndata_sparse(n_cells, n_genes, layer_keys, obsp_keys):
-    ad = AnnData(csr_matrix(np.random.rand(n_cells, n_genes)))
+    rng = np.random.default_rng()
+    ad = AnnData(csr_matrix(rng.random((n_cells, n_genes))))
     for key in layer_keys:
-        ad.layers[key] = csr_matrix(np.random.rand(n_cells, n_genes))
+        ad.layers[key] = csr_matrix(rng.random((n_cells, n_genes)))
     for key in obsp_keys:
-        ad.obsp[key] = csr_matrix(np.random.rand(n_cells, n_cells))
+        ad.obsp[key] = csr_matrix(rng.random((n_cells, n_cells)))
     return ad
 
 

@@ -282,8 +282,7 @@ def _max_min_sampling(
         )
         num_waypoints = min_waypoints
     no_iterations = int((num_waypoints) / data.shape[1])
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     N = data.shape[0]
     data_values = data.values
@@ -291,7 +290,7 @@ def _max_min_sampling(
     for i, ind in enumerate(data.columns):
         vec = data_values[:, i]
 
-        current_wp = np.random.randint(N)
+        current_wp = rng.integers(N)
         iter_set = [
             current_wp,
         ]

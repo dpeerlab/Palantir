@@ -9,14 +9,16 @@ from palantir.utils import run_diffusion_maps
 
 # Generate mock DataFrame data
 def mock_dataframe(rows, cols):
-    return pd.DataFrame(np.random.rand(rows, cols))
+    rng = np.random.default_rng()
+    return pd.DataFrame(rng.random((rows, cols)))
 
 
 # Generate mock sc.AnnData object
 def mock_anndata(rows, cols, keys):
-    ad = sc.AnnData(np.random.rand(rows, cols))
+    rng = np.random.default_rng()
+    ad = sc.AnnData(rng.random((rows, cols)))
     for key in keys:
-        ad.obsm[key] = np.random.rand(rows, cols)
+        ad.obsm[key] = rng.random((rows, cols))
     return ad
 
 

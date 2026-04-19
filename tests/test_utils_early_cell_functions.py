@@ -67,7 +67,8 @@ def test_early_cell_extreme_min(mock_anndata_with_celltypes):
 def test_early_cell_fallback():
     """Test early_cell with fallback to fallback_terminal_cell"""
     # Create a very simple AnnData with a cell type that won't be at extremes
-    ad = AnnData(X=np.random.rand(10, 5))
+    rng = np.random.default_rng()
+    ad = AnnData(X=rng.random((10, 5)))
     ad.obs["celltype"] = pd.Categorical(
         ["A", "A", "A", "A", "A", "B", "B", "B", "C", "C"], categories=["A", "B", "C"]
     )
@@ -99,7 +100,8 @@ def test_early_cell_fallback():
 def test_early_cell_exception():
     """Test early_cell raising exception when no cell found"""
     # Create a very simple AnnData with a cell type that won't be at extremes
-    ad = AnnData(X=np.random.rand(10, 5))
+    rng = np.random.default_rng()
+    ad = AnnData(X=rng.random((10, 5)))
     ad.obs["celltype"] = pd.Categorical(
         ["A", "A", "A", "A", "A", "B", "B", "B", "B", "B"], categories=["A", "B"]
     )

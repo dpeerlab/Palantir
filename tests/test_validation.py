@@ -20,15 +20,16 @@ def mock_anndata_with_obsm():
     """Create anndata with obsm for testing validation functions"""
     n_cells = 20
     n_genes = 10
-    ad = AnnData(X=np.random.rand(n_cells, n_genes))
+    rng = np.random.default_rng()
+    ad = AnnData(X=rng.random((n_cells, n_genes)))
 
     # Add DataFrame in obsm
     ad.obsm["df_key"] = pd.DataFrame(
-        np.random.rand(n_cells, 3), columns=["c1", "c2", "c3"], index=ad.obs_names
+        rng.random((n_cells, 3)), columns=["c1", "c2", "c3"], index=ad.obs_names
     )
 
     # Add numpy array in obsm with column names in uns
-    ad.obsm["np_key"] = np.random.rand(n_cells, 3)
+    ad.obsm["np_key"] = rng.random((n_cells, 3))
     ad.uns["np_key_columns"] = ["c1", "c2", "c3"]
 
     return ad
@@ -39,15 +40,16 @@ def mock_anndata_with_varm():
     """Create anndata with varm for testing validation functions"""
     n_cells = 20
     n_genes = 10
-    ad = AnnData(X=np.random.rand(n_cells, n_genes))
+    rng = np.random.default_rng()
+    ad = AnnData(X=rng.random((n_cells, n_genes)))
 
     # Add DataFrame in varm
     ad.varm["df_key"] = pd.DataFrame(
-        np.random.rand(n_genes, 5), columns=[0.1, 0.2, 0.3, 0.4, 0.5], index=ad.var_names
+        rng.random((n_genes, 5)), columns=[0.1, 0.2, 0.3, 0.4, 0.5], index=ad.var_names
     )
 
     # Add numpy array in varm with pseudotime in uns
-    ad.varm["np_key"] = np.random.rand(n_genes, 5)
+    ad.varm["np_key"] = rng.random((n_genes, 5))
     ad.uns["np_key_pseudotime"] = [0.1, 0.2, 0.3, 0.4, 0.5]
 
     return ad
@@ -58,12 +60,13 @@ def mock_anndata_with_gene_trends():
     """Create anndata with gene trends for testing validation functions"""
     n_cells = 20
     n_genes = 10
-    ad = AnnData(X=np.random.rand(n_cells, n_genes))
+    rng = np.random.default_rng()
+    ad = AnnData(X=rng.random((n_cells, n_genes)))
 
     # Add branch masks in various locations
     # 1. as DataFrame in obsm
     ad.obsm["branch_masks"] = pd.DataFrame(
-        np.random.randint(0, 2, size=(n_cells, 3)),
+        rng.integers(0, 2, size=(n_cells, 3)),
         columns=["branch1", "branch2", "branch3"],
         index=ad.obs_names,
     )
@@ -72,14 +75,14 @@ def mock_anndata_with_gene_trends():
     ad.uns["branch_list"] = ["branch1", "branch2", "branch3"]
 
     # 3. as numpy array with columns in uns
-    ad.obsm["branch_array"] = np.random.randint(0, 2, size=(n_cells, 3))
+    ad.obsm["branch_array"] = rng.integers(0, 2, size=(n_cells, 3))
     ad.uns["branch_array_columns"] = ["branch1", "branch2", "branch3"]
 
     # Add gene trends for each branch
     for branch in ["branch1", "branch2", "branch3"]:
         trend_key = f"gene_trends_{branch}"
         ad.varm[trend_key] = pd.DataFrame(
-            np.random.rand(n_genes, 5), columns=[0.1, 0.2, 0.3, 0.4, 0.5], index=ad.var_names
+            rng.random((n_genes, 5)), columns=[0.1, 0.2, 0.3, 0.4, 0.5], index=ad.var_names
         )
 
     return ad
@@ -128,7 +131,8 @@ def test_validate_obsm_key_errors(mock_anndata_with_obsm):
         _validate_obsm_key(ad, "not_a_key")
 
     # Test numpy array without columns in uns
-    ad.obsm["bad_key"] = np.random.rand(ad.n_obs, 3)
+    rng = np.random.default_rng()
+    ad.obsm["bad_key"] = rng.random((ad.n_obs, 3))
     with pytest.raises(KeyError, match="bad_key_columns not found"):
         _validate_obsm_key(ad, "bad_key")
 
@@ -176,7 +180,8 @@ def test_validate_varm_key_errors(mock_anndata_with_varm):
         _validate_varm_key(ad, "not_a_key")
 
     # Test numpy array without pseudotime in uns
-    ad.varm["bad_key"] = np.random.rand(ad.n_vars, 3)
+    rng = np.random.default_rng()
+    ad.varm["bad_key"] = rng.random((ad.n_vars, 3))
     with pytest.raises(KeyError, match="bad_key_pseudotime not found"):
         _validate_varm_key(ad, "bad_key")
 
@@ -212,8 +217,9 @@ def test_validate_gene_trend_input_anndata(mock_anndata_with_gene_trends):
 def test_validate_gene_trend_input_dict():
     """Test _validate_gene_trend_input with dict input"""
     # Create test dictionary
-    trends1 = pd.DataFrame(np.random.rand(10, 5), columns=[0.1, 0.2, 0.3, 0.4, 0.5])
-    trends2 = pd.DataFrame(np.random.rand(10, 5), columns=[0.1, 0.2, 0.3, 0.4, 0.5])
+    rng = np.random.default_rng()
+    trends1 = pd.DataFrame(rng.random((10, 5)), columns=[0.1, 0.2, 0.3, 0.4, 0.5])
+    trends2 = pd.DataFrame(rng.random((10, 5)), columns=[0.1, 0.2, 0.3, 0.4, 0.5])
 
     input_dict = {"branch1": {"trends": trends1}, "branch2": {"trends": trends2}}
 

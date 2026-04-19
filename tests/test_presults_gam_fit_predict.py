@@ -23,8 +23,9 @@ from palantir.presults import gam_fit_predict
 def test_gam_fit_predict_basic():
     """Test basic functionality of gam_fit_predict"""
     # Create test data
+    rng = np.random.default_rng()
     x = np.linspace(0, 1, 50)
-    y = np.sin(2 * np.pi * x) + 0.1 * np.random.randn(50)
+    y = np.sin(2 * np.pi * x) + 0.1 * rng.standard_normal(50)
 
     # Run gam_fit_predict
     y_pred, stds = gam_fit_predict(x, y)
@@ -40,8 +41,9 @@ def test_gam_fit_predict_basic():
 def test_gam_fit_predict_with_weights():
     """Test gam_fit_predict with weights"""
     # Create test data
+    rng = np.random.default_rng()
     x = np.linspace(0, 1, 50)
-    y = np.sin(2 * np.pi * x) + 0.1 * np.random.randn(50)
+    y = np.sin(2 * np.pi * x) + 0.1 * rng.standard_normal(50)
 
     # Create weights biased toward the beginning
     weights = np.exp(-3 * x)
@@ -64,8 +66,9 @@ def test_gam_fit_predict_with_weights():
 def test_gam_fit_predict_with_pred_x():
     """Test gam_fit_predict with custom prediction points"""
     # Create test data
+    rng = np.random.default_rng()
     x = np.linspace(0, 1, 50)
-    y = np.sin(2 * np.pi * x) + 0.1 * np.random.randn(50)
+    y = np.sin(2 * np.pi * x) + 0.1 * rng.standard_normal(50)
 
     # Create custom prediction points
     pred_x = np.linspace(0, 1, 100)  # Higher resolution
@@ -81,8 +84,9 @@ def test_gam_fit_predict_with_pred_x():
 def test_gam_fit_predict_spline_params():
     """Test gam_fit_predict with different spline parameters"""
     # Create test data
+    rng = np.random.default_rng()
     x = np.linspace(0, 1, 50)
-    y = np.sin(2 * np.pi * x) + 0.1 * np.random.randn(50)
+    y = np.sin(2 * np.pi * x) + 0.1 * rng.standard_normal(50)
 
     # Run with default spline parameters
     y_pred_default, _ = gam_fit_predict(x, y)

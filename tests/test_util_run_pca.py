@@ -11,8 +11,9 @@ from palantir.utils import run_pca
 def mock_data():
     n_cells = 50
     n_genes = 500
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_cells, n_genes),
+        rng.random((n_cells, n_genes)),
         columns=[f"gene_{i}" for i in range(n_genes)],
         index=[f"cell_{i}" for i in range(n_cells)],
     )
@@ -22,7 +23,8 @@ def mock_data():
 def mock_anndata(mock_data):
     ad = AnnData(X=mock_data)
     ad.obsm["DM_EigenVectors_multiscaled"] = mock_data
-    ad.var["highly_variable"] = np.random.choice([True, False], size=mock_data.shape[1])
+    rng = np.random.default_rng()
+    ad.var["highly_variable"] = rng.choice([True, False], size=mock_data.shape[1])
     return ad
 
 

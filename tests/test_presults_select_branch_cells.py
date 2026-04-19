@@ -13,7 +13,8 @@ def test_select_branch_cells_basic():
     # Create test AnnData
     n_cells = 100
     n_genes = 20
-    adata = AnnData(np.random.normal(0, 1, (n_cells, n_genes)))
+    rng = np.random.default_rng()
+    adata = AnnData(rng.normal(0, 1, (n_cells, n_genes)))
     adata.obs_names = [f"cell_{i}" for i in range(n_cells)]
 
     # Create pseudotime
@@ -60,7 +61,8 @@ def test_select_branch_cells_custom_keys():
     # Create test AnnData
     n_cells = 100
     n_genes = 20
-    adata = AnnData(np.random.normal(0, 1, (n_cells, n_genes)))
+    rng = np.random.default_rng()
+    adata = AnnData(rng.normal(0, 1, (n_cells, n_genes)))
 
     # Create pseudotime with custom key
     pseudotime_key = "custom_pseudotime"
@@ -68,7 +70,7 @@ def test_select_branch_cells_custom_keys():
 
     # Create fate probabilities with custom key
     fate_prob_key = "custom_fate_probs"
-    fate_probs = np.random.random((n_cells, 3))
+    fate_probs = rng.random((n_cells, 3))
     fate_probs = fate_probs / fate_probs.sum(axis=1, keepdims=True)
     adata.obsm[fate_prob_key] = pd.DataFrame(
         fate_probs, index=adata.obs_names, columns=["branch1", "branch2", "branch3"]
@@ -94,13 +96,14 @@ def test_select_branch_cells_parameters():
     # Create test AnnData
     n_cells = 100
     n_genes = 20
-    adata = AnnData(np.random.normal(0, 1, (n_cells, n_genes)))
+    rng = np.random.default_rng()
+    adata = AnnData(rng.normal(0, 1, (n_cells, n_genes)))
 
     # Create pseudotime
     adata.obs["palantir_pseudotime"] = np.linspace(0, 1, n_cells)
 
     # Create fate probabilities
-    fate_probs = np.random.random((n_cells, 3))
+    fate_probs = rng.random((n_cells, 3))
     fate_probs = fate_probs / fate_probs.sum(axis=1, keepdims=True)
     adata.obsm["palantir_fate_probabilities"] = pd.DataFrame(
         fate_probs, index=adata.obs_names, columns=["branch1", "branch2", "branch3"]
@@ -140,10 +143,11 @@ def test_select_branch_cells_with_different_resolutions():
         n_genes = 5
 
         # Create small test AnnData
-        adata_small = AnnData(np.random.normal(0, 1, (n_cells, n_genes)))
+        rng = np.random.default_rng()
+        adata_small = AnnData(rng.normal(0, 1, (n_cells, n_genes)))
         adata_small.obs["palantir_pseudotime"] = np.linspace(0, 1, n_cells)
         adata_small.obsm["palantir_fate_probabilities"] = pd.DataFrame(
-            np.random.random((n_cells, 2)),
+            rng.random((n_cells, 2)),
             columns=["branch1", "branch2"],
             index=adata_small.obs_names,
         )
@@ -160,10 +164,10 @@ def test_select_branch_cells_with_different_resolutions():
 
         # Create larger test AnnData
         n_cells = 100
-        adata_large = AnnData(np.random.normal(0, 1, (n_cells, n_genes)))
+        adata_large = AnnData(rng.normal(0, 1, (n_cells, n_genes)))
         adata_large.obs["palantir_pseudotime"] = np.linspace(0, 1, n_cells)
         adata_large.obsm["palantir_fate_probabilities"] = pd.DataFrame(
-            np.random.random((n_cells, 2)),
+            rng.random((n_cells, 2)),
             columns=["branch1", "branch2"],
             index=adata_large.obs_names,
         )
@@ -181,7 +185,8 @@ def test_select_branch_cells_with_different_resolutions():
 def test_select_branch_cells_error_handling():
     """Test error handling in select_branch_cells"""
     # Create AnnData without required data
-    adata = AnnData(np.random.normal(0, 1, (10, 10)))
+    rng = np.random.default_rng()
+    adata = AnnData(rng.normal(0, 1, (10, 10)))
 
     # Should raise KeyError for missing pseudotime
     with pytest.raises(KeyError):

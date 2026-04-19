@@ -17,8 +17,9 @@ from palantir.utils import (
 def mock_data():
     n_cells = 50
     n_genes = 500
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_cells, n_genes),
+        rng.random((n_cells, n_genes)),
         columns=[f"gene_{i}" for i in range(n_genes)],
         index=[f"cell_{i}" for i in range(n_cells)],
     )
@@ -28,13 +29,14 @@ def mock_data():
 def mock_anndata(mock_data: DataFrame):
     ad = AnnData(X=mock_data)
     ad.obsm["DM_EigenVectors"] = mock_data.iloc[:, :10].copy()
+    rng = np.random.default_rng()
     ad.obsm["branch_masks"] = pd.DataFrame(
         columns=["branch_0", "branch_1"],
         index=mock_data.index,
-        data=np.random.choice([True, False], size=(mock_data.shape[0], 2)),
+        data=rng.choice([True, False], size=(mock_data.shape[0], 2)),
     )
-    ad.obs["other_density"] = np.random.rand(mock_data.shape[0])
-    ad.layers["local_variability"] = np.random.rand(*mock_data.shape)
+    ad.obs["other_density"] = rng.random(mock_data.shape[0])
+    ad.layers["local_variability"] = rng.random(mock_data.shape)
     return ad
 
 

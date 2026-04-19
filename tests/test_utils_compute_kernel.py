@@ -32,7 +32,8 @@ def test_compute_kernel_alpha(mock_data):
 
 # Test pca_key parameter
 def test_compute_kernel_pca_key(mock_anndata):
-    mock_anndata.obsm["custom_pca"] = np.random.rand(mock_anndata.shape[0], 10)
+    rng = np.random.default_rng()
+    mock_anndata.obsm["custom_pca"] = rng.random((mock_anndata.shape[0], 10))
     kernel = compute_kernel(mock_anndata, pca_key="custom_pca")
     assert "DM_Kernel" in mock_anndata.obsp.keys()
 

@@ -479,8 +479,8 @@ def diffusion_maps_from_kernel(
     D[D != 0] = 1 / D[D != 0]
     T = csr_matrix((D, (range(N), range(N))), shape=[N, N]).dot(kernel)
 
-    np.random.seed(seed)
-    v0 = np.random.rand(min(T.shape))
+    rng = np.random.default_rng(seed)
+    v0 = rng.random(min(T.shape))
     D, V = eigs(T, n_components, tol=1e-4, maxiter=1000, v0=v0)
 
     D = np.real(D)
