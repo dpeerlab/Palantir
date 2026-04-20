@@ -2,7 +2,8 @@
 Core functions for running Palantir
 """
 
-from typing import Union, Optional, List, Dict, Tuple
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -19,6 +20,8 @@ from scipy.sparse import csr_matrix, find, csgraph, eye
 from scipy.sparse.csgraph import connected_components
 from scipy.stats import entropy, pearsonr, norm
 from numpy.linalg import inv, pinv, LinAlgError
+from numpy.random import BitGenerator, SeedSequence, RandomState
+from numpy.typing import ArrayLike
 import warnings
 from anndata import AnnData
 
@@ -59,9 +62,9 @@ def _get_joblib_backend():
 
 
 def run_palantir(
-    data: Union[pd.DataFrame, AnnData],
-    early_cell,
-    terminal_states: Optional[Union[List, Dict, pd.Series]] = None,
+    data: pd.DataFrame | AnnData,
+    early_cell: str,
+    terminal_states: list | dict | pd.Series | None = None,
     knn: int = 30,
     num_waypoints: int = 1200,
     n_jobs: int = -1,
@@ -72,21 +75,21 @@ def run_palantir(
     pseudo_time_key: str = "palantir_pseudotime",
     entropy_key: str = "palantir_entropy",
     fate_prob_key: str = "palantir_fate_probabilities",
-    save_as_df: bool = None,
+    save_as_df: bool | None = None,
     waypoints_key: str = "palantir_waypoints",
-    seed: int = 20,
-) -> Optional[object]:
+    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
+) -> object | None:
     """
     Executes the Palantir algorithm to derive pseudotemporal ordering of cells, their fate probabilities, and
     state entropy based on the multiscale diffusion map results.
 
     Parameters
     ----------
-    data : Union[pd.DataFrame, AnnData]
+    data : pd.DataFrame | AnnData
         Either a DataFrame of multiscale space diffusion components or a Scanpy AnnData object.
     early_cell : str
         Start cell for pseudotime construction.
-    terminal_states : List/Series/Dict, optional
+    terminal_states : list | pd.Series | dict, optional
         User-defined terminal states structure in the format {terminal_name:cell_name}. Default is None.
     knn : int, optional
         Number of nearest neighbors for graph construction. Default is 30.
@@ -116,12 +119,12 @@ def run_palantir(
         write h5ad files with DataFrames in ad.obsm. Default is palantir.SAVE_AS_DF = True.
     waypoints_key : str, optional
         Key to store the waypoints in uns of the AnnData object. Default is 'palantir_waypoints'.
-    seed : int, optional
+    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         The seed for the random number generator used in waypoint sampling. Default is 20.
 
     Returns
     -------
-    Optional[PResults]
+    PResults | None
         PResults object with pseudotime, entropy, branch probabilities, and waypoints.
         If an AnnData object is passed as data, the result is written to its obs, obsm, and uns attributes
         using the provided keys and None is returned.
@@ -250,7 +253,9 @@ def run_palantir(
 
 
 def _max_min_sampling(
-    data: pd.DataFrame, num_waypoints: int, seed: Optional[int] = None
+    data: pd.DataFrame,
+    num_waypoints: int,
+    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
 ) -> pd.Index:
     """Function for max min sampling of waypoints.
 
@@ -263,8 +268,8 @@ def _max_min_sampling(
         Data matrix along which to sample the waypoints, usually diffusion components.
     num_waypoints : int
         Number of waypoints to sample.
-    seed : Optional[int], default=None
-        Random number generator seed for the initial point selection.
+    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
+        Random number generator seed for the initial point selection. Default is 20
 
     Returns
     -------
@@ -318,7 +323,7 @@ def _compute_pseudotime(
     waypoints: pd.Index,
     n_jobs: int,
     max_iterations: int = 25,
-) -> Tuple[pd.Series, pd.DataFrame]:
+) -> tuple[pd.Series, pd.DataFrame]:
     """Compute pseudotime and weight matrix using shortest path distances.
 
     This function constructs a kNN graph and computes shortest path distances from
@@ -342,7 +347,7 @@ def _compute_pseudotime(
 
     Returns
     -------
-    Tuple[pd.Series, pd.DataFrame]
+    tuple[pd.Series, pd.DataFrame]
         pseudotime : pd.Series
             Pseudotime ordering of cells.
         W : pd.DataFrame
@@ -407,8 +412,8 @@ def identify_terminal_states(
     num_waypoints: int = 1200,
     n_jobs: int = -1,
     max_iterations: int = 25,
-    seed: int = 20,
-) -> Tuple[np.ndarray, pd.Index]:
+    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
+) -> tuple[np.ndarray, pd.Index]:
     """
     Identify terminal states from multi-scale data.
     
@@ -429,12 +434,12 @@ def identify_terminal_states(
         Number of jobs for parallel processing. Default is -1.
     max_iterations : int, optional
         Maximum number of iterations for pseudotime convergence. Default is 25.
-    seed : int, optional
+    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Random seed for waypoint sampling. Default is 20.
         
     Returns
     -------
-    Tuple[np.ndarray, pd.Index]
+    tuple[np.ndarray, pd.Index]
         terminal_states : np.ndarray
             Array of identified terminal state cells.
         excluded_boundaries : pd.Index
@@ -649,12 +654,12 @@ def _terminal_states_from_markov_chain(
 
 
 def _differentiation_entropy(
-    wp_data: pd.DataFrame, 
-    terminal_states: Optional[np.ndarray], 
-    knn: int, 
-    n_jobs: int, 
-    pseudotime: pd.Series
-) -> Tuple[pd.Series, pd.DataFrame]:
+    wp_data: pd.DataFrame,
+    terminal_states: np.ndarray | None,
+    knn: int,
+    n_jobs: int,
+    pseudotime: pd.Series,
+) -> tuple[pd.Series, pd.DataFrame]:
     """Compute entropy and branch probabilities from a Markov chain.
 
     This function constructs a Markov chain from waypoints data and computes 
@@ -664,7 +669,7 @@ def _differentiation_entropy(
     ----------
     wp_data : pd.DataFrame
         Multi-scale data of the waypoints.
-    terminal_states : Optional[np.ndarray]
+    terminal_states : np.ndarray, optional
         Terminal states to use for probability calculations. If None, they will be
         automatically detected.
     knn : int
@@ -676,7 +681,7 @@ def _differentiation_entropy(
 
     Returns
     -------
-    Tuple[pd.Series, pd.DataFrame]
+    tuple[pd.Series, pd.DataFrame]
         entropy : pd.Series
             Differentiation entropy for each cell.
         branch_probs : pd.DataFrame

@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix, csgraph, find
 from sklearn.neighbors import NearestNeighbors
+from numpy.random import BitGenerator, SeedSequence, RandomState
+from numpy.typing import ArrayLike
 
 import scanpy as sc
 from anndata import AnnData
@@ -13,7 +15,9 @@ from palantir.utils import compute_kernel
 
 
 def _max_min_sampling_reference(
-    data: pd.DataFrame, num_waypoints: int, seed: int | None = None
+    data: pd.DataFrame,
+    num_waypoints: int,
+    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = None
 ) -> pd.Index:
     waypoint_set = []
     no_iterations = int(num_waypoints / data.shape[1])

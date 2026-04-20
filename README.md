@@ -73,6 +73,11 @@ ____
 Release Notes
 -------------
 
+ ### Version 1.4.5 (future)
+ * Use `numpy.random.Generator` in place of the legacy global `numpy.random.RandomState` and require
+`numpy>=1.17`. Note that since the default PRNG is now [PCG64](https://numpy.org/devdocs/reference/random/bit_generators/pcg64.html) instead of the Mersenne Twister, numerical outputs are expected to differ from
+those in previous versions. If exact reproducibility is required, users should pin the relevant prior version.
+
  ### Version 1.4.4
  * Fix: reorder dependencies to work around uv resolver order-dependence ([astral-sh/uv#5161](https://github.com/astral-sh/uv/issues/5161)), which caused `uv pip install palantir` to resolve to incompatible ancient versions of scanpy/numba/llvmlite
 
