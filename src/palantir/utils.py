@@ -12,7 +12,6 @@ import gc
 from scipy.sparse import csr_matrix, find, issparse, hstack
 from scipy.sparse.linalg import eigs
 from numpy.random import BitGenerator, SeedSequence, RandomState
-from numpy.typing import ArrayLike
 import scanpy as sc
 from anndata import AnnData
 from sklearn.neighbors import NearestNeighbors
@@ -457,7 +456,7 @@ def compute_kernel(
 def diffusion_maps_from_kernel(
     kernel: csr_matrix,
     n_components: int = 10,
-    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 0,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 0,
 ) -> dict[str, csr_matrix | pd.DataFrame | pd.Series]:
     """
     Compute the diffusion map given a kernel matrix.
@@ -468,7 +467,7 @@ def diffusion_maps_from_kernel(
         Precomputed kernel matrix.
     n_components : int
         Number of diffusion components to compute. Default is 10.
-    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState, optional
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState, optional
         Seed for random initialization. Default is 0.
 
     Returns
@@ -505,7 +504,7 @@ def run_diffusion_maps(
     n_components: int = 10,
     knn: int = 30,
     alpha: float = 0,
-    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 0,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 0,
     kernel_backend: str = "scanpy",
     pca_key: str = "X_pca",
     kernel_key: str = "DM_Kernel",
@@ -528,7 +527,7 @@ def run_diffusion_maps(
         Number of nearest neighbors for graph construction. Default is 30.
     alpha : float, optional
         Normalization parameter for the diffusion operator. Default is 0.
-    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState, optional
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState, optional
         Numpy random seed, randomized if None, set to an arbitrary integer for reproducibility.
         Default is 0.
     kernel_backend : str, optional
@@ -951,7 +950,7 @@ def early_cell(
     celltype: str,
     celltype_column: str = "celltype",
     eigvec_key: str = "DM_EigenVectors_multiscaled",
-    fallback_seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = None,
+    fallback_seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = None,
 ):
     """
     Helper function to determine 'early_cell' for 'run_palantir'.
@@ -969,7 +968,7 @@ def early_cell(
     eigvec_key : str, optional
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
-    fallback_seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
+    fallback_seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Seed for random number generator in fallback method. If not specified,
         the fallback method is not applied and CellNotFoundException error is
         raised instead.
@@ -1012,7 +1011,7 @@ def early_cell(
 
     if fallback_seed is not None and not isinstance(
         fallback_seed,
-        (int, ArrayLike[int], np.random.Generator, BitGenerator, SeedSequence, RandomState)
+        (int, np.integer, np.ndarray, np.random.Generator, BitGenerator, SeedSequence, RandomState)
     ):
         raise ValueError("'fallback_seed' should of a type accepted by 'numpy.random.default_rng()'")
 
@@ -1044,7 +1043,7 @@ def fallback_terminal_cell(
     celltype: str,
     celltype_column: str = "anno",
     eigvec_key: str = "DM_EigenVectors_multiscaled",
-    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 2353,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 2353,
 ):
     """
     Fallback method to identify terminal cells when no valid diffusion component
@@ -1062,7 +1061,7 @@ def fallback_terminal_cell(
     eigvec_key : str, optional
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
-    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Seed for random number generator in fallback method. If not specified, no seed is used.
         Default is 2353.
 
@@ -1096,7 +1095,7 @@ def find_terminal_states(
     celltypes: Iterable,
     celltype_column: str = "celltype",
     eigvec_key: str = "DM_EigenVectors_multiscaled",
-    fallback_seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = None,
+    fallback_seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = None,
 ):
     """
     Identifies terminal states for a list of cell types in the AnnData object.
@@ -1117,7 +1116,7 @@ def find_terminal_states(
     eigvec_key : str, optional
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
-    fallback_seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
+    fallback_seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Seed for random number generator in fallback method. If not specified,
         the fallback method is not applied and CellNotFoundException error is
         raised instead.

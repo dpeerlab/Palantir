@@ -21,7 +21,6 @@ from scipy.sparse.csgraph import connected_components
 from scipy.stats import entropy, pearsonr, norm
 from numpy.linalg import inv, pinv, LinAlgError
 from numpy.random import BitGenerator, SeedSequence, RandomState
-from numpy.typing import ArrayLike
 import warnings
 from anndata import AnnData
 
@@ -77,7 +76,7 @@ def run_palantir(
     fate_prob_key: str = "palantir_fate_probabilities",
     save_as_df: bool | None = None,
     waypoints_key: str = "palantir_waypoints",
-    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
 ) -> object | None:
     """
     Executes the Palantir algorithm to derive pseudotemporal ordering of cells, their fate probabilities, and
@@ -119,7 +118,7 @@ def run_palantir(
         write h5ad files with DataFrames in ad.obsm. Default is palantir.SAVE_AS_DF = True.
     waypoints_key : str, optional
         Key to store the waypoints in uns of the AnnData object. Default is 'palantir_waypoints'.
-    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         The seed for the random number generator used in waypoint sampling. Default is 20.
 
     Returns
@@ -255,7 +254,7 @@ def run_palantir(
 def _max_min_sampling(
     data: pd.DataFrame,
     num_waypoints: int,
-    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
 ) -> pd.Index:
     """Function for max min sampling of waypoints.
 
@@ -268,7 +267,7 @@ def _max_min_sampling(
         Data matrix along which to sample the waypoints, usually diffusion components.
     num_waypoints : int
         Number of waypoints to sample.
-    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Random number generator seed for the initial point selection. Default is 20
 
     Returns
@@ -412,7 +411,7 @@ def identify_terminal_states(
     num_waypoints: int = 1200,
     n_jobs: int = -1,
     max_iterations: int = 25,
-    seed: int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 20,
 ) -> tuple[np.ndarray, pd.Index]:
     """
     Identify terminal states from multi-scale data.
@@ -434,7 +433,7 @@ def identify_terminal_states(
         Number of jobs for parallel processing. Default is -1.
     max_iterations : int, optional
         Maximum number of iterations for pseudotime convergence. Default is 25.
-    seed : int | ArrayLike[int] | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Random seed for waypoint sampling. Default is 20.
         
     Returns
