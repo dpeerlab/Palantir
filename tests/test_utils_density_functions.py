@@ -12,22 +12,23 @@ from palantir.utils import run_low_density_variability, run_density_evaluation
 def mock_anndata_with_density(mock_anndata):
     """Create anndata with density for testing low_density_variability"""
     # Add density values
-    mock_anndata.obs["mellon_log_density"] = np.random.rand(mock_anndata.n_obs)
+    rng = np.random.default_rng()
+    mock_anndata.obs["mellon_log_density"] = rng.random(mock_anndata.n_obs)
 
     # Add local variability
-    mock_anndata.layers["local_variability"] = np.random.rand(
-        mock_anndata.n_obs, mock_anndata.n_vars
+    mock_anndata.layers["local_variability"] = rng.random(
+        (mock_anndata.n_obs, mock_anndata.n_vars)
     )
 
     # Add branch masks
     mock_anndata.obsm["branch_masks"] = pd.DataFrame(
-        np.random.randint(0, 2, size=(mock_anndata.n_obs, 2)),
+        rng.integers(0, 2, size=(mock_anndata.n_obs, 2)),
         columns=["branch1", "branch2"],
         index=mock_anndata.obs_names,
     )
 
     # Also add branch mask in obs
-    mock_anndata.obs["obs_branch"] = np.random.randint(0, 2, size=mock_anndata.n_obs)
+    mock_anndata.obs["obs_branch"] = rng.integers(0, 2, size=mock_anndata.n_obs)
 
     return mock_anndata
 
@@ -110,17 +111,18 @@ def test_run_low_density_variability_errors(mock_anndata_with_density):
 def test_run_density_evaluation(mock_predictor_from_dict):
     """Test run_density_evaluation function"""
     # Create input and output anndata objects
-    in_ad = AnnData(X=np.random.rand(20, 10))
-    out_ad = AnnData(X=np.random.rand(15, 10))
+    rng = np.random.default_rng()
+    in_ad = AnnData(X=rng.random((20, 10)))
+    out_ad = AnnData(X=rng.random((15, 10)))
 
     # Setup predictor mock
     mock_predictor = MagicMock()
-    mock_predictor.return_value = np.random.rand(15)
+    mock_predictor.return_value = rng.random(15)
     mock_predictor_from_dict.return_value = mock_predictor
 
     # Add required fields
     in_ad.uns["mellon_log_density_predictor"] = {"mock": "predictor"}
-    out_ad.obsm["DM_EigenVectors"] = np.random.rand(15, 5)
+    out_ad.obsm["DM_EigenVectors"] = rng.random((15, 5))
 
     # Run the function
     result = run_density_evaluation(in_ad, out_ad)
@@ -150,15 +152,16 @@ def test_run_density_evaluation(mock_predictor_from_dict):
 def test_run_density_evaluation_errors():
     """Test error handling in run_density_evaluation"""
     # Create input and output anndata objects
-    in_ad = AnnData(X=np.random.rand(20, 10))
-    out_ad = AnnData(X=np.random.rand(15, 10))
+    rng = np.random.default_rng()
+    in_ad = AnnData(X=rng.random((20, 10)))
+    out_ad = AnnData(X=rng.random((15, 10)))
 
     # Test missing repr_key
     with pytest.raises(ValueError, match="'DM_EigenVectors' not found in out_ad.obsm"):
         run_density_evaluation(in_ad, out_ad)
 
     # Add eigenvectors but no predictor
-    out_ad.obsm["DM_EigenVectors"] = np.random.rand(15, 5)
+    out_ad.obsm["DM_EigenVectors"] = rng.random((15, 5))
 
     # Test missing predictor_key
     with pytest.raises(ValueError, match="'mellon_log_density_predictor' not found in in_ad.uns"):

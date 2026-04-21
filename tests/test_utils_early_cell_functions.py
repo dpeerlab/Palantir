@@ -67,7 +67,8 @@ def test_early_cell_extreme_min(mock_anndata_with_celltypes):
 def test_early_cell_fallback():
     """Test early_cell with fallback to fallback_terminal_cell"""
     # Create a very simple AnnData with a cell type that won't be at extremes
-    ad = AnnData(X=np.random.rand(10, 5))
+    rng = np.random.default_rng()
+    ad = AnnData(X=rng.random((10, 5)))
     ad.obs["celltype"] = pd.Categorical(
         ["A", "A", "A", "A", "A", "B", "B", "B", "C", "C"], categories=["A", "B", "C"]
     )
@@ -96,10 +97,74 @@ def test_early_cell_fallback():
         )
 
 
+@pytest.mark.parametrize(
+    "fallback_seed",
+    [
+        42,
+        np.int64(42),
+        np.array([1, 2, 3]),
+        np.random.default_rng(42),
+        np.random.SeedSequence(42),
+        np.random.default_rng(42).bit_generator,
+    ],
+)
+def test_early_cell_fallback_seed_types(fallback_seed):
+    """Regression test for `ArrayLike[int]` used in an isinstance tuple.
+
+    Before the fix, any non-None fallback_seed raised
+    ``TypeError: Only generic type aliases are subscriptable`` because
+    ``numpy.typing.ArrayLike`` cannot be subscripted at runtime. This
+    test exercises every accepted runtime shape of the seed to catch
+    regressions of that class.
+    """
+    rng = np.random.default_rng(0)
+    ad = AnnData(X=rng.random((10, 5)))
+    ad.obs["celltype"] = pd.Categorical(
+        ["A", "A", "A", "A", "A", "B", "B", "B", "C", "C"],
+        categories=["A", "B", "C"],
+    )
+    eigvecs = np.zeros((10, 3))
+    eigvecs[0, 0] = 100
+    eigvecs[1, 0] = -100
+    eigvecs[2, 1] = 100
+    eigvecs[3, 1] = -100
+    eigvecs[4, 2] = 100
+    eigvecs[5, 2] = -100
+    ad.obsm["DM_EigenVectors_multiscaled"] = eigvecs
+    ad.obs_names = [f"cell_{i}" for i in range(10)]
+
+    with patch("palantir.utils.fallback_terminal_cell", return_value="cell_x"):
+        result = early_cell(ad, "C", fallback_seed=fallback_seed)
+    assert result == "cell_x"
+
+
+def test_early_cell_fallback_seed_rejects_bad_type():
+    """Non-seed-like inputs must still raise a clear ValueError."""
+    rng = np.random.default_rng(0)
+    ad = AnnData(X=rng.random((10, 5)))
+    ad.obs["celltype"] = pd.Categorical(
+        ["A", "A", "A", "A", "A", "B", "B", "B", "C", "C"],
+        categories=["A", "B", "C"],
+    )
+    eigvecs = np.zeros((10, 3))
+    eigvecs[0, 0] = 100
+    eigvecs[1, 0] = -100
+    eigvecs[2, 1] = 100
+    eigvecs[3, 1] = -100
+    eigvecs[4, 2] = 100
+    eigvecs[5, 2] = -100
+    ad.obsm["DM_EigenVectors_multiscaled"] = eigvecs
+    ad.obs_names = [f"cell_{i}" for i in range(10)]
+
+    with pytest.raises(ValueError, match="fallback_seed"):
+        early_cell(ad, "C", fallback_seed="not a seed")
+
+
 def test_early_cell_exception():
     """Test early_cell raising exception when no cell found"""
     # Create a very simple AnnData with a cell type that won't be at extremes
-    ad = AnnData(X=np.random.rand(10, 5))
+    rng = np.random.default_rng()
+    ad = AnnData(X=rng.random((10, 5)))
     ad.obs["celltype"] = pd.Categorical(
         ["A", "A", "A", "A", "A", "B", "B", "B", "B", "B"], categories=["A", "B"]
     )

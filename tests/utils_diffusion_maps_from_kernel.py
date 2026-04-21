@@ -10,7 +10,8 @@ from palantir.utils import diffusion_maps_from_kernel, determine_multiscale_spac
 @pytest.fixture
 def mock_kernel():
     size = 50
-    A = np.random.rand(size, size)
+    rng = np.random.default_rng()
+    A = rng.random((size, size))
     return csr_matrix((A + A.T) / 2)
 
 

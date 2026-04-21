@@ -44,7 +44,8 @@ def mock_10x_h5(tmp_path):
     n_cells = 300
 
     # Simulate a sparse gene expression matrix
-    data = np.random.poisson(lam=0.3, size=(n_genes, n_cells))
+    rng = np.random.default_rng()
+    data = rng.poisson(lam=0.3, size=(n_genes, n_cells))
     sparse_matrix = csc_matrix(data)
 
     # Create barcodes, gene names, etc.

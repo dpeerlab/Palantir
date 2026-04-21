@@ -34,7 +34,8 @@ def test_determine_multiscale_space_with_anndata(mock_anndata):
     eigvals[4:] = np.linspace(0.25, 0.1, n_components - 4)
 
     # Create eigenvectors
-    eigvecs = np.random.rand(mock_anndata.n_obs, n_components)
+    rng = np.random.default_rng()
+    eigvecs = rng.random((mock_anndata.n_obs, n_components))
 
     # Add to mock anndata
     mock_anndata.uns["DM_EigenValues"] = eigvals
@@ -58,7 +59,8 @@ def test_determine_multiscale_space_with_small_gap(mock_anndata):
     eigvals = np.linspace(0.9, 0.5, n_components)
 
     # Create eigenvectors
-    eigvecs = np.random.rand(mock_anndata.n_obs, n_components)
+    rng = np.random.default_rng()
+    eigvecs = rng.random((mock_anndata.n_obs, n_components))
 
     # Add to mock anndata
     mock_anndata.uns["DM_EigenValues"] = eigvals

@@ -21,8 +21,9 @@ def example_dataframe():
 def mock_data():
     n_cells = 50
     n_genes = 10
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_cells, n_genes),
+        rng.random((n_cells, n_genes)),
         columns=[f"gene_{i}" for i in range(n_genes)],
         index=[f"cell_{i}" for i in range(n_cells)],
     )
@@ -39,8 +40,9 @@ def mock_anndata(mock_data):
 @pytest.fixture
 def mock_tsne():
     n_cells = 50
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_cells, 2),
+        rng.random((n_cells, 2)),
         columns=["tSNE1", "tSNE2"],
         index=[f"cell_{i}" for i in range(n_cells)],
     )
@@ -49,8 +51,9 @@ def mock_tsne():
 @pytest.fixture
 def mock_umap_df():
     n_cells = 50
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_cells, 2),
+        rng.random((n_cells, 2)),
         columns=["UMAP1", "UMAP2"],
         index=[f"cell_{i}" for i in range(n_cells)],
     )
@@ -60,8 +63,9 @@ def mock_umap_df():
 def mock_gene_data():
     n_cells = 50
     n_genes = 5
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_cells, n_genes),
+        rng.random((n_cells, n_genes)),
         columns=[f"gene_{i}" for i in range(n_genes)],
         index=[f"cell_{i}" for i in range(n_cells)],
     )
@@ -71,21 +75,23 @@ def mock_gene_data():
 def mock_dm_res():
     n_cells = 50
     n_components = 10
+    rng = np.random.default_rng()
     return {
         "EigenVectors": pd.DataFrame(
-            np.random.rand(n_cells, n_components),
+            rng.random((n_cells, n_components)),
             columns=[f"DC_{i}" for i in range(n_components)],
             index=[f"cell_{i}" for i in range(n_cells)],
         ),
-        "EigenValues": np.random.rand(n_components),
+        "EigenValues": rng.random(n_components),
     }
 
 
 @pytest.fixture
 def mock_clusters():
     n_cells = 50
+    rng = np.random.default_rng()
     return pd.Series(
-        np.random.randint(0, 5, n_cells),
+        rng.integers(0, 5, n_cells),
         index=[f"cell_{i}" for i in range(n_cells)],
     )
 
@@ -94,8 +100,9 @@ def mock_clusters():
 def mock_gene_trends():
     n_bins = 25
     n_genes = 5
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(n_bins, n_genes),
+        rng.random((n_bins, n_genes)),
         columns=[f"gene_{i}" for i in range(n_genes)],
         index=np.linspace(0, 1, n_bins),
     )

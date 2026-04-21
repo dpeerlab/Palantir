@@ -10,17 +10,18 @@ def mock_adata():
     n_cells = 10
 
     # Create mock data
+    rng = np.random.default_rng()
     adata = AnnData(
-        X=np.random.rand(n_cells, 3),
+        X=rng.random((n_cells, 3)),
         obs=pd.DataFrame(
-            {"palantir_pseudotime": np.random.rand(n_cells)},
+            {"palantir_pseudotime": rng.random(n_cells)},
             index=[f"cell_{i}" for i in range(n_cells)],
         ),
         var=pd.DataFrame(index=[f"gene_{i}" for i in range(3)]),
     )
 
     adata.obsm["branch_masks"] = pd.DataFrame(
-        np.random.randint(2, size=(n_cells, 2)),
+        rng.integers(2, size=(n_cells, 2)),
         columns=["branch_1", "branch_2"],
         index=adata.obs_names,
     ).astype(bool)
@@ -33,17 +34,18 @@ def custom_mock_adata():
     n_cells = 10
 
     # Create mock data
+    rng = np.random.default_rng()
     adata = AnnData(
-        X=np.random.rand(n_cells, 3),
+        X=rng.random((n_cells, 3)),
         obs=pd.DataFrame(
-            {"custom_time": np.random.rand(n_cells)},
+            {"custom_time": rng.random(n_cells)},
             index=[f"cell_{i}" for i in range(n_cells)],
         ),
         var=pd.DataFrame(index=[f"gene_{i}" for i in range(3)]),
     )
 
     adata.obsm["custom_masks"] = pd.DataFrame(
-        np.random.randint(2, size=(n_cells, 2)),
+        rng.integers(2, size=(n_cells, 2)),
         columns=["branch_1", "branch_2"],
         index=adata.obs_names,
     ).astype(bool)
@@ -56,17 +58,18 @@ def mock_adata_old():
     n_cells = 10
 
     # Create mock data
+    rng = np.random.default_rng()
     adata = AnnData(
-        X=np.random.rand(n_cells, 3),
+        X=rng.random((n_cells, 3)),
         obs=pd.DataFrame(
-            {"palantir_pseudotime": np.random.rand(n_cells)},
+            {"palantir_pseudotime": rng.random(n_cells)},
             index=[f"cell_{i}" for i in range(n_cells)],
         ),
         var=pd.DataFrame(index=[f"gene_{i}" for i in range(3)]),
     )
 
     # Create mock branch_masks in obsm
-    adata.obsm["branch_masks"] = np.random.randint(2, size=(n_cells, 2)).astype(bool)
+    adata.obsm["branch_masks"] = rng.integers(2, size=(n_cells, 2)).astype(bool)
     adata.uns["branch_masks_columns"] = ["branch_1", "branch_2"]
 
     return adata

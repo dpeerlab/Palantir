@@ -1,4 +1,5 @@
-from typing import Iterable, Union, Tuple, List, Dict, Generator, Optional
+from __future__ import annotations
+from typing import Iterable, Generator
 from warnings import warn
 import pandas as pd
 import numpy as np
@@ -10,6 +11,7 @@ import gc
 
 from scipy.sparse import csr_matrix, find, issparse, hstack
 from scipy.sparse.linalg import eigs
+from numpy.random import BitGenerator, SeedSequence, RandomState
 import scanpy as sc
 from anndata import AnnData
 from sklearn.neighbors import NearestNeighbors
@@ -50,17 +52,17 @@ def _slice_pca(ad: AnnData, n_comps: int) -> None:
 
 
 def run_pca(
-    data: Union[pd.DataFrame, AnnData],
+    data: pd.DataFrame | AnnData,
     n_components: int = 300,
     use_hvg: bool = True,
     pca_key: str = "X_pca",
-) -> Union[Tuple[pd.DataFrame, np.array], None]:
+) -> tuple[pd.DataFrame, np.array] | None:
     """
     Run PCA on the data.
 
     Parameters
     ----------
-    data : Union[pd.DataFrame, AnnData]
+    data : pd.DataFrame | AnnData
         Dataframe of cells X genes or AnnData object.
         Typically multi-scale space diffusion components.
     n_components : int, optional
@@ -72,7 +74,7 @@ def run_pca(
 
     Returns
     -------
-    Union[Tuple[pd.DataFrame, np.array], None]
+    tuple[pd.DataFrame, np.array] | None
         Tuple of PCA projections of the data and the explained variance.
         If AnnData is passed as data, the results are also written to the input object and None is returned.
     """
@@ -120,7 +122,7 @@ def run_pca(
 
 def run_low_density_variability(
     ad: AnnData,
-    cell_mask: Union[str, np.ndarray, List[str], pd.Series, pd.Index] = "branch_masks",
+    cell_mask: str | np.ndarray | list[str] | pd.Series | pd.Index = "branch_masks",
     density_key: str = "mellon_log_density",
     localvar_key: str = "local_variability",
     score_key: str = "low_density_gene_variability",
@@ -338,19 +340,19 @@ def run_density_evaluation(
 
 
 def compute_kernel(
-    data: Union[pd.DataFrame, AnnData],
+    data: pd.DataFrame | AnnData,
     knn: int = 30,
     alpha: float = 0,
     pca_key: str = "X_pca",
     kernel_key: str = "DM_Kernel",
-    backend: Optional[str] = None,
+    backend: str | None = None,
 ) -> csr_matrix:
     """
     Compute the adaptive anisotropic diffusion kernel.
 
     Parameters
     ----------
-    data : Union[pd.DataFrame, AnnData]
+    data : pd.DataFrame | AnnData
         Data points (rows) in a feature space (columns) for pd.DataFrame.
         For AnnData, it uses the .X attribute.
     knn : int
@@ -452,8 +454,10 @@ def compute_kernel(
 
 
 def diffusion_maps_from_kernel(
-    kernel: csr_matrix, n_components: int = 10, seed: Union[int, None] = 0
-) -> Dict[str, Union[csr_matrix, pd.DataFrame, pd.Series]]:
+    kernel: csr_matrix,
+    n_components: int = 10,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 0,
+) -> dict[str, csr_matrix | pd.DataFrame | pd.Series]:
     """
     Compute the diffusion map given a kernel matrix.
 
@@ -463,12 +467,12 @@ def diffusion_maps_from_kernel(
         Precomputed kernel matrix.
     n_components : int
         Number of diffusion components to compute. Default is 10.
-    seed : Union[int, None]
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState, optional
         Seed for random initialization. Default is 0.
 
     Returns
     -------
-    Dict[str, Union[csr_matrix, pd.DataFrame, pd.Series]]
+    dict[str, csr_matrix | pd.DataFrame | pd.Series]
         Dictionary containing:
         - T: Transition matrix (csr_matrix)
         - EigenVectors: Diffusion components (pd.DataFrame)
@@ -479,8 +483,8 @@ def diffusion_maps_from_kernel(
     D[D != 0] = 1 / D[D != 0]
     T = csr_matrix((D, (range(N), range(N))), shape=[N, N]).dot(kernel)
 
-    np.random.seed(seed)
-    v0 = np.random.rand(min(T.shape))
+    rng = np.random.default_rng(seed)
+    v0 = rng.random(min(T.shape))
     D, V = eigs(T, n_components, tol=1e-4, maxiter=1000, v0=v0)
 
     D = np.real(D)
@@ -496,24 +500,24 @@ def diffusion_maps_from_kernel(
 
 
 def run_diffusion_maps(
-    data: Union[pd.DataFrame, AnnData],
+    data: pd.DataFrame | AnnData,
     n_components: int = 10,
     knn: int = 30,
     alpha: float = 0,
-    seed: Union[int, None] = 0,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 0,
     kernel_backend: str = "scanpy",
     pca_key: str = "X_pca",
     kernel_key: str = "DM_Kernel",
     sim_key: str = "DM_Similarity",
     eigval_key: str = "DM_EigenValues",
     eigvec_key: str = "DM_EigenVectors",
-) -> Dict[str, Union[csr_matrix, pd.DataFrame, pd.Series]]:
+) -> dict[str, csr_matrix | pd.DataFrame | pd.Series]:
     """
     Run Diffusion maps using the adaptive anisotropic kernel.
 
     Parameters
     ----------
-    data : Union[pd.DataFrame, AnnData]
+    data : pd.DataFrame | AnnData
         PCA projections of the data or adjacency matrix.
         If AnnData is passed, its obsm[pca_key] is used and the result is written to
         its obsp[kernel_key], obsm[eigvec_key], and uns[eigval_key].
@@ -523,7 +527,7 @@ def run_diffusion_maps(
         Number of nearest neighbors for graph construction. Default is 30.
     alpha : float, optional
         Normalization parameter for the diffusion operator. Default is 0.
-    seed : Union[int, None], optional
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState, optional
         Numpy random seed, randomized if None, set to an arbitrary integer for reproducibility.
         Default is 0.
     kernel_backend : str, optional
@@ -543,7 +547,7 @@ def run_diffusion_maps(
 
     Returns
     -------
-    Dict[str, Union[csr_matrix, pd.DataFrame, pd.Series]]
+    dict[str, csr_matrix | pd.DataFrame | pd.Series]
         Dictionary containing:
         - kernel: Computed kernel matrix
         - T: Transition matrix
@@ -585,14 +589,14 @@ def run_diffusion_maps(
     return res
 
 
-def _dot_helper_func(x: csr_matrix, y: Union[np.ndarray, csr_matrix]) -> np.ndarray:
+def _dot_helper_func(x: csr_matrix, y: np.ndarray | csr_matrix) -> np.ndarray:
     """Helper function to compute dot product of sparse matrices.
 
     Parameters
     ----------
     x : csr_matrix
         First sparse matrix.
-    y : Union[np.ndarray, csr_matrix]
+    y : np.ndarray | csr_matrix
         Second matrix or array to multiply.
 
     Returns
@@ -604,7 +608,7 @@ def _dot_helper_func(x: csr_matrix, y: Union[np.ndarray, csr_matrix]) -> np.ndar
 
 
 def _local_var_helper(
-    expressions: Union[np.ndarray, csr_matrix], distances: csr_matrix, eps: float = 1e-16
+    expressions: np.ndarray | csr_matrix, distances: csr_matrix, eps: float = 1e-16
 ) -> Generator[np.ndarray, None, None]:
     """Helper function to compute local variability for gene expression data.
 
@@ -612,7 +616,7 @@ def _local_var_helper(
 
     Parameters
     ----------
-    expressions : Union[np.ndarray, csr_matrix]
+    expressions : np.ndarray | csr_matrix
         Gene expression matrix, cells x genes.
     distances : csr_matrix
         Distance matrix between cells.
@@ -725,8 +729,8 @@ def run_local_variability(
 
 
 def run_magic_imputation(
-    data: Union[np.ndarray, pd.DataFrame, AnnData, csr_matrix],
-    dm_res: Union[dict, None] = None,
+    data: np.ndarray | pd.DataFrame | AnnData | csr_matrix,
+    dm_res: dict | None = None,
     n_steps: int = 3,
     sim_key: str = "DM_Similarity",
     expression_key: str = None,
@@ -734,15 +738,15 @@ def run_magic_imputation(
     n_jobs: int = -1,
     sparse: bool = True,
     clip_threshold: float = 1e-2,
-) -> Union[pd.DataFrame, None, csr_matrix, np.ndarray]:
+) -> pd.DataFrame | None | csr_matrix | np.ndarray:
     """
     Run MAGIC imputation on the data.
 
     Parameters
     ----------
-    data : Union[np.ndarray, pd.DataFrame, AnnData, csr_matrix]
+    data : np.ndarray | pd.DataFrame | AnnData | csr_matrix
         Array or DataFrame of cells X genes, AnnData object, or a sparse csr_matrix.
-    dm_res : Union[dict, None], optional
+    dm_res : dict | None, optional
         Diffusion map results from run_diffusion_maps.
         If None and data is a AnnData object, its obsp[kernel_key] is used. Default is None.
     n_steps : int, optional
@@ -760,7 +764,7 @@ def run_magic_imputation(
 
     Returns
     -------
-    Union[pd.DataFrame, None, csr_matrix, np.ndarray]
+    pd.DataFrame | None | csr_matrix | np.ndarray
         Imputed data matrix. Return type matches input type:
         - For numpy arrays or csr_matrix, returns numpy array or csr_matrix.
         - For pandas DataFrame, returns pandas DataFrame.
@@ -847,21 +851,21 @@ def run_magic_imputation(
 
 
 def determine_multiscale_space(
-    dm_res: Union[dict, AnnData],
-    n_eigs: Union[int, None] = None,
+    dm_res: dict | AnnData,
+    n_eigs: int | None = None,
     eigval_key: str = "DM_EigenValues",
     eigvec_key: str = "DM_EigenVectors",
     out_key: str = "DM_EigenVectors_multiscaled",
-) -> Union[pd.DataFrame, None]:
+) -> pd.DataFrame | None:
     """
     Determine the multi-scale space of the data.
 
     Parameters
     ----------
-    dm_res : Union[dict, AnnData]
+    dm_res : dict | AnnData
         Diffusion map results from run_diffusion_maps.
         If AnnData is passed, its uns[eigval_key] and obsm[eigvec_key] are used.
-    n_eigs : Union[int, None], optional
+    n_eigs : int | None, optional
         Number of eigen vectors to use. If None is specified, the number
         of eigen vectors will be determined using the eigen gap. Default is None.
     eigval_key : str, optional
@@ -873,7 +877,7 @@ def determine_multiscale_space(
 
     Returns
     -------
-    Union[pd.DataFrame, None]
+    pd.DataFrame | None
         Multi-scale data matrix. If AnnData is passed as dm_res, the result
         is written to its obsm[out_key] and None is returned.
     """
@@ -946,7 +950,7 @@ def early_cell(
     celltype: str,
     celltype_column: str = "celltype",
     eigvec_key: str = "DM_EigenVectors_multiscaled",
-    fallback_seed: int = None,
+    fallback_seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = None,
 ):
     """
     Helper function to determine 'early_cell' for 'run_palantir'.
@@ -964,7 +968,7 @@ def early_cell(
     eigvec_key : str, optional
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
-    fallback_seed : int, optional
+    fallback_seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Seed for random number generator in fallback method. If not specified,
         the fallback method is not applied and CellNotFoundException error is
         raised instead.
@@ -1005,8 +1009,11 @@ def early_cell(
     if celltype not in ad.obs[celltype_column].values:
         raise ValueError(f"Celltype '{celltype}' not found in ad.obs['{celltype_column}'].")
 
-    if fallback_seed is not None and not isinstance(fallback_seed, int):
-        raise ValueError("'fallback_seed' should be an integer")
+    if fallback_seed is not None and not isinstance(
+        fallback_seed,
+        (int, np.integer, np.ndarray, np.random.Generator, BitGenerator, SeedSequence, RandomState)
+    ):
+        raise ValueError("'fallback_seed' should of a type accepted by 'numpy.random.default_rng()'")
 
     for dcomp in range(eigenvectors.shape[1]):
         ec = eigenvectors[:, dcomp].argmax()
@@ -1036,7 +1043,7 @@ def fallback_terminal_cell(
     celltype: str,
     celltype_column: str = "anno",
     eigvec_key: str = "DM_EigenVectors_multiscaled",
-    seed: int = 2353,
+    seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = 2353,
 ):
     """
     Fallback method to identify terminal cells when no valid diffusion component
@@ -1054,7 +1061,7 @@ def fallback_terminal_cell(
     eigvec_key : str, optional
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
-    seed : int, optional
+    seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Seed for random number generator in fallback method. If not specified, no seed is used.
         Default is 2353.
 
@@ -1088,7 +1095,7 @@ def find_terminal_states(
     celltypes: Iterable,
     celltype_column: str = "celltype",
     eigvec_key: str = "DM_EigenVectors_multiscaled",
-    fallback_seed: int = None,
+    fallback_seed: int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None = None,
 ):
     """
     Identifies terminal states for a list of cell types in the AnnData object.
@@ -1109,7 +1116,7 @@ def find_terminal_states(
     eigvec_key : str, optional
         Key to access multiscale space diffusion components from obsm of ad.
         Default is 'DM_EigenVectors_multiscaled'.
-    fallback_seed : int, optional
+    fallback_seed : int | np.ndarray | np.random.Generator | BitGenerator | SeedSequence | RandomState | None, optional
         Seed for random number generator in fallback method. If not specified,
         the fallback method is not applied and CellNotFoundException error is
         raised instead.

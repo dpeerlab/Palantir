@@ -33,24 +33,27 @@ from palantir.presults import PResults
 # Fixtures for the UMAP DataFrame
 @pytest.fixture
 def mock_umap_df():
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        {"x": np.random.rand(100), "y": np.random.rand(100)},
+        {"x": rng.random(100), "y": rng.random(100)},
         index=[f"cell_{i}" for i in range(100)],
     )
 
 
 @pytest.fixture
 def mock_tsne():
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        {"x": np.random.rand(100), "y": np.random.rand(100)},
+        {"x": rng.random(100), "y": rng.random(100)},
         index=[f"cell_{i}" for i in range(100)],
     )
 
 
 @pytest.fixture
 def mock_data():
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(100, 20),
+        rng.random((100, 20)),
         index=[f"cell_{i}" for i in range(100)],
     )
 
@@ -70,8 +73,9 @@ def mock_cluster_colors():
 
 @pytest.fixture
 def mock_gene_data():
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(100, 5),
+        rng.random((100, 5)),
         columns=[f"gene_{i}" for i in range(5)],
         index=[f"cell_{i}" for i in range(100)],
     )
@@ -79,8 +83,9 @@ def mock_gene_data():
 
 @pytest.fixture
 def mock_dm_res():
+    rng = np.random.default_rng()
     return pd.DataFrame(
-        np.random.rand(100, 3),
+        rng.random((100, 3)),
         index=[f"cell_{i}" for i in range(100)],
     )
 
@@ -88,11 +93,12 @@ def mock_dm_res():
 @pytest.fixture
 def mock_presults():
     cell_index = [f"cell_{i}" for i in range(100)]
+    rng = np.random.default_rng()
     return PResults(
-        pseudotime=pd.Series(np.random.rand(100), index=cell_index),
-        entropy=pd.Series(np.random.rand(100), index=cell_index),
+        pseudotime=pd.Series(rng.random(100), index=cell_index),
+        entropy=pd.Series(rng.random(100), index=cell_index),
         branch_probs=pd.DataFrame(
-            np.random.rand(100, 3),
+            rng.random((100, 3)),
             index=cell_index,
         ),
         waypoints=None,
@@ -129,20 +135,21 @@ def mock_gene_trends():
 # Fixtures for AnnData object
 @pytest.fixture
 def mock_anndata(mock_umap_df):
-    adata = sc.AnnData(X=np.random.randn(100, 5))
+    rng = np.random.default_rng()
+    adata = sc.AnnData(X=rng.standard_normal((100, 5)))
     adata.obs_names = mock_umap_df.index
     adata.var_names = [f"gene_{i}" for i in range(5)]
-    adata.obs["palantir_pseudotime"] = np.random.rand(100)
-    adata.obs["palantir_entropy"] = np.random.rand(100)
+    adata.obs["palantir_pseudotime"] = rng.random(100)
+    adata.obs["palantir_entropy"] = rng.random(100)
     adata.obsm["X_umap"] = mock_umap_df.values
-    adata.obsm["DM_EigenVectors"] = np.random.randn(100, 3)
+    adata.obsm["DM_EigenVectors"] = rng.standard_normal((100, 3))
     adata.obsm["palantir_fate_probabilities"] = pd.DataFrame(
-        np.random.randn(100, 3),
+        rng.standard_normal((100, 3)),
         columns=["a", "b", "c"],
         index=mock_umap_df.index,
     )
     adata.obsm["branch_masks"] = pd.DataFrame(
-        np.random.randint(2, size=(100, 3)),
+        rng.integers(2, size=(100, 3)),
         columns=["a", "b", "c"],
         index=mock_umap_df.index,
         dtype=bool,
@@ -150,7 +157,7 @@ def mock_anndata(mock_umap_df):
     for branch in ["a", "b", "c"]:
         adata.uns[f"gene_trends_{branch}_pseudotime"] = np.linspace(0, 1, 10)
         adata.varm[f"gene_trends_{branch}"] = pd.DataFrame(
-            np.random.rand(5, 10),
+            rng.random((5, 10)),
             index=adata.var_names,
             columns=adata.uns[f"gene_trends_{branch}_pseudotime"],
         )
@@ -158,14 +165,15 @@ def mock_anndata(mock_umap_df):
         ["A", "A", "B", "B", "B"],
         index=adata.var_names,
     )
-    adata.var["gene_score"] = np.random.rand(5)
+    adata.var["gene_score"] = rng.random(5)
     return adata
 
 
 def test_density_2d():
     # Test with random data
-    x = np.random.rand(100)
-    y = np.random.rand(100)
+    rng = np.random.default_rng()
+    x = rng.random(100)
+    y = rng.random(100)
     x_out, y_out, z_out = density_2d(x, y)
 
     # Validate output shape and types
@@ -176,7 +184,8 @@ def test_density_2d():
 
 def test_plot_molecules_per_cell_and_gene():
     # Create synthetic data
-    data = np.random.rand(100, 20)
+    rng = np.random.default_rng()
+    data = rng.random((100, 20))
 
     # Generate plot
     fig, ax = plot_molecules_per_cell_and_gene(data)

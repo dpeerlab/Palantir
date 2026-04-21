@@ -281,8 +281,9 @@ def _get_palantir_fates_colors(
                     yield clr
             hex_digits = np.array(list("0123456789ABCDEF"))
             # If default cycle is exhausted, generate random colors.
+            rng = np.random.default_rng()
             while True:
-                new_color = "#" + "".join(np.random.choice(hex_digits, size=6))
+                new_color = "#" + "".join(rng.choice(hex_digits, size=6))
                 if new_color not in exclude:
                     yield new_color
 
