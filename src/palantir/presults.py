@@ -528,7 +528,7 @@ def cluster_gene_trends(
         columns=trends.columns,
     )
 
-    gt_ad = AnnData(trends.values, dtype=np.float32)
+    gt_ad = AnnData(trends.values.astype(np.float32))
     sc.pp.neighbors(gt_ad, n_neighbors=n_neighbors, use_rep="X")
     
     # Add required kwargs for leiden with igraph backend to avoid FutureWarning
