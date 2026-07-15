@@ -74,6 +74,7 @@ Release Notes
 -------------
 
  ### Version 1.4.5 (future)
+ * Fix: `run_palantir` failed under pandas 3 (mandatory Copy-on-Write) with `ValueError: assignment destination is read-only` in `_differentiation_entropy`. The terminal-state identity block is now built with `np.eye(...)` instead of mutating the read-only `DataFrame.values` view in place. Compatible with both pandas 2 and 3 ([#180](https://github.com/dpeerlab/Palantir/issues/180)).
  * Use `numpy.random.Generator` in place of the legacy global `numpy.random.RandomState` and require
 `numpy>=1.17`. Note that since the default PRNG is now [PCG64](https://numpy.org/devdocs/reference/random/bit_generators/pcg64.html) instead of the Mersenne Twister, numerical outputs are expected to differ from
 those in previous versions. If exact reproducibility is required, users should pin the relevant prior version.
