@@ -713,8 +713,11 @@ def _differentiation_entropy(
     Q = T[trans_states, :][:, trans_states]
     if len(trans_states) == 0:
         ent = pd.Series(0, index=terminal_states)
-        bp = pd.DataFrame(0, index=terminal_states, columns=terminal_states)
-        bp.values[range(len(terminal_states)), range(len(terminal_states))] = 1
+        bp = pd.DataFrame(
+            np.eye(len(terminal_states)),
+            index=terminal_states,
+            columns=terminal_states,
+        )
         return ent, bp
     
     # Fundamental matrix solver
@@ -761,8 +764,11 @@ def _differentiation_entropy(
 
     # Add terminal states
     ent = pd.concat([ent, pd.Series(0, index=terminal_states)])
-    bp = pd.DataFrame(0, index=terminal_states, columns=terminal_states)
-    bp.values[range(len(terminal_states)), range(len(terminal_states))] = 1
+    bp = pd.DataFrame(
+        np.eye(len(terminal_states)),
+        index=terminal_states,
+        columns=terminal_states,
+    )
     branch_probs = pd.concat([branch_probs, bp.loc[:, branch_probs.columns]])
 
     return ent, branch_probs

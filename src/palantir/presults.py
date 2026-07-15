@@ -528,7 +528,7 @@ def cluster_gene_trends(
         columns=trends.columns,
     )
 
-    gt_ad = AnnData(trends.values, dtype=np.float32)
+    gt_ad = AnnData(trends.values.astype(np.float32))
     sc.pp.neighbors(gt_ad, n_neighbors=n_neighbors, use_rep="X")
     
     # Add required kwargs for leiden with igraph backend to avoid FutureWarning
@@ -604,6 +604,10 @@ def select_branch_cells(
     fate_probs, fate_names = _validate_obsm_key(ad, fate_prob_key, as_df=False)
     pseudotime = ad.obs[pseudo_time_key].values
 
+    # Own the array before the in-place NaN fill: when obsm holds a DataFrame,
+    # _validate_obsm_key returns a .values view that is read-only under pandas 3
+    # (mandatory Copy-on-Write).
+    fate_probs = fate_probs.copy()
     fate_probs[np.isnan(fate_probs)] = 1 / fate_probs.shape[1]
 
     idx = np.argsort(pseudotime)
