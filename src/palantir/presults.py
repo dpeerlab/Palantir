@@ -604,6 +604,10 @@ def select_branch_cells(
     fate_probs, fate_names = _validate_obsm_key(ad, fate_prob_key, as_df=False)
     pseudotime = ad.obs[pseudo_time_key].values
 
+    # Own the array before the in-place NaN fill: when obsm holds a DataFrame,
+    # _validate_obsm_key returns a .values view that is read-only under pandas 3
+    # (mandatory Copy-on-Write).
+    fate_probs = fate_probs.copy()
     fate_probs[np.isnan(fate_probs)] = 1 / fate_probs.shape[1]
 
     idx = np.argsort(pseudotime)
