@@ -226,7 +226,7 @@ def from_fcs(
     # Parse the fcs file
     text, data = fcsparser.parse(fcs_file)
     # Use view instead of newbyteorder for NumPy 2.0 compatibility
-    data = data.astype(np.float64, copy=False)
+    data = data.astype(np.float64)
 
     # Metadata and data
     metadata_channels = data.columns.intersection(metadata_channels)

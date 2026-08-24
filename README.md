@@ -73,6 +73,9 @@ ____
 Release Notes
 -------------
 
+ ### Version 1.4.6 (future)
+* Fix: drop the deprecated `copy` keyword of the `astype` call in `from_fcs` (`io.py`), avoiding `Pandas4Warning` on pandas >=3.0. `copy=False` was inert here — it can only skip an allocation when the frame is already `float64` — so the cast behaves identically on pandas 2 and 3.
+
  ### Version 1.4.5
  * Fix: pandas 3 compatibility. Under pandas 3 (mandatory Copy-on-Write) `DataFrame.values` returns a read-only view, so several in-place mutations raised `ValueError: assignment destination is read-only`. `run_palantir` failed in `_differentiation_entropy` (terminal-state identity block, now built with `np.eye(...)`), and `select_branch_cells` failed on its NaN fill of the fate-probability array (now copied before mutation). Compatible with both pandas 2 and 3 ([#180](https://github.com/dpeerlab/Palantir/issues/180)).
  * Fix: drop the removed `AnnData(dtype=)` keyword in `cluster_gene_trends`. anndata >=0.11 (which resolves on Python 3.12/3.13) removed the `dtype` argument to `AnnData.__init__`, raising `TypeError: got an unexpected keyword argument 'dtype'`. The array is now cast with `.astype(np.float32)` before construction — behaviour is identical and compatible with all anndata versions ([#180](https://github.com/dpeerlab/Palantir/issues/180)).
