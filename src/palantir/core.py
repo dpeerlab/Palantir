@@ -62,7 +62,7 @@ def _get_joblib_backend():
 
 def run_palantir(
     data: pd.DataFrame | AnnData,
-    early_cell: str,
+    early_cell: str | list[str],
     terminal_states: list | dict | pd.Series | None = None,
     knn: int = 30,
     num_waypoints: int = 1200,
@@ -86,8 +86,9 @@ def run_palantir(
     ----------
     data : pd.DataFrame | AnnData
         Either a DataFrame of multiscale space diffusion components or a Scanpy AnnData object.
-    early_cell : str
-        Start cell for pseudotime construction.
+    early_cell : str | list[str]
+        Start cell for pseudotime construction, or a list of start cells. With several, pseudotime
+        starts from the nearest of them.
     terminal_states : list | pd.Series | dict, optional
         User-defined terminal states structure in the format {terminal_name:cell_name}. Default is None.
     knn : int, optional
@@ -99,7 +100,7 @@ def run_palantir(
     scale_components : bool, optional
         If True, components are scaled. Default is True.
     use_early_cell_as_start : bool, optional
-        If True, the early cell is used as start. Default is False.
+        If True, the early cells are used as start. Default is False.
     max_iterations : int, optional
         Maximum number of iterations for pseudotime convergence. Default is 25.
     eigvec_key : str, optional
@@ -163,16 +164,17 @@ def run_palantir(
     else:
         ms_data = data
 
-    # Normalize early_cell identifier
+    # Normalize early_cell identifiers
+    early_cell = list(early_cell) if pd.api.types.is_list_like(early_cell) else [early_cell]
     early_cell_dict, _, n_early_found = normalize_cell_identifiers(
-        [early_cell], ms_data.index, context="run_palantir early_cell"
+        early_cell, ms_data.index, context="run_palantir early_cell"
     )
-    if n_early_found == 0:
+    if n_early_found < len(early_cell_dict):
         raise ValueError(
-            f"Early cell '{early_cell}' not found in data. "
-            f"Please provide a valid cell identifier from data.obs_names (type: {type(ms_data.index[0]).__name__})"
+            f"Early cell(s) {early_cell} not all found in data. "
+            f"Please provide valid cell identifiers from data.obs_names (type: {type(ms_data.index[0]).__name__})"
         )
-    early_cell = list(early_cell_dict.keys())[0]
+    early_cells = list(early_cell_dict.keys())
 
     if scale_components:
         data_df = pd.DataFrame(
@@ -184,14 +186,14 @@ def run_palantir(
         data_df = copy.copy(ms_data)
 
     # ################################################
-    # Determine the boundary cell closest to user defined early cell
+    # Determine the boundary cell closest to each user defined early cell
     dm_boundaries = pd.Index(set(data_df.idxmax()).union(data_df.idxmin()))
-    dists = pairwise_distances(
-        data_df.loc[dm_boundaries, :], data_df.loc[early_cell, :].values.reshape(1, -1)
-    )
-    start_cell = pd.Series(np.ravel(dists), index=dm_boundaries).idxmin()
     if use_early_cell_as_start:
-        start_cell = early_cell
+        start_cells = pd.Index(early_cells)
+    else:
+        dists = pairwise_distances(data_df.loc[dm_boundaries, :], data_df.loc[early_cells, :])
+        start_cells = dm_boundaries[np.argmin(dists, axis=0)]
+    start_cells = start_cells.unique()
 
     # Sample waypoints
     print("Sampling and flocking waypoints...")
@@ -205,16 +207,16 @@ def run_palantir(
     waypoints = waypoints.union(dm_boundaries)
     if terminal_cells is not None:
         waypoints = waypoints.union(terminal_cells)
-    waypoints = pd.Index(waypoints.difference([start_cell]).unique())
+    waypoints = pd.Index(waypoints.difference(start_cells).unique())
 
-    # Append start cell
-    waypoints = pd.Index([start_cell]).append(waypoints)
+    # Append start cells
+    waypoints = start_cells.append(waypoints)
     end = time.time()
     print("Time for determining waypoints: {} minutes".format((end - start) / 60))
 
     # pseudotime and weighting matrix
     print("Determining pseudotime...")
-    pseudotime, W = _compute_pseudotime(data_df, start_cell, knn, waypoints, n_jobs, max_iterations)
+    pseudotime, W = _compute_pseudotime(data_df, start_cells, knn, waypoints, n_jobs, max_iterations)
 
     # Entropy and branch probabilities
     print("Entropy and branch probabilities...")
@@ -317,7 +319,7 @@ def _max_min_sampling(
 
 def _compute_pseudotime(
     data: pd.DataFrame,
-    start_cell: str,
+    start_cell: str | list[str],
     knn: int,
     waypoints: pd.Index,
     n_jobs: int,
@@ -333,8 +335,9 @@ def _compute_pseudotime(
     ----------
     data : pd.DataFrame
         Multiscale space diffusion components.
-    start_cell : str
-        Start cell for pseudotime construction.
+    start_cell : str | list[str]
+        Start cell for pseudotime construction, or a list of start cells, all of which
+        must be waypoints. With several, pseudotime starts from the nearest of them.
     knn : int
         Number of nearest neighbors for graph construction.
     waypoints : pd.Index
@@ -353,12 +356,15 @@ def _compute_pseudotime(
             Weight matrix for each cell.
     """
 
+    start_cells = list(start_cell) if pd.api.types.is_list_like(start_cell) else [start_cell]
+
     print("Shortest path distances using {}-nearest neighbor graph...".format(knn))
     start = time.time()
     nbrs = NearestNeighbors(n_neighbors=knn, metric="euclidean", n_jobs=n_jobs).fit(data)
     adj = nbrs.kneighbors_graph(data, mode="distance")
 
-    adj = _connect_graph(adj, data, np.where(data.index == start_cell)[0][0])
+    # Connecting from one start cell joins all components into one
+    adj = _connect_graph(adj, data, np.where(data.index == start_cells[0])[0][0])
 
     wp_indices = data.index.get_indexer(waypoints)
 
@@ -372,8 +378,8 @@ def _compute_pseudotime(
     W_vals = np.exp(-0.5 * np.power((D_vals / sdv), 2))
     W_vals = W_vals / W_vals.sum(axis=0, keepdims=True)
 
-    start_row = waypoints.get_loc(start_cell)
-    pseudotime = D_vals[start_row, :].copy()
+    start_rows = [waypoints.get_loc(cell) for cell in start_cells]
+    pseudotime = D_vals[start_rows, :].min(axis=0)
     converged = False
 
     iteration = 1
@@ -383,8 +389,8 @@ def _compute_pseudotime(
         t_cells = pseudotime[None, :]
         mask = t_cells < t_wp
         signs = np.where(mask, -1.0, 1.0)
-        t_wp[start_row] = 0.0
-        signs[start_row, :] = 1.0
+        t_wp[start_rows] = 0.0
+        signs[start_rows, :] = 1.0
         P_vals = D_vals * signs + t_wp
         new_traj_vals = np.sum(P_vals * W_vals, axis=0)
 
