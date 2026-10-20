@@ -6,14 +6,13 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import networkx as nx
 import time
 import copy
 
 from sklearn.metrics import pairwise_distances
 from sklearn import preprocessing
 from sklearn.neighbors import NearestNeighbors
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, effective_n_jobs
 from scipy.sparse.linalg import eigs, splu
 
 from scipy.sparse import csr_matrix, find, csgraph, eye
@@ -29,6 +28,9 @@ from .validation import normalize_cell_identifiers
 
 warnings.filterwarnings(action="ignore", message="scipy.cluster")
 warnings.filterwarnings(action="ignore", module="scipy", message="Changing the sparsity")
+
+# Cells per chunk in the pseudotime refinement; bounds its temporary arrays
+_CELL_CHUNK = 10_000
 
 def _get_joblib_backend():
     """
@@ -362,15 +364,32 @@ def _compute_pseudotime(
 
     wp_indices = data.index.get_indexer(waypoints)
 
-    dists = csgraph.dijkstra(adj, directed=False, indices=wp_indices)
+    # Dijkstra holds the GIL, so the waypoints are split over processes
+    n_chunks = min(effective_n_jobs(n_jobs), len(wp_indices))
+    if n_chunks > 1:
+        dists = np.vstack(
+            Parallel(n_jobs=n_chunks, backend=_get_joblib_backend())(
+                delayed(csgraph.dijkstra)(adj, directed=False, indices=chunk)
+                for chunk in np.array_split(wp_indices, n_chunks)
+            )
+        )
+    else:
+        dists = csgraph.dijkstra(adj, directed=False, indices=wp_indices)
     D_vals = np.asarray(dists, dtype=float)
     end = time.time()
     print("Time for shortest paths: {} minutes".format((end - start) / 60))
 
     print("Iteratively refining the pseudotime...")
     sdv = np.std(D_vals.ravel()) * 1.06 * len(D_vals.ravel()) ** (-1 / 5)
-    W_vals = np.exp(-0.5 * np.power((D_vals / sdv), 2))
-    W_vals = W_vals / W_vals.sum(axis=0, keepdims=True)
+    # Each cell's weights and pseudotime depend only on its own column, so work in chunks of cells.
+    # Equal sizes: a one-cell chunk would change numpy's summation order.
+    n_chunks = -(-D_vals.shape[1] // _CELL_CHUNK)
+    bounds = np.linspace(0, D_vals.shape[1], n_chunks + 1).astype(int)
+    chunks = [slice(a, b) for a, b in zip(bounds[:-1], bounds[1:])]
+    W_vals = np.empty_like(D_vals)
+    for c in chunks:
+        W_c = np.exp(-0.5 * np.power((D_vals[:, c] / sdv), 2))
+        W_vals[:, c] = W_c / W_c.sum(axis=0, keepdims=True)
 
     start_row = waypoints.get_loc(start_cell)
     pseudotime = D_vals[start_row, :].copy()
@@ -380,13 +399,13 @@ def _compute_pseudotime(
     wp_cell_indices = data.index.get_indexer(waypoints)
     while not converged and iteration < max_iterations:
         t_wp = pseudotime[wp_cell_indices][:, None]
-        t_cells = pseudotime[None, :]
-        mask = t_cells < t_wp
-        signs = np.where(mask, -1.0, 1.0)
         t_wp[start_row] = 0.0
-        signs[start_row, :] = 1.0
-        P_vals = D_vals * signs + t_wp
-        new_traj_vals = np.sum(P_vals * W_vals, axis=0)
+        new_traj_vals = np.empty_like(pseudotime)
+        for c in chunks:
+            signs = np.where(pseudotime[None, c] < t_wp, -1.0, 1.0)
+            signs[start_row, :] = 1.0
+            P_vals = D_vals[:, c] * signs + t_wp
+            new_traj_vals[c] = np.sum(P_vals * W_vals[:, c], axis=0)
 
         corr = pearsonr(pseudotime, new_traj_vals)[0]
         print("Correlation at iteration %d: %.4f" % (iteration, corr))
@@ -400,7 +419,7 @@ def _compute_pseudotime(
     pseudotime /= np.max(pseudotime)
 
     pseudotime_series = pd.Series(pseudotime, index=data.index)
-    W = pd.DataFrame(W_vals, index=waypoints, columns=data.index)
+    W = pd.DataFrame(W_vals, index=waypoints, columns=data.index, copy=False)
     return pseudotime_series, W
 
 
@@ -812,10 +831,9 @@ def _connect_graph(adj: csr_matrix, data: pd.DataFrame, start_cell: int) -> csr_
     csr_matrix
         Updated adjacency matrix with all cells connected.
     """
-    # Create graph and compute distances
-    graph = nx.Graph(adj)
-    dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell))
-    dists = pd.Series(dists.values, index=data.index[dists.index])
+    # Compute distances, keeping the reachable nodes
+    dists = pd.Series(csgraph.dijkstra(adj, directed=False, indices=start_cell), index=data.index)
+    dists = dists[np.isfinite(dists)]
 
     # Idenfity unreachable nodes
     unreachable_nodes = data.index.difference(dists.index)
@@ -841,9 +859,8 @@ def _connect_graph(adj: csr_matrix, data: pd.DataFrame, start_cell: int) -> csr_
         adj[farthest_reachable, add_edge] = unreachable_dists.min()
 
         # Recompute distances to early cell
-        graph = nx.Graph(adj)
-        dists = pd.Series(nx.single_source_dijkstra_path_length(graph, start_cell))
-        dists = pd.Series(dists.values, index=data.index[dists.index])
+        dists = pd.Series(csgraph.dijkstra(adj, directed=False, indices=start_cell), index=data.index)
+        dists = dists[np.isfinite(dists)]
 
         # Idenfity unreachable nodes
         unreachable_nodes = data.index.difference(dists.index)
