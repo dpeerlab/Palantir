@@ -75,6 +75,9 @@ Release Notes
 
  ### Version 1.4.6 (future)
 * Fix: drop the deprecated `copy` keyword of the `astype` call in `from_fcs` (`io.py`), avoiding `Pandas4Warning` on pandas >=3.0. `copy=False` was inert here — it can only skip an allocation when the frame is already `float64` — so the cast behaves identically on pandas 2 and 3.
+* Fix: pseudotime was NaN for every cell when one cell was more than ~38 bandwidths from every waypoint: all its waypoint weights underflowed to 0, and normalising them gave 0 / 0. The weights are now normalised with `scipy.special.softmax`, which gives the same values up to floating-point rounding (a few ulp) and stays finite.
+* Faster, leaner pseudotime on large data, with unchanged results: shortest paths from the waypoints run in `n_jobs` processes (serially when the joblib backend is threading), the connectivity check uses `scipy.sparse.csgraph` instead of networkx, and the refinement works in chunks of cells. networkx is no longer a runtime dependency (only the tests use it), and joblib >= 1.3 is required.
+* `run_palantir` and `identify_terminal_states` accept a list of early cells; pseudotime then starts from the nearest of them ([#146](https://github.com/dpeerlab/Palantir/issues/146)). A warning says when moving the early cells to the diffusion-component boundaries merges some of them, and when automatic detection finds no terminal state.
 
  ### Version 1.4.5
  * Fix: pandas 3 compatibility. Under pandas 3 (mandatory Copy-on-Write) `DataFrame.values` returns a read-only view, so several in-place mutations raised `ValueError: assignment destination is read-only`. `run_palantir` failed in `_differentiation_entropy` (terminal-state identity block, now built with `np.eye(...)`), and `select_branch_cells` failed on its NaN fill of the fate-probability array (now copied before mutation). Compatible with both pandas 2 and 3 ([#180](https://github.com/dpeerlab/Palantir/issues/180)).
