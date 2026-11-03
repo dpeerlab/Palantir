@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "palantir"
-version = "1.4.5"
+version = "1.4.6"
 description = "Palantir for modeling continuous cell state and cell fate choices in single cell data"
 authors = [
     {name = "Palantir development team", email = "manu.talanki@gmail.com"}
