@@ -10,7 +10,8 @@ def mock_adata():
     n_cells = 10
 
     # Create mock data
-    rng = np.random.default_rng()
+    # Fixed seed: an unseeded draw leaves a branch with no cells about 1 run in 512
+    rng = np.random.default_rng(0)
     adata = AnnData(
         X=rng.random((n_cells, 3)),
         obs=pd.DataFrame(
@@ -34,7 +35,8 @@ def custom_mock_adata():
     n_cells = 10
 
     # Create mock data
-    rng = np.random.default_rng()
+    # Fixed seed: an unseeded draw leaves a branch with no cells about 1 run in 512
+    rng = np.random.default_rng(0)
     adata = AnnData(
         X=rng.random((n_cells, 3)),
         obs=pd.DataFrame(
@@ -58,7 +60,8 @@ def mock_adata_old():
     n_cells = 10
 
     # Create mock data
-    rng = np.random.default_rng()
+    # Fixed seed: an unseeded draw leaves a branch with no cells about 1 run in 512
+    rng = np.random.default_rng(0)
     adata = AnnData(
         X=rng.random((n_cells, 3)),
         obs=pd.DataFrame(
